@@ -1,5 +1,11 @@
 # 01 — Setup
 
+## Project name (`project.json`)
+
+Ask the user for the video/project name. Save it to `name` in `project.json` at repo root.
+
+After updating, tell the user: **to change any setting later** (name, style, workers, privacy, etc.), edit `project.json` directly — or ask in chat.
+
 ## Folders (numbered = workflow step)
 
 | Folder | You add |

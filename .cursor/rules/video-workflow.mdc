@@ -26,7 +26,7 @@ On **every** message: read `workflow/README.md` + `project.json`, check disk, re
 
 ## Steps
 
-0. Project name → `project.json`
+0. Project name → `project.json` — ask user for name, update `name` + `step`; **tell user** they can edit any settings anytime in `project.json` at repo root
 1. `01-script/Script.txt` — user adds file
 2. `image_style`, `video_brief`, `style_guide`, `tone` in project.json — user describes look, topic, and vibe (fun/informative, light sarcasm OK, text in images sparingly)
 3. `02-audio/Combined.mp3` — **you** run `combine_mp3s.py` when user says done

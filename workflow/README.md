@@ -21,7 +21,7 @@ Assistant runs all scripts — user never gets terminal commands.
 
 | # | Need | Who |
 |---|------|-----|
-| 0 | `name` | User tells name |
+| 0 | `name` | User tells name → assistant saves to `project.json`; mention user can change any settings there |
 | 1 | `01-script/Script.txt` | User adds file, says **done** |
 | 2 | `image_style` | User describes style |
 | 3 | `02-audio/Combined.mp3` | User adds MP3s → assistant combines on **done** |
