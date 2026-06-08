@@ -1,0 +1,85 @@
+---
+description: Video production workflow — run on every chat
+alwaysApply: true
+---
+
+# Video project — always follow this
+
+On **every** message: read `workflow/README.md` + `project.json`, check disk, reply **short** (one step). User says **done** to advance.
+
+**You run all scripts.** Never tell the user to run terminal commands — run them yourself. Only ask the user for things you cannot do (add files, TurboScribe export, browser OAuth login, approvals).
+
+## Numbered folders
+
+| Folder | Step | Put here |
+|--------|------|----------|
+| `01-script/` | 1 | `Script.txt` |
+| — | 2 | style → `project.json` only |
+| `02-audio/` | 3 | narration MP3 → `Combined.mp3` |
+| `03-transcript/` | 4 | `transcript.txt` (TurboScribe) |
+| `04-manifest/` | 5 | auto-generated CSV + cut plan |
+| `05-images/` | 6 | generated PNG frames |
+| `06-output/` | 7 | `final.mp4` |
+| `07-upload/` | 8 | thumbnail, OAuth, upload metadata |
+
+`project.json` lives at repo root (not in a numbered folder).
+
+## Steps
+
+0. Project name → `project.json`
+1. `01-script/Script.txt` — user adds file
+2. `image_style`, `video_brief`, `style_guide`, `tone` in project.json — user describes look, topic, and vibe (fun/informative, light sarcasm OK, text in images sparingly)
+3. `02-audio/Combined.mp3` — **you** run `combine_mp3s.py` when user says done
+4. `03-transcript/transcript.txt` — user gets from turboscribe.com
+5. Build manifest — **you** run `build_plan.py`
+6. `style_approved: true` — user approves samples
+7. Images — **you** start `scripts/start_studio.sh` + `generate_images.py` (Studio UI only here)
+8. `06-output/final.mp4` — **you** run `render_draft_video.py`
+9. YouTube — **you** generate metadata + thumbnail, then upload (see below)
+10. Cleanup — **optional**; warn user to save outputs first, then **you** write + run a one-off Python reset script (see below)
+
+## Step 9 — Upload prep + publish (agent runs everything)
+
+When `06-output/final.mp4` exists:
+
+### A. Generate title + description (you write these)
+
+Read `01-script/Script.txt`, `03-transcript/transcript.txt`, and `project.json` → `name`.
+
+**You** draft and save:
+- `title` — under 100 chars, specific, click-worthy (not generic)
+- `description` — hook line, 2–3 short paragraphs, optional timestamps
+- `tags` — 5–15 relevant tags (array)
+- `privacy` — default `public` unless user said otherwise
+
+Save to **`project.json`** and **`07-upload/upload_metadata.json`**. Show user title + description briefly; revise if they ask.
+
+### B. Generate thumbnail (you run script)
+
+**You** run: `python3 scripts/05_publish/generate_thumbnail.py`
+
+Output: `07-upload/thumbnail.png` (uses `image_style` + title). Show user the thumbnail path; regenerate if they reject.
+
+### C. Upload
+
+1. **You** run: `pip3 install -r 07-upload/requirements-youtube.txt`
+2. No `07-upload/youtube_token.json`? **You** run `--auth-only` — user completes browser popup only
+3. **You** run `upload_to_youtube.py` (reads title/description/tags/privacy from `project.json` automatically)
+4. Save `youtube_video_id` to `project.json`, set `step: "upload"`
+
+Never paste commands to the user.
+
+## Step 10 — Cleanup (optional, after upload)
+
+**No pre-built cleanup script in the repo.** When the user wants a fresh workspace for the next video:
+
+1. **Warn first** — tell the user cleanup is destructive. They must save anything they want to keep **before** confirming:
+   - `06-output/final.mp4`
+   - YouTube URL / `youtube_video_id`
+   - `title`, `description`, `tags` from `project.json` or `07-upload/upload_metadata.json`
+   - `07-upload/thumbnail.png`, script, or other assets
+2. **Wait** for explicit confirmation (e.g. “yes, clean up” / **done**) — never run cleanup unprompted.
+3. **Write a one-off Python script on the fly** (e.g. under `scripts/` or `/tmp`), tailored to current folders — clear `01-script/` through `06-output/` generated content, reset `project.json` to a blank template, keep `07-upload/` OAuth files if still useful. Delete the temp script after it runs unless the user asks to keep it.
+4. **You** run that script. Set `step: "setup"` (or equivalent) when finished.
+
+Studio UI **only** step 7. Manifest cuts ~2s, up to 4s, from transcript.

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Tracker</title>
+  <style>
+    :root {
+      --bg: #0f1114; --card: #1a1d23; --ink: #e8eaed; --muted: #9aa0a6;
+      --line: #2d3139; --accent: #3dd6c6; --warn: #f4a261; --bad: #e76f51; --done: #52b788;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
+    h1 { margin: 0; font-size: 1.3rem; }
+    .sub { color: var(--muted); font-size: 0.85rem; margin: 4px 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+    .stat .n { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat .l { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .card h2 { margin: 0 0 10px; font-size: 0.95rem; }
+    .bar { height: 10px; background: #2a2f38; border-radius: 99px; overflow: hidden; }
+    .fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s; }
+    .fill.warn { background: var(--warn); }
+    .fill.bad { background: var(--bad); }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 99px; font-size: 0.78rem; background: #24302e; color: var(--accent); }
+    .pill.stop { background: #3a2220; color: var(--bad); }
+    .pill.idle { background: #252830; color: var(--muted); }
+    .viewer { aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .viewer img { width: 100%; height: 100%; object-fit: contain; }
+    .filmstrip { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; }
+    .filmstrip img { height: 54px; border-radius: 4px; cursor: pointer; opacity: 0.7; }
+    .filmstrip img.on { opacity: 1; outline: 2px solid var(--accent); }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 id="title">Image Tracker</h1>
+    <p class="sub" id="subtitle">Generating frames…</p>
+
+    <div class="grid">
+      <div class="stat"><div class="n" id="s-done">0</div><div class="l">Generated</div></div>
+      <div class="stat"><div class="n" id="s-total">0</div><div class="l">Total frames</div></div>
+      <div class="stat"><div class="n" id="s-pending">0</div><div class="l">Pending</div></div>
+      <div class="stat"><div class="n" id="s-workers">—</div><div class="l">Workers</div></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span class="pill idle" id="phase">idle</span>
+        <span class="muted" id="elapsed">—</span>
+      </div>
+      <div class="bar" style="margin-top:10px"><div class="fill" id="bar"></div></div>
+      <p class="muted" id="meta" style="margin-top:8px">—</p>
+    </div>
+
+    <div class="card">
+      <h2>Codex credits</h2>
+      <p class="muted" id="c5">—</p>
+      <div class="bar"><div class="fill" id="bar5"></div></div>
+      <p class="muted" id="cw" style="margin-top:8px">—</p>
+      <div class="bar"><div class="fill" id="barw"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Latest frame</h2>
+      <div class="viewer" id="viewer"><span class="muted">Waiting for frames…</span></div>
+      <p class="muted" id="frame-info" style="margin-top:8px"></p>
+      <div class="filmstrip" id="strip"></div>
+    </div>
+  </div>
+
+  <script>
+    let startedAt = null;
+
+    function fmtDuration(sec) {
+      if (!sec || sec < 0) return "—";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h) return `${h}h ${m}m`;
+      if (m) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function setCreditBar(el, pct) {
+      el.style.width = `${Math.max(0, pct)}%`;
+      el.classList.toggle("bad", pct <= 10);
+      el.classList.toggle("warn", pct > 10 && pct <= 25);
+    }
+
+    function showFrame(name, info) {
+      const v = document.getElementById("viewer");
+      if (!name) { v.innerHTML = '<span class="muted">Waiting for frames…</span>'; return; }
+      v.innerHTML = `<img src="/05-images/${name}?t=${Date.now()}" alt="">`;
+      document.getElementById("frame-info").textContent = info || name;
+      document.querySelectorAll("#strip img").forEach(img => {
+        img.classList.toggle("on", img.dataset.name === name);
+      });
+    }
+
+    async function load() {
+      const res = await fetch("/api/status?t=" + Date.now());
+      const d = await res.json();
+      const p = d.project || {};
+      const dash = d.dashboard || {};
+      const run = d.runner || {};
+      const usage = d.usage || {};
+
+      document.getElementById("title").textContent = p.name ? `${p.name} — Image Tracker` : "Image Tracker";
+      document.getElementById("s-done").textContent = dash.done_frames ?? 0;
+      document.getElementById("s-total").textContent = dash.total_frames ?? 0;
+      document.getElementById("s-pending").textContent = dash.pending_frames ?? 0;
+      document.getElementById("s-workers").textContent = run.workers ?? p.workers ?? "—";
+
+      const pct = dash.percent ?? 0;
+      document.getElementById("bar").style.width = `${pct}%`;
+      document.getElementById("subtitle").textContent = `${pct}% complete`;
+
+      const phase = run.phase || "idle";
+      const pill = document.getElementById("phase");
+      pill.textContent = phase;
+      pill.className = "pill" + (phase.includes("stop") ? " stop" : phase === "running" ? "" : " idle");
+
+      if (run.started_at) startedAt = run.started_at;
+      const elapsed = startedAt ? Math.floor(Date.now() / 1000) - startedAt : 0;
+      const done = dash.done_frames || 0;
+      let eta = "";
+      if (elapsed > 60 && done > 0 && dash.pending_frames > 0) {
+        const rate = done / elapsed;
+        const remain = Math.round(dash.pending_frames / rate);
+        eta = ` · ~${fmtDuration(remain)} left`;
+      }
+      document.getElementById("elapsed").textContent =
+        phase === "running" ? `Elapsed ${fmtDuration(elapsed)}${eta}` : (run.stop_reason || "");
+
+      document.getElementById("meta").textContent = [
+        `${run.running_jobs || 0} active workers`,
+        run.completed_jobs ? `${run.completed_jobs} done this run` : "",
+        run.failed_jobs ? `${run.failed_jobs} failed` : "",
+      ].filter(Boolean).join(" · ") || "Not running";
+
+      if (usage.five_hour) {
+        document.getElementById("c5").textContent = `5h: ${usage.five_hour.remaining_percent.toFixed(0)}% · resets ${usage.five_hour.reset_in}`;
+        setCreditBar(document.getElementById("bar5"), usage.five_hour.remaining_percent);
+        document.getElementById("cw").textContent = `Weekly: ${usage.weekly.remaining_percent.toFixed(0)}% · resets ${usage.weekly.reset_in}`;
+        setCreditBar(document.getElementById("barw"), usage.weekly.remaining_percent);
+      }
+
+      const names = (d.recent?.recent_filenames) || [];
+      const strip = document.getElementById("strip");
+      strip.innerHTML = names.map(n =>
+        `<img src="/05-images/${n}?t=${Date.now()}" data-name="${n}" alt="">`
+      ).join("");
+      strip.querySelectorAll("img").forEach(img => {
+        img.onclick = () => showFrame(img.dataset.name, img.dataset.name);
+      });
+      if (names.length) showFrame(names[0], names[0]);
+    }
+
+    load();
+    setInterval(load, 2000);
+  </script>
+</body>
+</html>

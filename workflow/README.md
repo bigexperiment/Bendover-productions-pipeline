@@ -1,0 +1,54 @@
+# Workflow
+
+Cursor loads `.cursor/rules/video-workflow.mdc` on every chat.
+
+## Numbered folders
+
+| # | Folder | Contents |
+|---|--------|----------|
+| 1 | `01-script/` | `Script.txt` — written script |
+| 2 | — | `image_style` in `project.json` (repo root) |
+| 3 | `02-audio/` | narration MP3 + `Combined.mp3` |
+| 4 | `03-transcript/` | `transcript.txt` — TurboScribe timestamps |
+| 5 | `04-manifest/` | frame list CSV, cut plan (auto-generated) |
+| 6 | `05-images/` | generated PNG frames |
+| 7 | `06-output/` | rendered MP4 |
+| 8 | `07-upload/` | YouTube OAuth, token, thumbnail |
+
+## Chat steps
+
+Assistant runs all scripts — user never gets terminal commands.
+
+| # | Need | Who |
+|---|------|-----|
+| 0 | `name` | User tells name |
+| 1 | `01-script/Script.txt` | User adds file, says **done** |
+| 2 | `image_style` | User describes style |
+| 3 | `02-audio/Combined.mp3` | User adds MP3s → assistant combines on **done** |
+| 4 | `03-transcript/transcript.txt` | User saves TurboScribe export, says **done** |
+| 5 | `04-manifest/` | Assistant builds |
+| 6 | `style_approved` | User approves samples |
+| 7 | all frames in `05-images/` | Assistant starts studio + generates |
+| 8 | `06-output/final.mp4` | Assistant renders |
+| 9 | `youtube_video_id` | Assistant writes title/description/tags, generates thumbnail, uploads (user: approve + OAuth popup if first time) |
+| 10 | fresh workspace | Optional cleanup — assistant warns user to save outputs, then writes + runs Python reset on the fly |
+
+## Step docs
+
+| Step | Doc | Script |
+|------|-----|--------|
+| Setup | [steps/01-setup.md](steps/01-setup.md) | — |
+| Audio | [steps/02-audio.md](steps/02-audio.md) | `scripts/01_audio/combine_mp3s.py` |
+| Transcript | [steps/03-transcript.md](steps/03-transcript.md) | — |
+| Manifest | [steps/04-manifest.md](steps/04-manifest.md) | `scripts/02_manifest/build_plan.py` |
+| Images | [steps/04-images.md](steps/04-images.md) | `scripts/03_images/generate_images.py` |
+| Render | [steps/05-render.md](steps/05-render.md) | `scripts/04_render/render_draft_video.py` |
+| Upload | [steps/06-publish.md](steps/06-publish.md) | `scripts/05_publish/upload_to_youtube.py` |
+| Cleanup | [steps/08-cleanup.md](steps/08-cleanup.md) | none — assistant generates Python on the fly |
+
+```bash
+scripts/start_studio.sh
+scripts/status_studio.sh
+```
+
+**Rules:** [rules.md](rules.md)
