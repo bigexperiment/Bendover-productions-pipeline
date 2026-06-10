@@ -45,7 +45,7 @@ scripts/start_studio.sh
 - **Cleanup (optional, step 10):**
   - Warn user cleanup deletes project artifacts — they must save `final.mp4`, YouTube link, metadata, thumbnail, script, etc. **before** confirming
   - Wait for explicit user OK
-  - Write a one-off Python reset script on the fly (no repo cleanup script); run it yourself; reset `project.json` for the next video
+  - Write a one-off Python reset script on the fly (no repo cleanup script); run it yourself; reset `project.json` with `scripts/lib/project_template.py` → `reset_project_dict()` so style prefs survive
 
 ## Ask first
 

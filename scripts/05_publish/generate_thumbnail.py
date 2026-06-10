@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.folders import DIR_UPLOAD, SCRIPT_FILE, TRANSCRIPT_FILE, YOUTUBE_THUMBNAIL  # noqa: E402
+from lib.image_prompt import DEFAULT_IMAGE_STYLE, build_image_prompt_body  # noqa: E402
 
 PROJECT_FILE = ROOT / "project.json"
 
@@ -31,30 +32,24 @@ def read_snippet(path: Path, limit: int = 800) -> str:
 def build_prompt(project: dict) -> str:
     name = project.get("name") or project.get("title") or "video"
     title = project.get("title") or name
-    style = project.get("image_style", "minimal cartoon, stick figures, bold outlines, flat colors")
     script_bit = read_snippet(SCRIPT_FILE)
-    transcript_bit = read_snippet(TRANSCRIPT_FILE, 500)
+    scene = (
+        f"YouTube thumbnail for \"{title}\". "
+        f"One bold focal scene about: {name}. "
+        f"Large headline text on image (3–6 words max). "
+        f"Script excerpt: {script_bit or '(none)'}"
+    )
+    body = build_image_prompt_body(project, scene)
 
-    return f"""Generate exactly one YouTube thumbnail image and save it to 07-upload/thumbnail.png.
+    return f"""{body}
 
-Requirements:
-- Use the built-in image_gen tool exactly once.
-- 16:9 landscape (1280×720 style), bold and readable at small size.
-- Visual style: {style}
-- One clear focal scene — max 2–3 elements.
-- Large, short headline text on the image (3–6 words max) related to: {title}
-- High contrast, click-worthy, no clutter, no watermarks.
-
-Video topic: {name}
-Title: {title}
-Script excerpt: {script_bit or "(none)"}
-Transcript excerpt: {transcript_bit or "(none)"}
-
-After generating:
-1. Ensure the file exists at {ROOT}/07-upload/thumbnail.png
-2. Do not generate any other files.
-
-Do not generate more than one image.
+Thumbnail output:
+- Use the built-in image_gen tool exactly once
+- 16:9 landscape (1280×720 style), bold and readable at small size
+- High contrast, click-worthy, no clutter, no watermarks
+- Save to: 07-upload/thumbnail.png
+- After generating, ensure the file exists at {ROOT}/07-upload/thumbnail.png
+- Do not generate any other files
 """
 
 
@@ -69,8 +64,6 @@ def main() -> int:
         "exec",
         "--enable",
         "image_generation",
-        "-m",
-        "gpt-5.4-Mini",
         "-s",
         "workspace-write",
         "--dangerously-bypass-approvals-and-sandbox",

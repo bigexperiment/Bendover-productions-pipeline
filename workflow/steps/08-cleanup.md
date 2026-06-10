@@ -21,7 +21,9 @@ Wait for explicit confirmation. Do not run cleanup unprompted.
 1. Write a one-off Python script (tailored to current folder layout — see `scripts/lib/folders.py`)
 2. Script should typically:
    - Clear generated content in `01-script/` … `06-output/` (and tracker logs if needed)
-   - Reset `project.json` to a blank template (`step: "setup"`, empty name/title, etc.)
+   - Reset `project.json` via **`scripts/lib/project_template.py`** → `reset_project_dict(current)` (never hand-roll a blank template)
+   - That helper **preserves** `image_style`, `style_guide`, `tone`, `workers`, `privacy` — or restores repo defaults if empty
+   - Clears per-video fields: `name`, `title`, `description`, `tags`, `video_brief`, `style_approved`, `youtube_video_id`
    - **Keep** `07-upload/` OAuth token + `client_secret` unless user says otherwise
 3. Run the script yourself
 4. Delete the temp script after success (unless user asks to keep it)

@@ -79,8 +79,50 @@ def scene_prefix() -> str:
     if PROJECT_FILE.is_file():
         style = json.loads(PROJECT_FILE.read_text(encoding="utf-8")).get("image_style", "")
         if style:
-            return style.split(",")[0].strip()
-    return "Minimal explainer scene"
+            return "Educational stickman cartoon scene"
+    return "Educational stickman cartoon scene"
+
+
+def strip_turboscribe_boilerplate(text: str) -> str:
+    chunks: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("(Transcribed by TurboScribe"):
+            continue
+        chunks.append(stripped)
+    return " ".join(chunks)
+
+
+def parse_plain_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
+    cleaned = strip_turboscribe_boilerplate(text)
+    sentences = split_sentences(cleaned)
+    if not sentences:
+        raise ValueError("Transcript is empty after removing TurboScribe boilerplate")
+
+    total_weight = sum(len(sentence) for sentence in sentences) or 1
+    segments: list[SpeechSegment] = []
+    cursor = 0
+
+    for index, sentence in enumerate(sentences):
+        if index == len(sentences) - 1:
+            end = audio_end
+        else:
+            share = len(sentence) / total_weight
+            end = min(audio_end, cursor + max(MIN_SECONDS, round(audio_end * share)))
+        if end <= cursor:
+            end = min(audio_end, cursor + 1)
+        segments.append(SpeechSegment(cursor, end, sentence))
+        cursor = end
+
+    return segments
+
+
+def parse_transcript(text: str, audio_end: int) -> tuple[list[SpeechSegment], str]:
+    if MARKER_RE.search(text):
+        return parse_timestamped_transcript(text, audio_end), "timestamped"
+    return parse_plain_transcript(text, audio_end), "plain"
 
 
 def parse_timestamped_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
@@ -353,7 +395,7 @@ def build_all() -> int:
     duration = audio_seconds()
     audio_end = int(round(duration))
     text = TRANSCRIPT_FILE.read_text(encoding="utf-8").strip()
-    segments = parse_timestamped_transcript(text, audio_end)
+    segments, source = parse_transcript(text, audio_end)
     frames = pack_frames(segments)
     write_plan(frames)
 
@@ -365,7 +407,7 @@ def build_all() -> int:
     avg = sum(durations) / len(durations) if durations else 0
     plan_rows = parse_plan_file()
     total, done, pending = write_manifest(plan_rows)
-    print(f"Wrote {PLAN_FILE} — {len(frames)} frames from timestamped transcript")
+    print(f"Wrote {PLAN_FILE} — {len(frames)} frames from {source} transcript")
     print(f"Wrote {MANIFEST_FILE} — {total} rows ({done} done, {pending} pending)")
     print(f"Audio ~{audio_end}s · avg frame duration {avg:.1f}s (target {TARGET_SECONDS}s, max {MAX_SECONDS}s)")
     print(render_bar(done, total))

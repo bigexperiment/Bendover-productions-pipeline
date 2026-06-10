@@ -67,8 +67,6 @@ def launch_job(job: FrameJob, project: dict) -> subprocess.Popen[str]:
         "exec",
         "--enable",
         "image_generation",
-        "-m",
-        "gpt-5.4-Mini",
         "-s",
         "workspace-write",
         "--dangerously-bypass-approvals-and-sandbox",

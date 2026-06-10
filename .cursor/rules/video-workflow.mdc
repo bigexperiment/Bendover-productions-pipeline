@@ -79,7 +79,7 @@ Never paste commands to the user.
    - `title`, `description`, `tags` from `project.json` or `07-upload/upload_metadata.json`
    - `07-upload/thumbnail.png`, script, or other assets
 2. **Wait** for explicit confirmation (e.g. “yes, clean up” / **done**) — never run cleanup unprompted.
-3. **Write a one-off Python script on the fly** (e.g. under `scripts/` or `/tmp`), tailored to current folders — clear `01-script/` through `06-output/` generated content, reset `project.json` to a blank template, keep `07-upload/` OAuth files if still useful. Delete the temp script after it runs unless the user asks to keep it.
+3. **Write a one-off Python script on the fly** (e.g. under `scripts/` or `/tmp`), tailored to current folders — clear `01-script/` through `06-output/` generated content, reset `project.json` with `scripts/lib/project_template.py` → `reset_project_dict(current)` (preserves `image_style`, `style_guide`, `tone`, `workers`, `privacy`; clears name/title/tags/`video_brief`/`style_approved`/etc.). Keep `07-upload/` OAuth files if still useful. Delete the temp script after it runs unless the user asks to keep it.
 4. **You** run that script. Set `step: "setup"` (or equivalent) when finished.
 
 Studio UI **only** step 7. Manifest cuts ~2s, up to 4s, from transcript.

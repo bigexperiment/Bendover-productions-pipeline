@@ -73,7 +73,12 @@ def load_project() -> dict:
         "description": "",
         "privacy": "public",
         "workers": 5,
-        "image_style": "minimal cartoon, stick figures, bold outlines, flat colors, 16:9",
+        "image_style": (
+            "simple educational cartoon illustration, hand-drawn doodle animation style, "
+            "thick black outlines, flat colors, minimal shading, stickman characters, "
+            "round white heads, expressive faces, thin black limbs, simple YouTube explainer "
+            "animation style, clean background, limited colors, humorous but clear."
+        ),
         "style_approved": False,
         "youtube_video_id": None,
     })

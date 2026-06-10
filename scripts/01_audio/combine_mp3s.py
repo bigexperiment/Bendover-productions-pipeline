@@ -74,6 +74,40 @@ def single_audio_files() -> list[Path]:
     )
 
 
+def concat_singles(files: list[Path]) -> None:
+    list_path = AUDIO_DIR / "mp3_concat_list.txt"
+    lines = [f"file '{path.name}'" for path in files]
+    list_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(list_path),
+                "-af",
+                "loudnorm=I=-16:TP=-1.5:LRA=11",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "192k",
+                str(TEMP_FILE),
+            ],
+            check=True,
+            cwd=str(AUDIO_DIR),
+        )
+        TEMP_FILE.replace(COMBINED)
+    finally:
+        if list_path.exists():
+            list_path.unlink()
+        if TEMP_FILE.exists():
+            TEMP_FILE.unlink()
+
+
 def main() -> int:
     AUDIO_DIR.mkdir(exist_ok=True)
     if COMBINED_NORMALIZED.exists():
@@ -88,6 +122,11 @@ def main() -> int:
     if len(singles) == 1:
         normalize_to_output(singles[0], COMBINED)
         print(f"Wrote {COMBINED} from {singles[0]}")
+        return 0
+
+    if len(singles) > 1:
+        concat_singles(singles)
+        print(f"Wrote {COMBINED} from {len(singles)} files in 02-audio/")
         return 0
 
     if COMBINED.is_file():

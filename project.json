@@ -1,15 +1,15 @@
 {
-  "name": "",
-  "step": "setup",
+  "name": "How Did Ancient Humans Migrate",
+  "step": "manifest",
   "title": "",
   "description": "",
   "tags": [],
   "privacy": "public",
   "workers": 5,
-  "image_style": "",
-  "video_brief": "",
-  "style_guide": "",
-  "tone": "",
+  "image_style": "simple educational cartoon illustration, hand-drawn doodle animation style, thick black outlines, flat colors, minimal shading, stickman characters, round white heads, expressive faces, thin black limbs, simple YouTube explainer animation style, clean background, limited colors, humorous but clear.",
+  "video_brief": "Educational YouTube explainer titled \"How Did Ancient Humans Migrate\". Each frame is a still illustration synced to narration — not a standalone poster. Illustrate the idea being spoken at this moment.",
+  "style_guide": "- Show only one main idea.\n- Characters should have exaggerated emotions.\n- Use arrows, labels, motion lines, or impact stars if helpful.\n- Keep the background simple.\n- Make it easy to understand in 1 second.\n- No realism, no cinematic lighting, no detailed textures, no 3D.",
+  "tone": "Informative but fun to watch — never boring. Light humor or dry sarcasm is fine when it helps the point land, but don't force a joke into every frame.",
   "style_approved": false,
   "youtube_video_id": null
 }
