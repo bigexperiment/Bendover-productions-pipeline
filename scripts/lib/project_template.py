@@ -1,11 +1,12 @@
 """Default and reset templates for project.json."""
 from __future__ import annotations
 
-from lib.image_prompt import DEFAULT_IMAGE_STYLE, DEFAULT_STYLE_GUIDE, DEFAULT_TONE
+from lib.image_prompt import DEFAULT_IMAGE_STYLE, DEFAULT_STYLE_GUIDE, DEFAULT_TEXT_RULES, DEFAULT_TONE
 
 STYLE_PERSIST_KEYS = (
     "image_style",
     "style_guide",
+    "text_rules",
     "tone",
     "workers",
     "privacy",
@@ -19,6 +20,7 @@ def default_style_prefs() -> dict:
     return {
         "image_style": DEFAULT_IMAGE_STYLE,
         "style_guide": DEFAULT_STYLE_GUIDE,
+        "text_rules": DEFAULT_TEXT_RULES,
         "tone": DEFAULT_TONE,
         "workers": DEFAULT_WORKERS,
         "privacy": DEFAULT_PRIVACY,

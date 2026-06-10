@@ -13,10 +13,16 @@ DEFAULT_IMAGE_STYLE = (
 
 DEFAULT_STYLE_GUIDE = """- Show only one main idea.
 - Characters should have exaggerated emotions.
-- Use arrows, labels, motion lines, or impact stars if helpful.
+- Prefer visual storytelling: expressions, poses, symbols, arrows, motion lines, impact stars.
 - Keep the background simple.
-- Make it easy to understand in 1 second.
+- Make it easy to understand in 1 second without reading.
 - No realism, no cinematic lighting, no detailed textures, no 3D."""
+
+DEFAULT_TEXT_RULES = """- Default: NO text — no speech bubbles, captions, subtitles, titles, or labels.
+- The viewer hears narration; the image should not repeat or paraphrase it in writing.
+- Use text only when absolutely necessary and the idea cannot be shown visually (rare).
+- If you must use text: 1–3 words max, large and bold, part of the scene (sign, map label) — never a sentence.
+- Never add text just for humor or emphasis when expression/action would work."""
 
 DEFAULT_TONE = (
     "Informative but fun to watch — never boring. "
@@ -44,6 +50,15 @@ def style_rules(project: dict) -> str:
     if custom:
         return custom
     return DEFAULT_STYLE_GUIDE
+
+
+def text_rules(project: dict) -> str:
+    custom = (project.get("text_rules") or "").strip()
+    if custom.startswith("-"):
+        return custom
+    if custom:
+        return custom
+    return DEFAULT_TEXT_RULES
 
 
 def project_brief(project: dict) -> str:
@@ -79,7 +94,10 @@ Scene:
 {scene}
 
 Important:
-{style_rules(project)}"""
+{style_rules(project)}
+
+Text (sparingly — default none):
+{text_rules(project)}"""
 
 
 def build_frame_prompt(project: dict, job: FrameJob, root: Path, manifest_script: Path) -> str:
