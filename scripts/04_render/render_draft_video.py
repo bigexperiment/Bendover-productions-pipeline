@@ -10,7 +10,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
-from lib.audio_paths import COMBINED, COMBINED_NORMALIZED  # noqa: E402
+from lib.audio_paths import find_narration_audio  # noqa: E402
 from lib.folders import DIR_IMAGES as IMAGES_DIR, FINAL_MP4  # noqa: E402
 
 DEFAULT_OUTPUT = FINAL_MP4
@@ -132,7 +132,7 @@ def render_video(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Render a draft MP4 from timestamped images and Combined.mp3."
+        description="Render a draft MP4 from timestamped images and 02-audio/ narration."
     )
     parser.add_argument(
         "--limit",
@@ -150,11 +150,11 @@ def main() -> int:
         "--audio",
         type=Path,
         default=None,
-        help="Audio track to mux. Defaults to Combined_normalized.mp3 if present, else Combined.mp3.",
+        help="Audio track to mux. Defaults to the single file in 02-audio/.",
     )
     args = parser.parse_args()
 
-    audio_file = args.audio or (COMBINED_NORMALIZED if COMBINED_NORMALIZED.exists() else COMBINED)
+    audio_file = args.audio or find_narration_audio()
     if not audio_file.exists():
         raise FileNotFoundError(f"Missing audio file: {audio_file}")
 

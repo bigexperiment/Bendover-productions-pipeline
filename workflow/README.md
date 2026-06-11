@@ -6,10 +6,10 @@ Cursor loads `.cursor/rules/video-workflow.mdc` on every chat.
 
 | # | Folder | Contents |
 |---|--------|----------|
-| 1 | `01-script/` | `Script.txt` — written script |
+| 1 | `01-script/` | `Script.txt` — empty by default; user pastes script |
 | 2 | — | `image_style` in `project.json` (repo root) |
-| 3 | `02-audio/` | narration MP3 + `Combined.mp3` |
-| 4 | `03-transcript/` | `transcript.txt` — TurboScribe timestamps |
+| 3 | `02-audio/` | one narration MP3 (e.g. `narration.mp3`) |
+| 4 | `03-transcript/` | `transcript.txt` — empty by default; TurboScribe export |
 | 5 | `04-manifest/` | frame list CSV, cut plan (auto-generated) |
 | 6 | `05-images/` | generated PNG frames |
 | 7 | `06-output/` | rendered MP4 |
@@ -22,10 +22,10 @@ Assistant runs all scripts — user never gets terminal commands.
 | # | Need | Who |
 |---|------|-----|
 | 0 | `name` | User tells name → assistant saves to `project.json`; mention user can change any settings there |
-| 1 | `01-script/Script.txt` | User adds file, says **done** |
+| 1 | `01-script/Script.txt` | User pastes script into empty file, says **done** |
 | 2 | `image_style` | User describes style |
-| 3 | `02-audio/Combined.mp3` | User adds MP3s → assistant combines on **done** |
-| 4 | `03-transcript/transcript.txt` | User saves TurboScribe export, says **done** |
+| 3 | one file in `02-audio/` | User adds narration MP3, says **done** |
+| 4 | `03-transcript/transcript.txt` | User pastes TurboScribe export into empty file, says **done** |
 | 5 | `04-manifest/` | Assistant builds |
 | 6 | `style_approved` | User approves samples |
 | 7 | all frames in `05-images/` | Assistant starts studio + generates |
@@ -38,7 +38,7 @@ Assistant runs all scripts — user never gets terminal commands.
 | Step | Doc | Script |
 |------|-----|--------|
 | Setup | [steps/01-setup.md](steps/01-setup.md) | — |
-| Audio | [steps/02-audio.md](steps/02-audio.md) | `scripts/01_audio/combine_mp3s.py` |
+| Audio | [steps/02-audio.md](steps/02-audio.md) | — |
 | Transcript | [steps/03-transcript.md](steps/03-transcript.md) | — |
 | Manifest | [steps/04-manifest.md](steps/04-manifest.md) | `scripts/02_manifest/build_plan.py` |
 | Images | [steps/04-images.md](steps/04-images.md) | `scripts/03_images/generate_images.py` |

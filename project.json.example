@@ -1,0 +1,16 @@
+{
+  "name": "",
+  "step": "setup",
+  "title": "",
+  "description": "",
+  "tags": [],
+  "video_brief": "",
+  "style_approved": false,
+  "youtube_video_id": null,
+  "image_style": "simple educational cartoon illustration, hand-drawn doodle animation style, thick black outlines, flat colors, minimal shading, stickman characters, round white heads, expressive faces, thin black limbs, simple YouTube explainer animation style, clean background, limited colors, humorous but clear.",
+  "style_guide": "- Show only one main idea.\n- Characters should have exaggerated emotions.\n- Prefer visual storytelling: expressions, poses, symbols, arrows, motion lines, impact stars.\n- Keep the background simple.\n- Make it easy to understand in 1 second without reading.\n- No realism, no cinematic lighting, no detailed textures, no 3D.",
+  "text_rules": "- Default: NO text — no speech bubbles, captions, subtitles, titles, or labels.\n- The viewer hears narration; the image should not repeat or paraphrase it in writing.\n- Use text only when absolutely necessary and the idea cannot be shown visually (rare).\n- If you must use text: 1–3 words max, large and bold, part of the scene (sign, map label) — never a sentence.\n- Never add text just for humor or emphasis when expression/action would work.",
+  "tone": "Informative but fun to watch — never boring. Light humor or dry sarcasm is fine when it helps the point land, but don't force a joke into every frame.",
+  "workers": 5,
+  "privacy": "public"
+}

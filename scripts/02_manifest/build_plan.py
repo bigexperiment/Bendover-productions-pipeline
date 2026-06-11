@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Build image_cut_plan.txt from a timestamped transcript (TurboScribe format).
 
-Target ~2s per frame, intelligently up to 4s at natural speech breaks.
+Target ~2s per frame, intelligently up to 3s at natural speech breaks.
 """
 from __future__ import annotations
 
 import csv
 import json
+import math
 import re
 import subprocess
 import sys
@@ -16,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from lib.audio_paths import COMBINED, COMBINED_NORMALIZED  # noqa: E402
+from lib.audio_paths import find_narration_audio  # noqa: E402
 from lib.folders import (  # noqa: E402
     DIR_IMAGES as IMAGES_DIR,
     MANIFEST_FILE,
@@ -28,9 +29,19 @@ PROJECT_FILE = ROOT / "project.json"
 
 MIN_SECONDS = 2
 TARGET_SECONDS = 2
-MAX_SECONDS = 4
+MAX_SECONDS = 3
 
-MARKER_RE = re.compile(r"\((\d+):(\d{2})\)")
+# Inline: (0:00) text (0:04) more text
+INLINE_MARKER_RE = re.compile(r"\((\d+):(\d{2})\)")
+# Line-start TurboScribe section timestamps: [0:00:05] or [0:05:30.5]
+LINE_HMS_RE = re.compile(r"^\[(\d+):(\d{2}):(\d{2}(?:\.\d+)?)\]\s*(.*)$")
+LINE_MS_RE = re.compile(r"^\[(\d+):(\d{2})\]\s*(.*)$")
+# Seconds range: [2060.00 – 2065.00] text
+LINE_RANGE_RE = re.compile(r"^\[(\d+(?:\.\d+)?)\s*[–\-]\s*(\d+(?:\.\d+)?)\]\s*(.*)$")
+LINE_PAREN_RE = re.compile(r"^\((\d+):(\d{2})\)\s*(.*)$")
+SRT_BLOCK_RE = re.compile(
+    r"(\d+)\s*\n(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*\n([\s\S]*?)(?=\n\d+\s*\n|\Z)"
+)
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 PLAN_LINE_RE = re.compile(r"^\[(\d+):(\d{2})\]\s+(.*?)\s+\|\s+Transcript:\s+(.*)$")
 
@@ -54,25 +65,23 @@ class FramePlan:
 
 
 def audio_seconds() -> float:
-    for candidate in (COMBINED_NORMALIZED, COMBINED):
-        if candidate.is_file():
-            result = subprocess.run(
-                [
-                    "ffprobe",
-                    "-v",
-                    "error",
-                    "-show_entries",
-                    "format=duration",
-                    "-of",
-                    "default=noprint_wrappers=1:nokey=1",
-                    str(candidate),
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            return float(result.stdout.strip())
-    raise FileNotFoundError("Run combine_mp3s.py first — need 02-audio/Combined.mp3")
+    candidate = find_narration_audio()
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(candidate),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return float(result.stdout.strip())
 
 
 def scene_prefix() -> str:
@@ -81,6 +90,10 @@ def scene_prefix() -> str:
         if style:
             return "Educational stickman cartoon scene"
     return "Educational stickman cartoon scene"
+
+
+def to_seconds(hours: int, minutes: int, seconds: float) -> int:
+    return int(hours) * 3600 + int(minutes) * 60 + int(round(float(seconds)))
 
 
 def strip_turboscribe_boilerplate(text: str) -> str:
@@ -119,14 +132,83 @@ def parse_plain_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
     return segments
 
 
+def parse_line_timestamped_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
+    raw: list[tuple[int, str]] = []
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("(Transcribed by TurboScribe"):
+            continue
+
+        matched = False
+        for regex, parser in (
+            (LINE_HMS_RE, lambda m: (to_seconds(int(m.group(1)), int(m.group(2)), m.group(3)), m.group(4))),
+            (LINE_MS_RE, lambda m: (int(m.group(1)) * 60 + int(m.group(2)), m.group(3))),
+            (LINE_RANGE_RE, lambda m: (int(round(float(m.group(1)))), m.group(3))),
+            (LINE_PAREN_RE, lambda m: (int(m.group(1)) * 60 + int(m.group(2)), m.group(3))),
+        ):
+            match = regex.match(stripped)
+            if match:
+                start, chunk = parser(match)
+                chunk = re.sub(r"\s+", " ", chunk).strip()
+                if chunk:
+                    raw.append((start, chunk))
+                matched = True
+                break
+
+        if not matched and raw:
+            raw[-1] = (raw[-1][0], f"{raw[-1][1]} {stripped}".strip())
+
+    if not raw:
+        raise ValueError("No TurboScribe section timestamps found")
+
+    segments: list[SpeechSegment] = []
+    for index, (start, chunk) in enumerate(raw):
+        end = raw[index + 1][0] if index + 1 < len(raw) else audio_end
+        if end <= start:
+            end = min(audio_end, start + MIN_SECONDS)
+        segments.append(SpeechSegment(start=start, end=end, text=chunk))
+    return segments
+
+
+def parse_srt_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
+    segments: list[SpeechSegment] = []
+    for match in SRT_BLOCK_RE.finditer(text.strip() + "\n"):
+        start = to_seconds(int(match.group(2)), int(match.group(3)), f"{match.group(4)}.{match.group(5)}")
+        end = to_seconds(int(match.group(6)), int(match.group(7)), f"{match.group(8)}.{match.group(9)}")
+        chunk = re.sub(r"\s+", " ", match.group(10)).strip()
+        if chunk:
+            segments.append(SpeechSegment(start=start, end=end, text=chunk))
+
+    if not segments:
+        raise ValueError("No SRT cues found")
+    segments[-1] = SpeechSegment(segments[-1].start, audio_end, segments[-1].text)
+    return segments
+
+
 def parse_transcript(text: str, audio_end: int) -> tuple[list[SpeechSegment], str]:
-    if MARKER_RE.search(text):
-        return parse_timestamped_transcript(text, audio_end), "timestamped"
-    return parse_plain_transcript(text, audio_end), "plain"
+    stripped = text.strip()
+    if "-->" in stripped and SRT_BLOCK_RE.search(stripped):
+        return parse_srt_transcript(stripped, audio_end), "srt"
+
+    inline_count = len(INLINE_MARKER_RE.findall(stripped))
+    if inline_count >= 2:
+        return parse_inline_timestamped_transcript(stripped, audio_end), "timestamped"
+
+    for line in stripped.splitlines():
+        line = line.strip()
+        if not line or line.startswith("(Transcribed by TurboScribe"):
+            continue
+        if LINE_HMS_RE.match(line) or LINE_MS_RE.match(line) or LINE_RANGE_RE.match(line) or LINE_PAREN_RE.match(line):
+            return parse_line_timestamped_transcript(stripped, audio_end), "timestamped"
+
+    if inline_count == 1:
+        return parse_inline_timestamped_transcript(stripped, audio_end), "timestamped"
+    return parse_plain_transcript(stripped, audio_end), "plain"
 
 
-def parse_timestamped_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
-    matches = list(MARKER_RE.finditer(text))
+def parse_inline_timestamped_transcript(text: str, audio_end: int) -> list[SpeechSegment]:
+    matches = list(INLINE_MARKER_RE.finditer(text))
     if not matches:
         raise ValueError("No (M:SS) timestamps found — use TurboScribe export format")
 
@@ -148,107 +230,58 @@ def parse_timestamped_transcript(text: str, audio_end: int) -> list[SpeechSegmen
     return segments
 
 
+def split_text_chunks(text: str, parts: int) -> list[str]:
+    words = text.split()
+    if parts <= 1 or not words:
+        stripped = text.strip()
+        return [stripped] if stripped else []
+    chunks: list[str] = []
+    size = len(words) / parts
+    for index in range(parts):
+        start = round(index * size)
+        end = len(words) if index + 1 == parts else round((index + 1) * size)
+        chunk = " ".join(words[start:end]).strip()
+        if chunk:
+            chunks.append(chunk)
+    return chunks or [text.strip()]
+
+
+def segment_to_frames(segment: SpeechSegment) -> list[FramePlan]:
+    duration = max(1, segment.end - segment.start)
+    text = segment.text.strip()
+    if not text:
+        return []
+
+    if duration <= MAX_SECONDS:
+        return [FramePlan(start=segment.start, transcript=text)]
+
+    count = max(2, math.ceil(duration / TARGET_SECONDS))
+    while count > 1 and duration / count > MAX_SECONDS:
+        count += 1
+    while count > 1 and duration / count < MIN_SECONDS:
+        count -= 1
+
+    texts = split_text_chunks(text, count)
+    if not texts:
+        return []
+    count = len(texts)
+    step = duration / count
+    frames: list[FramePlan] = []
+    for index, chunk in enumerate(texts):
+        start = segment.start + int(round(index * step))
+        frames.append(FramePlan(start=start, transcript=chunk))
+    return frames
+
+
 def split_sentences(text: str) -> list[str]:
     parts = [p.strip() for p in SENTENCE_RE.split(text) if p.strip()]
     return parts if parts else [text.strip()]
 
 
-def subsplit_segment(segment: SpeechSegment) -> list[SpeechSegment]:
-    duration = segment.end - segment.start
-    if duration <= MAX_SECONDS:
-        return [segment]
-
-    sentences = split_sentences(segment.text)
-    if len(sentences) <= 1:
-        mid = segment.start + duration // 2
-        words = segment.text.split()
-        if len(words) < 2:
-            return [segment]
-        half = len(words) // 2
-        return [
-            SpeechSegment(segment.start, mid, " ".join(words[:half])),
-            SpeechSegment(mid, segment.end, " ".join(words[half:])),
-        ]
-
-    pieces: list[SpeechSegment] = []
-    bucket: list[str] = []
-    bucket_weight = 0
-    total_weight = sum(len(s) for s in sentences) or 1
-    cursor = segment.start
-
-    for sentence in sentences:
-        weight = len(sentence)
-        bucket.append(sentence)
-        bucket_weight += weight
-        share = bucket_weight / total_weight
-        projected_end = segment.start + round(duration * share)
-        piece_duration = projected_end - cursor
-        if piece_duration >= TARGET_SECONDS or sentence == sentences[-1]:
-            end = min(segment.end, max(cursor + MIN_SECONDS, projected_end))
-            if end <= cursor:
-                end = min(segment.end, cursor + MIN_SECONDS)
-            pieces.append(SpeechSegment(cursor, end, " ".join(bucket)))
-            cursor = end
-            bucket = []
-            bucket_weight = 0
-
-    if bucket:
-        pieces.append(SpeechSegment(cursor, segment.end, " ".join(bucket)))
-
-    return pieces or [segment]
-
-
-def ends_cleanly(text: str) -> bool:
-    return bool(re.search(r"[.!?][\"')\]]*$", text.strip()))
-
-
 def pack_frames(segments: list[SpeechSegment]) -> list[FramePlan]:
-    flat: list[SpeechSegment] = []
-    for segment in segments:
-        flat.extend(subsplit_segment(segment))
-
     frames: list[FramePlan] = []
-    index = 0
-    while index < len(flat):
-        start = flat[index].start
-        texts = [flat[index].text]
-        end = flat[index].end
-        cursor = index + 1
-
-        while cursor < len(flat):
-            duration = flat[cursor].end - start
-            if duration > MAX_SECONDS:
-                break
-            next_text = " ".join(texts + [flat[cursor].text])
-            candidate_end = flat[cursor].end
-            duration = candidate_end - start
-
-            if duration < MIN_SECONDS:
-                texts.append(flat[cursor].text)
-                end = candidate_end
-                cursor += 1
-                continue
-
-            if duration <= MAX_SECONDS and (
-                duration >= TARGET_SECONDS and ends_cleanly(next_text)
-                or duration >= MAX_SECONDS
-            ):
-                texts.append(flat[cursor].text)
-                end = candidate_end
-                cursor += 1
-                break
-
-            if duration < TARGET_SECONDS:
-                texts.append(flat[cursor].text)
-                end = candidate_end
-                cursor += 1
-                continue
-
-            break
-
-        frames.append(FramePlan(start=start, transcript=" ".join(texts).strip()))
-        index = cursor if cursor > index else index + 1
-
+    for segment in segments:
+        frames.extend(segment_to_frames(segment))
     return frames
 
 
@@ -386,8 +419,9 @@ def build_all() -> int:
     if not TRANSCRIPT_FILE.is_file():
         print(
             "ERROR: Missing 03-transcript/transcript.txt\n"
-            "Get a timestamped transcript from https://turboscribe.com\n"
-            "Format: (0:00) First line. (0:04) Next line.",
+            "Get a timestamped export from https://turboscribe.com\n"
+            "TurboScribe: Advanced Export → TXT with Section Timestamps (or export SRT)\n"
+            "Formats: [0:00:05] line text  |  (0:00) inline  |  SRT subtitles",
             file=sys.stderr,
         )
         return 1
@@ -396,6 +430,12 @@ def build_all() -> int:
     audio_end = int(round(duration))
     text = TRANSCRIPT_FILE.read_text(encoding="utf-8").strip()
     segments, source = parse_transcript(text, audio_end)
+    if source == "plain":
+        print(
+            "WARNING: No timestamps in transcript — using estimated timing (~2–3s/frame).\n"
+            "Re-export from TurboScribe with Show Timestamps ON → Advanced Export → Section Timestamps.",
+            file=sys.stderr,
+        )
     frames = pack_frames(segments)
     write_plan(frames)
 

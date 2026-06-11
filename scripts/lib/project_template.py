@@ -1,6 +1,7 @@
 """Default and reset templates for project.json."""
 from __future__ import annotations
 
+from lib.folders import SCRIPT_FILE, TRANSCRIPT_FILE
 from lib.image_prompt import DEFAULT_IMAGE_STYLE, DEFAULT_STYLE_GUIDE, DEFAULT_TEXT_RULES, DEFAULT_TONE
 
 STYLE_PERSIST_KEYS = (
@@ -12,8 +13,17 @@ STYLE_PERSIST_KEYS = (
     "privacy",
 )
 
+WORKSPACE_TEMPLATE_FILES = (SCRIPT_FILE, TRANSCRIPT_FILE)
+
 DEFAULT_WORKERS = 5
 DEFAULT_PRIVACY = "public"
+
+
+def ensure_workspace_template_files() -> None:
+    """Create empty Script.txt and transcript.txt placeholders."""
+    for path in WORKSPACE_TEMPLATE_FILES:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
 
 
 def default_style_prefs() -> dict:

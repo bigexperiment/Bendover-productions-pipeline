@@ -4,7 +4,7 @@
 
 | Actor | Does |
 |-------|------|
-| **Assistant** | Runs every script (combine, manifest, generate, render, upload, credits). Updates `project.json`. |
+| **Assistant** | Runs every script (manifest, generate, render, upload, credits). Updates `project.json`. |
 | **User** | Adds files (`01-script`, `02-audio`, `03-transcript`), TurboScribe export, style approval, browser OAuth when prompted, says **done**. |
 
 **Never** tell the user to run terminal commands. Run them yourself.
@@ -13,9 +13,9 @@
 
 Steps 0–6, 8–10: name, script, style, audio, transcript, manifest, style approval, render, upload, cleanup — **chat only** (except browser OAuth on first YouTube login).
 
-Transcript: user gets timestamped export from [turboscribe.com](https://turboscribe.com) → `03-transcript/transcript.txt`.
+Transcript: user pastes timestamped export from [turboscribe.com](https://turboscribe.com) into `03-transcript/transcript.txt` (empty by default).
 
-Manifest: intelligent cuts ~2s (up to 4s) from transcript — not fixed-interval script chop.
+Manifest: intelligent cuts ~2s (max 3s) from transcript — not fixed-interval script chop.
 
 ## Studio UI (image generation only)
 
@@ -45,7 +45,7 @@ scripts/start_studio.sh
 - **Cleanup (optional, step 10):**
   - Warn user cleanup deletes project artifacts — they must save `final.mp4`, YouTube link, metadata, thumbnail, script, etc. **before** confirming
   - Wait for explicit user OK
-  - Write a one-off Python reset script on the fly (no repo cleanup script); run it yourself; reset `project.json` with `scripts/lib/project_template.py` → `reset_project_dict()` so style prefs survive
+  - Write a one-off Python reset script on the fly (no repo cleanup script); run it yourself; call `ensure_workspace_template_files()` + `reset_project_dict()` so empty `Script.txt`/`transcript.txt` and style prefs survive
 
 ## Ask first
 
@@ -58,7 +58,6 @@ scripts/start_studio.sh
 ## Commands (assistant runs these — not the user)
 
 ```bash
-python3 scripts/01_audio/combine_mp3s.py
 python3 scripts/02_manifest/build_plan.py
 python3 scripts/02_manifest/build_plan.py refresh
 python3 scripts/03_images/generate_images.py

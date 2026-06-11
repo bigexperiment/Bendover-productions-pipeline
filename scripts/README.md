@@ -4,7 +4,7 @@ Run from project root.
 
 | Step | Folder | Script |
 |------|--------|--------|
-| Audio | `01_audio/` | `combine_mp3s.py` → `02-audio/Combined.mp3` |
+| Audio | — | one narration file in `02-audio/` |
 | Manifest | `02_manifest/` | `build_plan.py` |
 | Images | `03_images/` | `generate_images.py` |
 | Render | `04_render/` | `render_draft_video.py` |

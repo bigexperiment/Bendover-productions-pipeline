@@ -12,9 +12,14 @@ __pycache__/
 tracker/studio.pid
 tracker/studio.log
 06-output/*.mp4
-02-audio/Combined.mp3
-02-audio/Combined_normalized.mp3
-Part*.mp3
+02-audio/*
+!02-audio/.gitkeep
+01-script/*
+!01-script/.gitkeep
+03-transcript/*
+!03-transcript/.gitkeep
+project.json
+07-upload.zip
 04-manifest/image_regen_manifest.csv
 04-manifest/image_regen_progress.json
 04-manifest/image_cut_plan.txt

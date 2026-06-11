@@ -16,10 +16,8 @@ DIR_UPLOAD = ROOT / "07-upload"
 
 SCRIPT_FILE = DIR_SCRIPT / "Script.txt"
 TRANSCRIPT_FILE = DIR_TRANSCRIPT / "transcript.txt"
-
-COMBINED = DIR_AUDIO / "Combined.mp3"
-COMBINED_NORMALIZED = DIR_AUDIO / "Combined_normalized.mp3"
-AUDIO_OUTPUT_NAMES = frozenset({"Combined.mp3", "Combined_normalized.mp3"})
+NARRATION_FILE = DIR_AUDIO / "narration.mp3"
+AUDIO_EXTS = frozenset({".mp3", ".wav", ".m4a"})
 
 PLAN_FILE = DIR_MANIFEST / "image_cut_plan.txt"
 MANIFEST_FILE = DIR_MANIFEST / "image_regen_manifest.csv"

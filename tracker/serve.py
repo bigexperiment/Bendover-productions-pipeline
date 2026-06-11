@@ -20,8 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TRACKER = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.folders import (  # noqa: E402
-    COMBINED,
-    COMBINED_NORMALIZED,
+    AUDIO_EXTS,
     DIR_AUDIO,
     DIR_IMAGES,
     DIR_MANIFEST,
@@ -93,16 +92,21 @@ def script_path() -> Path | None:
 
 
 def audio_status() -> dict:
-    parts = [ROOT / f"Part{i}.mp3" for i in range(1, 4)]
-    singles = sorted(DIR_AUDIO.glob("*")) if DIR_AUDIO.is_dir() else []
-    singles = [p for p in singles if p.suffix.lower() in {".mp3", ".wav", ".m4a"}]
+    from lib.audio_paths import find_narration_audio
+
+    narration = None
+    ready = False
+    error = ""
+    try:
+        narration = find_narration_audio()
+        ready = True
+    except FileNotFoundError as exc:
+        error = str(exc)
 
     return {
-        "combined": COMBINED.is_file(),
-        "normalized": COMBINED_NORMALIZED.is_file(),
-        "parts": [p.name for p in parts if p.is_file()],
-        "singles": [p.name for p in singles],
-        "ready": COMBINED.is_file() or bool(singles) or all(p.is_file() for p in parts),
+        "narration": narration.name if narration else None,
+        "ready": ready,
+        "error": error,
     }
 
 
@@ -115,10 +119,9 @@ def infer_step(project: dict, script: Path | None, audio: dict, manifest: bool, 
         return "render"
     if manifest and total > 0:
         return "images"
-    if audio["combined"] or audio["normalized"]:
+    transcript_ready = TRANSCRIPT_FILE.is_file() and TRANSCRIPT_FILE.read_text(encoding="utf-8").strip()
+    if transcript_ready and audio["ready"]:
         return "manifest"
-    if script and (audio["ready"] or audio["singles"] or audio["parts"]):
-        return "audio"
     if script and project.get("image_style"):
         return "audio"
     return "setup"
@@ -280,7 +283,6 @@ def handle_run(body: dict) -> dict:
     force = bool(body.get("force"))
 
     actions = {
-        "combine_audio": (["python3", "scripts/01_audio/combine_mp3s.py"], "Combine audio"),
         "build_plan": (["python3", "scripts/02_manifest/build_plan.py"], "Build cut plan + manifest"),
         "refresh_manifest": (["python3", "scripts/02_manifest/build_plan.py", "refresh"], "Refresh manifest"),
         "generate_images": (
@@ -447,10 +449,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if kind == "audio":
             DIR_AUDIO.mkdir(exist_ok=True)
+            for path in DIR_AUDIO.iterdir():
+                if path.is_file() and path.suffix.lower() in AUDIO_EXTS:
+                    path.unlink()
             dest = DIR_AUDIO / filename
             dest.write_bytes(item.file.read())
-            start_job("Combine audio", ["python3", "scripts/01_audio/combine_mp3s.py"])
-            self._send_json({"ok": True, "path": f"02-audio/{filename}", "combining": True})
+            self._send_json({"ok": True, "path": f"02-audio/{dest.name}"})
             return
 
         self._send_json({"ok": False, "error": f"Unknown kind: {kind}"}, 400)

@@ -1,8 +1,8 @@
 # 05 — Manifest
 
-Requires `03-transcript/transcript.txt` + `02-audio/Combined.mp3`.
+Requires `03-transcript/transcript.txt` + one narration file in `02-audio/`.
 
-~2s frames, up to 4s at natural breaks.
+~2s frames, max 3s at natural breaks.
 
 ```bash
 python3 scripts/02_manifest/build_plan.py
