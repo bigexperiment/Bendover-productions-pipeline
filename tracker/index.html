@@ -3,35 +3,59 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bendover Productions · Studio</title>
+  <title>BENDOVER PRODUCTIONS · LIVE ON SET</title>
+  <meta name="description" content="Bendover Productions — live frame generation on the sound stage.">
+  <meta name="theme-color" content="#faf4ee">
+  <link rel="icon" href="/tracker/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/tracker/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #fdf2f8;
-      --card: #fff;
-      --ink: #4a1942;
-      --muted: #9d5f8f;
-      --line: #f3d0e4;
-      --accent: #db2777;
-      --accent-deep: #be185d;
-      --accent-soft: #fce7f3;
-      --week: #9333ea;
-      --week-soft: #f3e8ff;
-      --gold: #f59e0b;
-      --bad: #e11d48;
+      --bg: #faf4ee;
+      --card: #fffaf6;
+      --card-raised: #ffffff;
+      --ink: #2a1a20;
+      --muted: #6f5a62;
+      --line: #e8d4cc;
+      --accent: #d62839;
+      --accent-deep: #9d1730;
+      --accent-soft: rgba(214, 40, 57, .1);
+      --week: #a67c00;
+      --week-soft: rgba(166, 124, 0, .1);
+      --gold: #b8860b;
+      --velvet: #8b2942;
+      --spot: rgba(255, 200, 120, .35);
+      --bad: #dc2626;
       --warn: #d97706;
+      --ticker-speed: 110s;
+      --font-display: "Bebas Neue", Impact, sans-serif;
+      --font-body: "IBM Plex Sans", system-ui, sans-serif;
+      --font-slate: "Special Elite", "Courier New", monospace;
+      --font-tag: "Cormorant Garamond", Georgia, serif;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; overflow: hidden; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: var(--font-body);
+      font-size: 15px;
       background:
-        radial-gradient(ellipse 90% 55% at 10% -10%, rgba(251, 207, 232, .7), transparent 55%),
-        radial-gradient(ellipse 70% 50% at 95% 5%, rgba(233, 213, 255, .55), transparent 50%),
-        radial-gradient(ellipse 50% 40% at 50% 100%, rgba(254, 243, 199, .35), transparent),
+        radial-gradient(ellipse 60% 50% at 12% 0%, var(--spot), transparent 55%),
+        radial-gradient(ellipse 50% 45% at 92% 6%, rgba(214, 40, 57, .08), transparent 50%),
+        radial-gradient(ellipse 70% 50% at 50% 100%, rgba(184, 134, 11, .1), transparent),
+        repeating-linear-gradient(90deg, transparent, transparent 78px, rgba(42, 26, 32, .025) 78px, rgba(42, 26, 32, .025) 80px),
         var(--bg);
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
     }
+    body::before {
+      content: "";
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      opacity: .025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    .shell { position: relative; z-index: 1; }
 
     @keyframes shimmer {
       0% { background-position: -200% 0; }
@@ -57,9 +81,9 @@
       100% { transform: scale(1); opacity: 1; }
     }
     @keyframes cd-ring-pulse {
-      0% { box-shadow: 0 0 0 0 rgba(244, 114, 182, .35); }
-      70% { box-shadow: 0 0 0 12px rgba(244, 114, 182, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(244, 114, 182, 0); }
+      0% { box-shadow: 0 0 0 0 rgba(230, 57, 70, .4); }
+      70% { box-shadow: 0 0 0 12px rgba(230, 57, 70, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0); }
     }
     @keyframes refill-burst {
       0% { transform: scale(.5); opacity: 0; }
@@ -129,7 +153,7 @@
       to { opacity: 0; transform: translateY(-6px); }
     }
     .skel {
-      background: linear-gradient(90deg, #fce7f3 25%, #fdf2f8 50%, #fce7f3 75%);
+      background: linear-gradient(90deg, #f0e4dc 25%, #faf4ee 50%, #f0e4dc 75%);
       background-size: 200% 100%;
       animation: shimmer 1.4s ease infinite;
       border-radius: 8px;
@@ -141,97 +165,144 @@
     }
 
     header {
-      display: flex; align-items: center; gap: 10px;
-      flex-shrink: 0; min-height: 36px;
+      display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0; min-height: 52px;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, #fff 0%, #fff6f0 100%);
+      border: 2px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 4px 18px rgba(42, 26, 32, .08), inset 0 1px 0 #fff;
+      position: relative;
+    }
+    header::after {
+      content: "";
+      position: absolute; top: 0; left: 0; right: 0; height: 6px;
+      background: repeating-linear-gradient(90deg, #2a1a20 0 14px, #fff 14px 28px);
+      border-radius: 4px 4px 0 0;
     }
     .brand-lockup {
       display: flex; align-items: center; gap: 8px;
       min-width: 0; max-width: 42%;
     }
     .brand-logo {
-      width: 28px; height: 28px; flex-shrink: 0; cursor: pointer;
-      filter: drop-shadow(0 2px 4px rgba(219, 39, 119, .2));
+      width: 40px; height: 40px; flex-shrink: 0; cursor: pointer;
+      filter: drop-shadow(0 2px 8px rgba(230, 57, 70, .35));
       transition: transform .2s ease;
     }
-    .brand-logo:hover { transform: scale(1.06); }
+    .brand-logo:hover { transform: scale(1.08) rotate(-3deg); }
     .brand-logo.wiggle { animation: logo-wiggle .5s ease; }
-    .brand-text { min-width: 0; }
+    .brand-text { min-width: 0; padding-top: 2px; }
     .brand-co {
-      font-size: 0.58rem; font-weight: 800;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--accent);
-      line-height: 1.2;
+      font-family: var(--font-display);
+      font-size: 1.45rem; font-weight: 400;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--gold);
+      line-height: 1.05;
     }
     .brand-tag {
-      font-size: 0.62rem; color: var(--muted); font-style: italic;
+      font-family: var(--font-tag);
+      font-size: 0.95rem; color: var(--muted); font-style: italic;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       transition: opacity .3s ease;
     }
     .fun-ticker {
-      flex-shrink: 0; overflow: hidden; border-radius: 8px;
-      background: linear-gradient(90deg, var(--accent-soft), var(--week-soft));
-      border: 1px dashed var(--line); padding: 5px 0;
+      flex-shrink: 0; overflow: hidden; border-radius: 6px;
+      background: linear-gradient(180deg, #fff8f2, #fff0e6);
+      border: 1px solid var(--line);
+      padding: 10px 0;
+      box-shadow: inset 0 1px 0 #fff, 0 2px 10px rgba(42, 26, 32, .06);
     }
     .fun-ticker-track {
       display: flex; width: max-content;
-      animation: ticker-scroll 42s linear infinite;
+      animation: ticker-scroll var(--ticker-speed) linear infinite;
     }
     .fun-ticker-track span {
-      padding: 0 28px; font-size: 0.68rem; font-weight: 600;
+      padding: 0 48px;
+      font-family: var(--font-slate);
+      font-size: 0.92rem; font-weight: 400;
       color: var(--accent-deep); white-space: nowrap;
+      text-transform: uppercase; letter-spacing: .05em;
     }
-    .fun-ticker-track span::before { content: "✦ "; opacity: .5; }
+    .fun-ticker-track span::before { content: "★ "; opacity: .65; color: var(--accent); }
     h1 {
-      margin: 0; font-size: 0.82rem; font-weight: 600;
-      letter-spacing: -0.02em; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis;
-      color: var(--ink);
+      margin: 0;
+      font-family: var(--font-slate);
+      font-size: 0.88rem; font-weight: 400;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: var(--accent-deep);
     }
     .status {
       display: flex; align-items: center; gap: 6px;
-      font-size: 0.75rem; color: var(--muted); flex: 1; min-width: 0;
+      font-size: 0.88rem; color: var(--muted); flex: 1; min-width: 0;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
-    .dot.live { background: var(--accent); animation: pulse-dot 1.5s ease infinite; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
+    .dot.live {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent), 0 0 16px rgba(230, 57, 70, .4);
+      animation: pulse-dot 1.5s ease infinite;
+    }
     .dot.stop { background: var(--bad); }
     .acct {
       display: flex; align-items: center; gap: 5px;
-      font-size: 0.72rem; color: var(--muted); max-width: 26%; min-width: 0;
+      font-size: 0.85rem; color: var(--muted); max-width: 26%; min-width: 0;
     }
     .acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .link-btn {
-      background: none; border: none; color: var(--accent);
-      font-size: 0.75rem; cursor: pointer; padding: 4px 8px; font-weight: 600;
-      border-radius: 6px; background: var(--accent-soft);
-      border: 1px solid rgba(244, 114, 182, .25);
+      background: var(--accent-soft); border: 1px solid rgba(230, 57, 70, .35);
+      color: var(--accent-deep);
+      font-family: var(--font-slate);
+      font-size: 0.82rem; cursor: pointer; padding: 6px 12px; font-weight: 400;
+      border-radius: 3px; text-transform: uppercase; letter-spacing: .04em;
     }
-    .link-btn:hover { filter: brightness(1.08); }
+    .link-btn:hover { filter: brightness(1.15); background: rgba(230, 57, 70, .22); }
     .link-btn:disabled { opacity: .5; }
-    .link-btn.muted { color: var(--muted); background: #faf5f9; border-color: var(--line); }
+    .link-btn.muted { color: var(--muted); background: #fff; border-color: var(--line); }
 
     .panel {
       flex: 1; min-height: 0;
-      display: grid; grid-template-columns: 1fr 252px; gap: 10px;
-      background: var(--card); border: 1px solid var(--line);
-      border-radius: 14px; padding: 10px; overflow: hidden;
-      box-shadow: 0 4px 24px rgba(219, 39, 119, .08);
+      display: grid; grid-template-columns: 1fr 272px; gap: 12px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px; padding: 12px; overflow: hidden;
+      box-shadow: 0 6px 24px rgba(42, 26, 32, .08), inset 0 1px 0 #fff;
     }
 
     .viewer {
-      min-height: 0; background: #1a1220; border-radius: 10px;
+      min-height: 0; background: #050405; border-radius: 4px;
       overflow: hidden; display: flex; align-items: center; justify-content: center;
       position: relative;
+      border: 3px solid #1a1418;
+      box-shadow: inset 0 0 60px rgba(0,0,0,.8), 0 0 0 1px rgba(233, 196, 106, .15);
     }
-    .viewer-watermark {
-      position: absolute; top: 8px; right: 10px; z-index: 2;
-      font-size: 0.58rem; font-weight: 800; letter-spacing: .12em;
-      color: rgba(255,255,255,.35); text-transform: uppercase;
+    .viewer::before,
+    .viewer::after {
+      content: "";
+      position: absolute; top: 0; bottom: 0; width: 14px; z-index: 3;
       pointer-events: none;
+      background: repeating-linear-gradient(180deg, #0c090a 0 8px, #1a1418 8px 16px);
+      opacity: .85;
+    }
+    .viewer::before { left: 0; border-right: 1px solid #2a2226; }
+    .viewer::after { right: 0; border-left: 1px solid #2a2226; }
+    .viewer-watermark {
+      position: absolute; top: 10px; left: 20px; z-index: 4;
+      font-family: var(--font-slate);
+      font-size: 0.62rem; font-weight: 400; letter-spacing: .14em;
+      color: rgba(230, 57, 70, .85); text-transform: uppercase;
+      pointer-events: none;
+      padding: 3px 8px;
+      background: rgba(0,0,0,.55);
+      border: 1px solid rgba(230, 57, 70, .4);
+      border-radius: 2px;
+    }
+    .viewer-watermark::before {
+      content: "● "; animation: pulse-dot 1.2s ease infinite;
     }
     .viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .viewer img.enter { animation: frame-in .5s cubic-bezier(.22, 1, .36, 1); }
-    .viewer-empty { color: var(--muted); font-size: 0.8rem; font-style: italic; }
+    .viewer-empty { color: #c4b5bc; font-size: 1rem; font-style: italic; }
     .viewer-stage {
       width: 100%; height: 100%; display: flex; flex-direction: column;
       align-items: center; justify-content: center; min-height: 0;
@@ -241,8 +312,8 @@
       display: flex; align-items: center; justify-content: center;
     }
     .viewer-caption {
-      flex-shrink: 0; width: 100%; padding: 8px 12px;
-      font-size: 0.78rem; line-height: 1.35; color: #e5e7eb;
+      flex-shrink: 0; width: 100%; padding: 10px 14px;
+      font-size: 0.92rem; line-height: 1.4; color: #e5e7eb;
       background: linear-gradient(180deg, transparent, rgba(0,0,0,.75));
       text-align: center;
     }
@@ -253,30 +324,39 @@
     }
 
     .stat-card {
-      background: #fffbfd;
+      background: var(--card-raised);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 6px;
       padding: 14px 14px 12px;
       animation: card-in .4s ease both;
+      box-shadow: 0 2px 10px rgba(42, 26, 32, .05);
     }
     .stat-card.limits-card { animation-delay: .06s; }
 
     .card-label {
-      font-size: 0.65rem; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 10px;
+      font-family: var(--font-slate);
+      font-size: 0.78rem; font-weight: 400;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 10px;
     }
 
     /* Frame dot progress rail */
     .frame-rail {
       flex-shrink: 0;
       padding: 10px 12px 8px;
-      background: var(--card);
+      background: linear-gradient(180deg, var(--card-raised), var(--card));
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 4px;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(219, 39, 119, .06);
+      box-shadow: 0 3px 14px rgba(42, 26, 32, .07);
+    }
+    .frame-rail::before {
+      content: "SLATE";
+      position: absolute; top: 6px; right: 10px;
+      font-family: var(--font-slate);
+      font-size: 0.65rem; letter-spacing: .2em;
+      color: rgba(42, 26, 32, .07); pointer-events: none;
     }
     .frame-rail-head {
       display: flex; justify-content: space-between; align-items: baseline;
@@ -284,7 +364,7 @@
     }
     .frame-rail-head .card-label { margin-bottom: 0; }
     .frame-count {
-      font-size: 0.85rem; font-weight: 800;
+      font-size: 1.05rem; font-weight: 800;
       font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
     }
     .frame-count.pop { animation: count-pop .5s cubic-bezier(.34, 1.2, .64, 1); }
@@ -294,7 +374,7 @@
     }
     .frame-dot {
       width: var(--dot-size, 6px); height: var(--dot-size, 6px);
-      border-radius: 50%; background: #f0d4e8; flex-shrink: 0;
+      border-radius: 50%; background: #e0cfc8; flex-shrink: 0;
       transition: background .35s ease, transform .35s cubic-bezier(.34, 1.2, .64, 1),
                   box-shadow .35s ease;
     }
@@ -302,22 +382,22 @@
     .frame-dot.current {
       background: var(--accent);
       transform: scale(1.55);
-      box-shadow: 0 0 0 2px var(--accent-soft), 0 0 8px rgba(219, 39, 119, .35);
+      box-shadow: 0 0 0 2px var(--accent-soft), 0 0 10px rgba(230, 57, 70, .5);
       position: relative; z-index: 1;
     }
     .frame-dot.current.tick { animation: dot-hop .45s cubic-bezier(.34, 1.3, .64, 1); }
     .frame-dot.all-done { background: var(--accent); }
     .frame-meta {
-      font-size: 0.72rem; color: var(--muted); margin-top: 6px; line-height: 1.35;
+      font-size: 0.88rem; color: var(--muted); margin-top: 8px; line-height: 1.4;
     }
     .frame-meta strong { color: var(--ink); font-weight: 600; }
     .frame-rail.bump { animation: shake .45s ease; }
     .frame-rail .milestone {
       position: absolute; inset: 0; border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.9rem; font-weight: 800; letter-spacing: .04em;
+      font-size: 1.05rem; font-weight: 800; letter-spacing: .04em;
       color: #fff; pointer-events: none; z-index: 3;
-      background: linear-gradient(135deg, rgba(219,39,119,.92), rgba(124,58,237,.92));
+      background: linear-gradient(135deg, rgba(230,57,70,.94), rgba(201,162,39,.88));
       animation: milestone-burst 1.1s ease forwards;
     }
 
@@ -327,21 +407,21 @@
 
     .limit-card {
       position: relative;
-      padding: 12px;
-      border-radius: 10px;
+      padding: 14px;
+      border-radius: 6px;
       background: #fff;
       border: 1px solid var(--line);
     }
     .limit-card.five-card {
-      background: linear-gradient(160deg, #fff5fa 0%, #fff 55%);
-      border-color: #f9a8d4;
+      background: linear-gradient(160deg, #fff5f6 0%, #fff 55%);
+      border-color: rgba(214, 40, 57, .25);
     }
     .limit-card.week-card {
-      background: linear-gradient(160deg, #faf5ff 0%, #fff 55%);
-      border-color: #d8b4fe;
+      background: linear-gradient(160deg, #fffbf0 0%, #fff 55%);
+      border-color: rgba(166, 124, 0, .25);
     }
     .limit-card.countdown { animation: cd-ring-pulse 1.2s ease infinite; }
-    .limit-card.flash { background-color: #fff0f7; transition: background .3s; }
+    .limit-card.flash { background-color: rgba(230, 57, 70, .15); transition: background .3s; }
     .limit-card.drain-hit { animation: shake .42s ease; }
     .limit-card.critical { animation: wobble .9s ease infinite; }
 
@@ -349,13 +429,13 @@
       display: flex; justify-content: space-between; align-items: flex-start;
       margin-bottom: 8px; gap: 8px;
     }
-    .limit-title { font-size: 0.8rem; font-weight: 700; line-height: 1.2; }
-    .limit-card.five-card .limit-title { color: #be185d; }
-    .limit-card.week-card .limit-title { color: #7e22ce; }
-    .limit-sub { font-size: 0.65rem; color: var(--muted); margin-top: 2px; font-weight: 500; }
+    .limit-title { font-size: 0.95rem; font-weight: 700; line-height: 1.2; }
+    .limit-card.five-card .limit-title { color: var(--accent-deep); }
+    .limit-card.week-card .limit-title { color: var(--gold); }
+    .limit-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; font-weight: 500; }
 
     .limit-pct {
-      font-size: 1.25rem; font-weight: 800;
+      font-size: 1.45rem; font-weight: 800;
       font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
       line-height: 1;
     }
@@ -365,7 +445,7 @@
 
     .limit-track {
       position: relative;
-      height: 10px; background: #f3d0e4; border-radius: 99px;
+      height: 12px; background: #f0e4dc; border-radius: 99px;
       overflow: hidden;
     }
     .limit-track.skel { animation: shimmer 1.4s ease infinite; background-size: 200% 100%; }
@@ -375,12 +455,12 @@
       position: relative; overflow: hidden;
     }
     .limit-fill.five {
-      background: linear-gradient(90deg, #f9a8d4, #db2777);
-      box-shadow: 0 0 14px rgba(219, 39, 119, .4);
+      background: linear-gradient(90deg, #ff6b6b, #e63946);
+      box-shadow: 0 0 14px rgba(230, 57, 70, .45);
     }
     .limit-fill.week {
-      background: linear-gradient(90deg, #d8b4fe, #7c3aed);
-      box-shadow: 0 0 12px rgba(124, 58, 237, .35);
+      background: linear-gradient(90deg, #e9c46a, #c9a227);
+      box-shadow: 0 0 12px rgba(201, 162, 39, .35);
     }
     .limit-fill.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b) !important; }
     .limit-fill.bad { background: linear-gradient(90deg, #f87171, #dc2626) !important; box-shadow: 0 0 10px rgba(220,38,38,.2) !important; }
@@ -392,7 +472,7 @@
     .limit-fill.shine::after { opacity: 1; animation: shine-once .7s ease; }
 
     .limit-reset {
-      font-size: 0.72rem; color: var(--muted); font-weight: 500;
+      font-size: 0.85rem; color: var(--muted); font-weight: 500;
       display: flex; align-items: center; gap: 5px;
     }
     .limit-reset::before {
@@ -404,7 +484,7 @@
     }
     .limit-reset.cd-mode::before { display: none; }
     .cd-num {
-      font-size: 1.75rem; font-weight: 800;
+      font-size: 2rem; font-weight: 800;
       font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
       color: var(--accent);
     }
@@ -412,7 +492,7 @@
     .cd-num.tick { animation: cd-tick .5s cubic-bezier(.22, 1.2, .36, 1); }
     .cd-num.cd-zero { color: var(--warn); font-size: 1.5rem; }
     .cd-hint {
-      font-size: 0.68rem; font-weight: 700;
+      font-size: 0.8rem; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
     }
 
@@ -421,7 +501,7 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 0.85rem; font-weight: 800; letter-spacing: 0.06em;
       text-transform: uppercase; color: #fff;
-      background: linear-gradient(135deg, #db2777, #7c3aed);
+      background: linear-gradient(135deg, #e63946, #c9a227);
       pointer-events: none; z-index: 2;
       animation: refill-burst 1.4s cubic-bezier(.22, 1, .36, 1) forwards;
     }
@@ -464,29 +544,29 @@
     }
 
     .limits-note {
-      font-size: 0.72rem; color: var(--muted); text-align: center;
+      font-size: 0.85rem; color: var(--muted); text-align: center;
       padding: 8px; line-height: 1.4;
     }
 
     .sim-banner {
       flex-shrink: 0;
       padding: 8px 12px;
-      border-radius: 10px;
-      background: linear-gradient(90deg, rgba(219,39,119,.15), rgba(124,58,237,.12));
-      border: 1px solid rgba(244, 114, 182, .3);
-      font-size: 0.72rem;
+      border-radius: 4px;
+      background: linear-gradient(90deg, rgba(230,57,70,.12), rgba(201,162,39,.1));
+      border: 1px solid rgba(230, 57, 70, .25);
+      font-size: 0.88rem;
       line-height: 1.4;
     }
     .sim-banner strong { color: var(--accent); }
     .sim-log {
       margin-top: 6px;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: 4px;
       background: #fff;
-      border: 1px dashed #d8b4fe;
+      border: 1px dashed var(--line);
       font-size: 0.68rem;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      color: var(--week);
+      font-family: var(--font-slate);
+      color: var(--gold);
       line-height: 1.45;
     }
     .sim-log .rule { color: var(--muted); font-family: inherit; display: block; margin-top: 4px; }
@@ -497,10 +577,11 @@
       max-width: min(280px, 90vw);
     }
     .toast {
-      padding: 10px 14px; border-radius: 12px;
-      background: #fff; border: 1.5px solid var(--accent);
-      box-shadow: 0 6px 20px rgba(219, 39, 119, .15);
-      font-size: 0.75rem; font-weight: 600; color: var(--ink);
+      padding: 10px 14px; border-radius: 4px;
+      background: var(--card-raised); border: 1.5px solid var(--accent);
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      font-family: var(--font-tag);
+      font-size: 0.95rem; font-weight: 500; font-style: italic; color: var(--ink);
       animation: toast-in .35s cubic-bezier(.22, 1.2, .36, 1) both;
     }
     .toast.leave { animation: toast-out .3s ease forwards; }
@@ -519,19 +600,18 @@
   <div class="shell">
     <header>
       <div class="brand-lockup" id="brand-lockup">
-        <svg class="brand-logo" id="brand-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" title="Click me. Seriously.">
-          <rect x="2" y="4" width="28" height="24" rx="4" fill="#fff" stroke="#db2777" stroke-width="1.5"/>
-          <path d="M6 10h20" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="16" cy="20" r="5" fill="#fff" stroke="#111" stroke-width="1.2"/>
-          <path d="M14 19h2" stroke="#111" stroke-width="1.1" stroke-linecap="round"/>
-          <circle cx="18.5" cy="19" r=".9" fill="#111"/>
-          <path d="M11 22 Q16 26 21 22" stroke="#111" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-          <path d="M16 25 Q20 30 14 31" stroke="#f472b6" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <svg class="brand-logo" id="brand-logo" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" title="Clap the board. You know you want to.">
+          <rect x="3" y="14" width="30" height="18" rx="2" fill="#1a1418" stroke="#e9c46a" stroke-width="1.2"/>
+          <path d="M3 14 L33 14 L30 6 L6 6 Z" fill="#f4e8dc" stroke="#0c090a" stroke-width="1"/>
+          <path d="M8 6 L11 14 M14 6 L17 14 M20 6 L23 14 M26 6 L29 14" stroke="#0c090a" stroke-width="1.2"/>
+          <text x="18" y="12" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="4.5" font-weight="900" fill="#0c090a">BP</text>
+          <circle cx="27" cy="22" r="4" fill="#e63946" opacity=".9"/>
+          <text x="27" y="23.5" text-anchor="middle" font-size="3.5" fill="#fff">●</text>
         </svg>
         <div class="brand-text">
           <div class="brand-co">Bendover Productions</div>
-          <h1 id="title">Studio</h1>
-          <div class="brand-tag" id="brand-tag">Strictly professional. Strictly not.</div>
+          <h1 id="title">On Set · Sound Stage B</h1>
+          <div class="brand-tag" id="brand-tag">We bend the rules. And the frames.</div>
         </div>
       </div>
       <div class="status">
@@ -558,28 +638,28 @@
 
     <div class="frame-rail" id="frame-rail">
       <div class="frame-rail-head">
-        <span class="card-label">On set</span>
+        <span class="card-label">Shooting schedule</span>
         <span class="frame-count" id="frame-count">0/—</span>
       </div>
       <div class="frame-dots" id="frame-dots"></div>
-      <div class="frame-meta" id="frame-meta">Rolling camera…</div>
+      <div class="frame-meta" id="frame-meta">Quiet on set — rolling…</div>
     </div>
 
     <div class="panel">
       <div class="viewer" id="viewer">
-        <span class="viewer-watermark">Bendover</span>
-        <span class="viewer-empty" id="viewer-empty">Lights, camera… bend over and wait.</span>
+        <span class="viewer-watermark">REC · BENDOVER</span>
+        <span class="viewer-empty" id="viewer-empty">Stand by — first positions, then bend.</span>
       </div>
 
       <aside class="side">
         <section class="stat-card limits-card">
-          <div class="card-label">Codex limits</div>
+          <div class="card-label">Production budget</div>
           <div class="limits" id="limits-body">
             <div class="limit-card five-card" id="limit-5h">
               <div class="limit-head">
                 <div>
-                  <div class="limit-title">5-hour window</div>
-                  <div class="limit-sub">Rolling limit</div>
+                  <div class="limit-title">Hot set window</div>
+                  <div class="limit-sub">5-hour burn rate</div>
                 </div>
                 <div class="limit-pct" id="pct-5h">—</div>
               </div>
@@ -591,8 +671,8 @@
             <div class="limit-card week-card" id="limit-week">
               <div class="limit-head">
                 <div>
-                  <div class="limit-title">Weekly</div>
-                  <div class="limit-sub">7-day limit</div>
+                  <div class="limit-title">Weekly allotment</div>
+                  <div class="limit-sub">Studio line item</div>
                 </div>
                 <div class="limit-pct" id="pct-week">—</div>
               </div>
@@ -639,12 +719,14 @@
       "Fresh burn window!",
     ];
     const FRAME_MSGS = [
-      "Bending pixels into shape…",
-      "One more take, darling…",
-      "Director's cut in progress…",
-      "Adding that Bendover flair…",
-      "On set — no safewords…",
-      "Consulting the style guide…",
+      "Bending pixels into position…",
+      "One more take — hold that pose…",
+      "Director's cut getting rough…",
+      "Adding that signature Bendover bend…",
+      "On set — hit your marks…",
+      "The camera never blinks…",
+      "Grip team tightening the shot…",
+      "Rolling — don't look at the lens…",
     ];
     const MILESTONE_MSGS = {
       25: "First quarter — keep bending! 🎬",
@@ -654,35 +736,44 @@
     };
     const ZERO_MSGS = ["Limit empty", "Flatlined", "BRB — refilling…", "Waiting on reset"];
     const GEN_STATUS = [
-      "Bending frames into shape…",
-      "On set — generating…",
-      "Production in progress…",
-      "Making it look easy (it's not)…",
-      "Another take? Don't mind if we do…",
-      "GPU is working harder than our interns…",
+      "On set — bending frames…",
+      "Sound stage is hot — generating…",
+      "Production in progress — keep it down…",
+      "Making it look effortless (lying)…",
+      "Another take? The director insists…",
+      "GPU sweating under those lights…",
+      "Rolling — nobody move…",
+      "Bendover unit still shooting…",
     ];
     const BRAND_TAGS = [
-      "Strictly professional. Strictly not.",
-      "We'll fix it in post. Probably.",
-      "Lights. Camera. Bendover.",
-      "Not that kind of studio. Maybe.",
-      "Taking liberties with pixels.",
-      "Rated PG-13 for puns.",
-      "Your mom's favorite studio. Probably.",
-      "Extra take? Don't threaten us with a good time.",
-      "Where content goes to get flexible.",
+      "We bend the rules. And the frames.",
+      "Rated R for reckless rendering.",
+      "Lights. Camera. Bendover. Action.",
+      "Grip department is standing by.",
+      "Hot set. Literally. Ask the GPU.",
+      "We'll fix it in post. We always say that.",
+      "Bendover Productions — very flexible hours.",
+      "One more take? Don't threaten us.",
+      "Where pixels learn to take direction.",
+      "Closed set. Open minds. Loose morals.",
+      "The clapperboard doesn't judge.",
+      "Craft services: coffee and innuendo.",
     ];
     const TICKER_LINES = [
-      "Director says: one more take",
-      "Craft services is just vibes and coffee",
-      "Union break in 5… jk never",
-      "This scene brought to you by Codex",
-      "No frames were harmed in the making of… some of them",
-      "That's not a bug, it's artistic direction",
-      "Wrap party starts when the meter refills",
-      "Bendover: we're very professional. Mostly.",
-      "Stand-in pixels reporting for duty",
-      "Someone yell 'action' — we're already going",
+      "QUIET ON SET — the GPU is performing",
+      "Director: harder, faster, more bend",
+      "Bendover Productions presents: another take",
+      "Stand-ins wanted — must be PNG",
+      "This scene sponsored by Codex and bad decisions",
+      "Hair & makeup: none. Dignity: optional.",
+      "That's a wrap — unless you want another round",
+      "Hot lights, hot takes, hot set",
+      "Script supervisor says: more innuendo in frame 47",
+      "Best boy electric is just vibing",
+      "Bendover: we go again until it's bent right",
+      "Martini shot? We're nowhere close.",
+      "Background actors: all stick figures, zero union",
+      "The producer left. We're unsupervised.",
     ];
     const FRAME_DONE_TOASTS = [
       "Frame in the can! 🎬",
@@ -694,27 +785,30 @@
       "Hot fresh frame, served bent",
     ];
     const EMPTY_VIEWER_MSGS = [
-      "Lights, camera… bend over and wait.",
-      "The set is empty. Like our souls. Kidding!",
-      "Waiting for pixels to show up on time…",
-      "Cue dramatic holding music…",
-      "No frame yet — go touch grass (then come back)",
-      "Casting call for PNGs still open",
+      "Stand by — first positions, then bend.",
+      "Set's empty. Crew's early. Pixels are late.",
+      "Waiting for talent to hit their mark…",
+      "Cue holding music and uncomfortable silence…",
+      "No picture yet — touch grass, then report to set",
+      "Casting call open — must be 16:9 and flexible",
+      "The monitor's cold. The set is not.",
     ];
     const DOT_TITLES = [
-      "This one's the money shot",
-      "Currently bending",
-      "Hot take incoming",
-      "Director's favorite (today)",
-      "Don't blink",
-      "Frame of the century (so far)",
+      "Money shot — don't cut early",
+      "Currently bending on set",
+      "Hot take — handle with care",
+      "Director's pick (for now)",
+      "Don't blink — we're rolling",
+      "Scene stealah incoming",
+      "This frame does its own stunts",
     ];
     const LOGO_EASTER = [
-      "You found the clapper! Clap clap.",
-      "Bendover Productions™ — patent pending",
-      "That's what the logo said.",
-      "Nice click. Very professional.",
-      "Achievement unlocked: Logo molester",
+      "CLAP! Scene 1, take… who knows.",
+      "Bendover Productions™ — bend responsibly",
+      "That's a wrap on the logo click.",
+      "Nice clap. Very union.",
+      "Achievement: Clapperboard enthusiast",
+      "Sound speed. Camera speed. Bendover speed.",
     ];
     let startedAt = null, refreshing = false, loaded = false;
     let isGenerating = false;
@@ -927,7 +1021,7 @@
       document.getElementById("sim-banner")?.classList.remove("hidden");
       document.getElementById("refresh-btn")?.classList.add("hidden");
       document.getElementById("narration-btn")?.classList.add("hidden");
-      document.getElementById("title").textContent = "🎬 Sim Studio";
+      document.getElementById("title").textContent = "🎬 Sim Stage · Bendover";
       prev5h = prevWeek = prevDone = null;
       applySimProgress();
       updateSimLog();
@@ -1328,7 +1422,7 @@
       const v = document.getElementById("viewer");
       if (!name) {
         v.innerHTML =
-          `<span class="viewer-watermark">Bendover</span>` +
+          `<span class="viewer-watermark">REC · BENDOVER</span>` +
           `<span class="viewer-empty" id="viewer-empty">${pick(EMPTY_VIEWER_MSGS)}</span>`;
         return;
       }
@@ -1337,7 +1431,7 @@
       img.alt = caption;
       img.className = "enter";
       const mount = () => {
-        v.innerHTML = `<span class="viewer-watermark">Bendover</span>`;
+        v.innerHTML = `<span class="viewer-watermark">REC · BENDOVER</span>`;
         const stage = document.createElement("div");
         stage.className = "viewer-stage";
         const wrap = document.createElement("div");
@@ -1411,7 +1505,7 @@
       const acct = d.account || {};
       const phase = run.phase || "idle";
 
-      document.getElementById("title").textContent = p.name || "Studio";
+      document.getElementById("title").textContent = p.name ? `${p.name} · On Set` : "On Set · Sound Stage B";
       document.getElementById("status-dot").className =
         "dot" + (phase === "running" ? " live" : phase.includes("stop") ? " stop" : "");
 

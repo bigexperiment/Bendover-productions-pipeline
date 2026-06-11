@@ -342,6 +342,9 @@ def resolve_file(url_path: str) -> Path | None:
     path = urlparse(url_path).path
     if path in ("", "/"):
         path = "/tracker/index.html"
+    if path in ("/favicon.ico", "/favicon.svg"):
+        fav = TRACKER / "favicon.svg"
+        return fav if fav.is_file() else None
 
     rel = unquote(path.lstrip("/"))
     if not rel:
