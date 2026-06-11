@@ -4,8 +4,8 @@
 
 | Actor | Does |
 |-------|------|
-| **Assistant** | Runs every script (manifest, generate, render, upload, credits). Updates `project.json`. |
-| **User** | Adds files (`01-script`, `02-audio`, `03-transcript`), TurboScribe export, style approval, browser OAuth when prompted, says **done**. |
+| **Assistant** | After user sets project name: **offer** to write script or let user paste own. On yes → generate per `workflow/script-generation-prompt.md`. Runs every other script. Updates `project.json`. |
+| **User** | Project title/topic; accepts script offer or pastes own script; `02-audio`, `03-transcript`, TurboScribe export, style approval, browser OAuth when prompted, says **done**. |
 
 **Never** tell the user to run terminal commands. Run them yourself.
 
@@ -13,17 +13,25 @@
 
 Steps 0–6, 8–10: name, script, style, audio, transcript, manifest, style approval, render, upload, cleanup — **chat only** (except browser OAuth on first YouTube login).
 
+Script (step 1): **After step 0**, if `Script.txt` is empty, **offer** assistant-written script vs user paste. When generating, **must** follow `workflow/script-generation-prompt.md` (web research first; high-retention 5-min structure; continuous prose in `01-script/Script.txt` — no headings, timestamps, or line breaks).
+
 Transcript: user pastes timestamped export from [turboscribe.com](https://turboscribe.com) into `03-transcript/transcript.txt` (empty by default).
 
 Manifest: intelligent cuts ~2s (max 3s) from transcript — not fixed-interval script chop.
 
 ## Studio UI (image generation only)
 
-Start when bulk image gen begins:
+Start when bulk image gen begins. **Assistant runs these — never raw `serve.py`.**
 
 ```bash
-scripts/start_studio.sh
+scripts/status_studio.sh    # check first — skip start if already OK
+scripts/start_studio.sh     # detached supervisor; idempotent; survives agent shell exit
+scripts/stop_studio.sh      # explicit shutdown only
 ```
+
+`start_studio.sh` → `tracker/studio_supervisor.py --detach` → `tracker/serve.py` (auto-restart on crash).
+
+**Do not** re-run start every chat turn. Agent-started non-detached processes die when the harness closes the shell; detached mode fixes that.
 
 ## Auto-run (assistant)
 
@@ -66,5 +74,8 @@ python3 scripts/05_publish/generate_thumbnail.py
 pip3 install -r 07-upload/requirements-youtube.txt
 python3 scripts/05_publish/upload_to_youtube.py --auth-only
 python3 scripts/05_publish/upload_to_youtube.py
+scripts/status_studio.sh   # check first
+scripts/start_studio.sh    # if down — detached, idempotent
+scripts/stop_studio.sh     # stop when done
 python3 scripts/07_credits/fetch_codex_usage.py --force
 ```

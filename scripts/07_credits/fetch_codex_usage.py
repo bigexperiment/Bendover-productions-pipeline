@@ -6,6 +6,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+CREDITS_FRESH_SECONDS = 20 * 60
+
 
 ROOT = Path(__file__).resolve().parents[2]
 USAGE_FILE = ROOT / "tracker" / "usage.json"
@@ -30,9 +32,19 @@ def parse_rate_limits(payload: dict | None) -> dict | None:
     return rate_limits or None
 
 
-def latest_rate_limits() -> tuple[dict | None, str | None]:
+def parse_event_timestamp(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        normalized = value.replace("Z", "+00:00")
+        return int(datetime.fromisoformat(normalized).timestamp())
+    except ValueError:
+        return None
+
+
+def latest_rate_limits() -> tuple[dict | None, str | None, int | None]:
     if not SESSIONS_DIR.exists():
-        return None, "No Codex sessions directory found"
+        return None, "No Codex sessions directory found", None
 
     session_files = sorted(
         SESSIONS_DIR.rglob("*.jsonl"),
@@ -53,8 +65,16 @@ def latest_rate_limits() -> tuple[dict | None, str | None]:
             payload = event.get("payload", {})
             rate_limits = parse_rate_limits(payload)
             if rate_limits:
-                return rate_limits, str(session_file)
-    return None, "No recent Codex rate-limit events found"
+                event_at = parse_event_timestamp(event.get("timestamp"))
+                return rate_limits, str(session_file), event_at
+    return None, "No recent Codex rate-limit events found", None
+
+
+def credits_are_fresh(event_at: int | None, now: int | None = None) -> bool:
+    if not event_at:
+        return False
+    now = now or int(time.time())
+    return (now - event_at) <= CREDITS_FRESH_SECONDS
 
 
 def should_stop_generation(payload: dict) -> tuple[bool, str]:
@@ -72,10 +92,44 @@ def should_stop_generation(payload: dict) -> tuple[bool, str]:
     return False, ""
 
 
-def read_usage_payload(force: bool = False) -> dict:
-    if USAGE_FILE.exists() and not force:
+def enrich_usage_payload(payload: dict) -> dict:
+    now = int(time.time())
+    event_at = payload.get("event_at")
+    if event_at:
+        payload["event_age_seconds"] = max(0, now - int(event_at))
+    fresh = credits_are_fresh(event_at, now) if event_at else False
+    payload["credits_fresh"] = fresh
+    if not fresh:
+        payload["credits_stale_reason"] = payload.get("credits_stale_reason") or (
+            "No recent Codex usage — run a command or refresh to update limits"
+        )
+    for key in ("five_hour", "weekly"):
+        window = payload.get(key)
+        if not window:
+            continue
+        resets_at = int(window.get("resets_at") or 0)
+        if resets_at:
+            secs = max(0, resets_at - now)
+            remaining = float(window.get("remaining_percent") or 0)
+            window = {
+                **window,
+                "reset_in_seconds": secs,
+                "reset_in": fmt_reset(secs) if secs else "0m",
+                "reset_elapsed": secs == 0 and remaining <= 5,
+            }
+            payload[key] = window
+    return payload
+
+
+def read_usage_payload(force: bool = False, max_cache_age: int = 30) -> dict:
+    """Read usage; re-scan Codex session logs if cache file is older than max_cache_age."""
+    if not force and USAGE_FILE.exists():
         try:
-            return json.loads(USAGE_FILE.read_text(encoding="utf-8"))
+            age = time.time() - USAGE_FILE.stat().st_mtime
+            if age > max_cache_age:
+                return write_usage(force=True)
+            payload = json.loads(USAGE_FILE.read_text(encoding="utf-8"))
+            return enrich_usage_payload(payload)
         except json.JSONDecodeError:
             pass
     return write_usage(force=True)
@@ -124,26 +178,36 @@ def write_usage(force: bool = False, cache_seconds: int = 30) -> dict:
         and USAGE_FILE.exists()
         and time.time() - USAGE_FILE.stat().st_mtime < cache_seconds
     ):
-        return json.loads(USAGE_FILE.read_text(encoding="utf-8"))
+        return enrich_usage_payload(json.loads(USAGE_FILE.read_text(encoding="utf-8")))
 
-    rate_limits, source = latest_rate_limits()
+    rate_limits, source, event_at = latest_rate_limits()
+    now = int(time.time())
     if not rate_limits:
         payload = {
-            "updated_at": int(time.time()),
+            "updated_at": now,
             "error": source,
             "five_hour": None,
             "weekly": None,
             "credits": None,
+            "credits_fresh": False,
+            "credits_stale_reason": source or "No recent usage data",
         }
     else:
         payload = build_usage_payload(rate_limits)
         payload["source"] = source
+        payload["event_at"] = event_at
+        payload["event_age_seconds"] = (now - event_at) if event_at else None
+        payload["credits_fresh"] = credits_are_fresh(event_at, now)
+        if not payload["credits_fresh"]:
+            payload["credits_stale_reason"] = (
+                "Usage data is older than 20 minutes — run Codex or refresh to update"
+            )
 
     blocked, reason = should_stop_generation(payload)
     payload["generation_blocked"] = blocked
     payload["stop_reason"] = reason if blocked else ""
 
-    USAGE_FILE.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    USAGE_FILE.write_text(json.dumps(enrich_usage_payload(payload), indent=2) + "\n", encoding="utf-8")
     return payload
 
 

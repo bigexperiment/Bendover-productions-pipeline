@@ -6,7 +6,7 @@ Cursor loads `.cursor/rules/video-workflow.mdc` on every chat.
 
 | # | Folder | Contents |
 |---|--------|----------|
-| 1 | `01-script/` | `Script.txt` — empty by default; user pastes script |
+| 1 | `01-script/` | `Script.txt` — assistant offers to write (see script-generation-prompt.md) or user pastes |
 | 2 | — | `image_style` in `project.json` (repo root) |
 | 3 | `02-audio/` | one narration MP3 (e.g. `narration.mp3`) |
 | 4 | `03-transcript/` | `transcript.txt` — empty by default; TurboScribe export |
@@ -21,8 +21,8 @@ Assistant runs all scripts — user never gets terminal commands.
 
 | # | Need | Who |
 |---|------|-----|
-| 0 | `name` | User tells name → assistant saves to `project.json`; mention user can change any settings there |
-| 1 | `01-script/Script.txt` | User pastes script into empty file, says **done** |
+| 0 | `name` | User gives title/topic → assistant saves to `project.json`; mention user can change any settings there |
+| 1 | `01-script/Script.txt` | **Right after step 0:** assistant **offers** to write script ([script-generation-prompt.md](script-generation-prompt.md)) or user pastes own; if yes → assistant researches + writes; **done** |
 | 2 | `image_style` | User describes style |
 | 3 | one file in `02-audio/` | User adds narration MP3, says **done** |
 | 4 | `03-transcript/transcript.txt` | User pastes TurboScribe export into empty file, says **done** |
@@ -38,6 +38,7 @@ Assistant runs all scripts — user never gets terminal commands.
 | Step | Doc | Script |
 |------|-----|--------|
 | Setup | [steps/01-setup.md](steps/01-setup.md) | — |
+| Script | [steps/00-script.md](steps/00-script.md) · [script-generation-prompt.md](script-generation-prompt.md) | — |
 | Audio | [steps/02-audio.md](steps/02-audio.md) | — |
 | Transcript | [steps/03-transcript.md](steps/03-transcript.md) | — |
 | Manifest | [steps/04-manifest.md](steps/04-manifest.md) | `scripts/02_manifest/build_plan.py` |
@@ -47,8 +48,9 @@ Assistant runs all scripts — user never gets terminal commands.
 | Cleanup | [steps/08-cleanup.md](steps/08-cleanup.md) | none — assistant generates Python on the fly |
 
 ```bash
-scripts/start_studio.sh
-scripts/status_studio.sh
+scripts/status_studio.sh   # check first — do not restart if healthy
+scripts/start_studio.sh    # detached supervisor; idempotent
+scripts/stop_studio.sh
 ```
 
-**Rules:** [rules.md](rules.md)
+**Rules:** [rules.md](rules.md) (Studio section — detached start, check status before start)

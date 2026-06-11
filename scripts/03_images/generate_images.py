@@ -24,6 +24,7 @@ RUNNER_LOG = TRACKER_DIR / "runner.log"
 MANIFEST_SCRIPT = ROOT / "scripts/02_manifest/build_plan.py"
 CREDITS_DIR = ROOT / "scripts/07_credits"
 DEFAULT_WORKERS = 5
+JOB_TIMEOUT_SEC = 20 * 60  # kill hung codex exec per frame
 
 sys.path.insert(0, str(CREDITS_DIR))
 from fetch_codex_usage import read_usage_payload, should_stop_generation  # noqa: E402
@@ -235,9 +236,18 @@ def main() -> int:
             running[job.filename] = (job, launch_job(job, project), time.time())
 
         done_now: list[str] = []
-        for filename, (job, proc, _) in running.items():
+        for filename, (job, proc, started) in running.items():
             code = proc.poll()
             if code is None:
+                if time.time() - started > JOB_TIMEOUT_SEC:
+                    append_log(f"timeout {filename} after {JOB_TIMEOUT_SEC}s")
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                    done_now.append(filename)
+                    failed += 1
                 continue
             done_now.append(filename)
             if code == 0 and (IMAGES_DIR / filename).is_file():

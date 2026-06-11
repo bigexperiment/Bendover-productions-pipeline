@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import cgi
 import csv
 import json
 import mimetypes
@@ -13,12 +12,15 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 ROOT = Path(__file__).resolve().parent.parent
 TRACKER = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "scripts" / "07_credits"))
+from codex_account import read_codex_account  # noqa: E402
+from fetch_codex_usage import read_usage_payload  # noqa: E402
 from lib.folders import (  # noqa: E402
     AUDIO_EXTS,
     DIR_AUDIO,
@@ -50,6 +52,34 @@ STEP_LABELS = {
     "render": "Render",
     "publish": "Publish",
 }
+
+def parse_multipart_form(body: bytes, content_type: str) -> dict[str, dict[str, bytes | str | None]]:
+    """Minimal multipart/form-data parser (replaces removed stdlib cgi)."""
+    if "boundary=" not in content_type:
+        raise ValueError("Expected multipart/form-data")
+    boundary = content_type.split("boundary=", 1)[1].split(";", 1)[0].strip().strip('"').encode()
+    fields: dict[str, dict[str, bytes | str | None]] = {}
+    for part in body.split(b"--" + boundary):
+        chunk = part.strip(b"\r\n")
+        if not chunk or chunk == b"--":
+            continue
+        header_block, _, content = chunk.partition(b"\r\n\r\n")
+        if not header_block:
+            continue
+        name = filename = None
+        for line in header_block.decode("utf-8", errors="replace").split("\r\n"):
+            if not line.lower().startswith("content-disposition:"):
+                continue
+            for token in line.split(";", 1)[1].split(";"):
+                token = token.strip()
+                if token.startswith("name="):
+                    name = token[5:].strip('"')
+                elif token.startswith("filename="):
+                    filename = token[9:].strip('"') or None
+        if name:
+            fields[name] = {"filename": filename, "data": content.rstrip(b"\r\n")}
+    return fields
+
 
 def load_json(path: Path, default: dict | list | None = None):
     if not path.is_file():
@@ -105,6 +135,7 @@ def audio_status() -> dict:
 
     return {
         "narration": narration.name if narration else None,
+        "url": f"02-audio/{narration.name}" if narration else None,
         "ready": ready,
         "error": error,
     }
@@ -216,7 +247,8 @@ def build_status() -> dict:
     project = load_project()
     progress = load_json(PROGRESS_FILE, {})
     runner = load_json(TRACKER / "status.json", {})
-    usage = load_json(TRACKER / "usage.json", {})
+    usage = read_usage_payload(force=False, max_cache_age=30)
+    account = read_codex_account()
     recent = load_json(TRACKER / "recent.json", {})
     script = script_path()
     audio = audio_status()
@@ -248,7 +280,9 @@ def build_status() -> dict:
         "progress": progress,
         "runner": runner,
         "usage": usage,
+        "account": account,
         "recent": recent,
+        "audio": audio,
     }
 
 
@@ -309,7 +343,7 @@ def resolve_file(url_path: str) -> Path | None:
     if path in ("", "/"):
         path = "/tracker/index.html"
 
-    rel = path.lstrip("/")
+    rel = unquote(path.lstrip("/"))
     if not rel:
         return None
 
@@ -384,7 +418,10 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/status":
-            self._send_json(build_status())
+            try:
+                self._send_json(build_status())
+            except Exception as exc:
+                self._send_json({"error": str(exc), "project": load_project()}, 500)
             return
         if path == "/api/project":
             self._send_json(load_project())
@@ -427,23 +464,31 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def _handle_upload(self) -> None:
-        env = {
-            "REQUEST_METHOD": "POST",
-            "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-            "CONTENT_LENGTH": self.headers.get("Content-Length", "0"),
-        }
-        form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ=env)
+        content_type = self.headers.get("Content-Type", "")
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        try:
+            form = parse_multipart_form(body, content_type)
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
 
-        kind = form.getvalue("kind", "script")
-        item = form["file"] if "file" in form else None
-        if item is None or not item.filename:
+        kind_field = form.get("kind", {})
+        kind = kind_field.get("data", b"script")
+        kind = kind.decode("utf-8") if isinstance(kind, bytes) else "script"
+        item = form.get("file")
+        if not item or not item.get("filename"):
             self._send_json({"ok": False, "error": "No file"}, 400)
             return
 
-        filename = Path(item.filename).name
+        filename = Path(str(item["filename"])).name
+        file_data = item["data"]
+        if not isinstance(file_data, bytes):
+            self._send_json({"ok": False, "error": "No file"}, 400)
+            return
         if kind == "script":
             DIR_SCRIPT.mkdir(exist_ok=True)
-            SCRIPT_FILE.write_bytes(item.file.read())
+            SCRIPT_FILE.write_bytes(file_data)
             self._send_json({"ok": True, "path": f"01-script/{SCRIPT_FILE.name}"})
             return
 
@@ -453,7 +498,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path.is_file() and path.suffix.lower() in AUDIO_EXTS:
                     path.unlink()
             dest = DIR_AUDIO / filename
-            dest.write_bytes(item.file.read())
+            dest.write_bytes(file_data)
             self._send_json({"ok": True, "path": f"02-audio/{dest.name}"})
             return
 

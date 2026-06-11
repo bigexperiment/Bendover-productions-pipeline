@@ -1,27 +1,55 @@
+# --- Per-video project content (local only) ---
+project.json
+
+# Script — empty Script.txt tracked as template; other files local
+01-script/*
+!01-script/Script.txt
+
+# Narration audio
+02-audio/*
+!02-audio/.gitkeep
+
+# Transcript — empty transcript.txt tracked as template; other files local
+03-transcript/*
+!03-transcript/transcript.txt
+
+# Generated manifest / cut plan
+04-manifest/*
+!04-manifest/.gitkeep
+
+# Generated frame images
+05-images/*
+!05-images/.gitkeep
+
+# Rendered video
+06-output/*
+!06-output/.gitkeep
+
+# --- YouTube upload (secrets + generated assets) ---
+07-upload/*
+!07-upload/.gitkeep
+!07-upload/requirements-youtube.txt
 07-upload/client_secret*.json
 07-upload/youtube_token.json
 07-upload/upload_metadata.json
 07-upload/thumbnail.png
-token.json
+07-upload.zip
+
+# --- Studio runtime (tracker) ---
+tracker/studio.pid
+tracker/studio.log
+tracker/runner.log
+tracker/port.txt
+tracker/status.json
+tracker/usage.json
+tracker/recent.json
+tracker/logs/
+
+# --- Python / OS ---
 .env
+token.json
 *.pyc
 __pycache__/
 .DS_Store
 .cache/
 .venv/
-tracker/studio.pid
-tracker/studio.log
-06-output/*.mp4
-02-audio/*
-!02-audio/.gitkeep
-01-script/*
-!01-script/.gitkeep
-03-transcript/*
-!03-transcript/.gitkeep
-project.json
-07-upload.zip
-04-manifest/image_regen_manifest.csv
-04-manifest/image_regen_progress.json
-04-manifest/image_cut_plan.txt
-tracker/logs/
-tracker/runner.log

@@ -3,167 +3,1461 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Image Tracker</title>
+  <title>Bendover Productions · Studio</title>
   <style>
     :root {
-      --bg: #0f1114; --card: #1a1d23; --ink: #e8eaed; --muted: #9aa0a6;
-      --line: #2d3139; --accent: #3dd6c6; --warn: #f4a261; --bad: #e76f51; --done: #52b788;
+      --bg: #fdf2f8;
+      --card: #fff;
+      --ink: #4a1942;
+      --muted: #9d5f8f;
+      --line: #f3d0e4;
+      --accent: #db2777;
+      --accent-deep: #be185d;
+      --accent-soft: #fce7f3;
+      --week: #9333ea;
+      --week-soft: #f3e8ff;
+      --gold: #f59e0b;
+      --bad: #e11d48;
+      --warn: #d97706;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
-    .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
-    h1 { margin: 0; font-size: 1.3rem; }
-    .sub { color: var(--muted); font-size: 0.85rem; margin: 4px 0 16px; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-    .stat .n { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
-    .stat .l { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-    .card h2 { margin: 0 0 10px; font-size: 0.95rem; }
-    .bar { height: 10px; background: #2a2f38; border-radius: 99px; overflow: hidden; }
-    .fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s; }
-    .fill.warn { background: var(--warn); }
-    .fill.bad { background: var(--bad); }
-    .pill { display: inline-block; padding: 4px 10px; border-radius: 99px; font-size: 0.78rem; background: #24302e; color: var(--accent); }
-    .pill.stop { background: #3a2220; color: var(--bad); }
-    .pill.idle { background: #252830; color: var(--muted); }
-    .viewer { aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .viewer img { width: 100%; height: 100%; object-fit: contain; }
-    .filmstrip { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; }
-    .filmstrip img { height: 54px; border-radius: 4px; cursor: pointer; opacity: 0.7; }
-    .filmstrip img.on { opacity: 1; outline: 2px solid var(--accent); }
-    .muted { color: var(--muted); font-size: 0.85rem; }
-    .row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(ellipse 90% 55% at 10% -10%, rgba(251, 207, 232, .7), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 95% 5%, rgba(233, 213, 255, .55), transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 100%, rgba(254, 243, 199, .35), transparent),
+        var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+    @keyframes count-pop {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.14); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shine-once {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    @keyframes frame-in {
+      from { opacity: 0; transform: scale(.985); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes cd-tick {
+      0% { transform: scale(.5); opacity: 0; filter: blur(6px); }
+      55% { transform: scale(1.12); opacity: 1; filter: blur(0); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes cd-ring-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(244, 114, 182, .35); }
+      70% { box-shadow: 0 0 0 12px rgba(244, 114, 182, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(244, 114, 182, 0); }
+    }
+    @keyframes refill-burst {
+      0% { transform: scale(.5); opacity: 0; }
+      20% { transform: scale(1.05); opacity: 1; }
+      80% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1.02); opacity: 0; }
+    }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0) rotate(0); }
+      20% { transform: translateX(-4px) rotate(-.6deg); }
+      40% { transform: translateX(4px) rotate(.6deg); }
+      60% { transform: translateX(-3px) rotate(-.4deg); }
+      80% { transform: translateX(3px) rotate(.4deg); }
+    }
+    @keyframes wobble {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-1.2deg) scale(1.01); }
+      75% { transform: rotate(1.2deg) scale(1.01); }
+    }
+    @keyframes float-up {
+      0% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+      100% { opacity: 0; transform: translateY(-42px) scale(1.35) rotate(12deg); }
+    }
+    @keyframes sim-bg-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes sim-pop-in {
+      0% { opacity: 0; transform: scale(.88) rotate(-4deg); filter: blur(4px); }
+      60% { opacity: 1; transform: scale(1.04) rotate(2deg); filter: blur(0); }
+      100% { opacity: 1; transform: scale(1) rotate(0); }
+    }
+    @keyframes sim-scan {
+      0% { top: -20%; opacity: 0; }
+      15% { opacity: .55; }
+      100% { top: 120%; opacity: 0; }
+    }
+    @keyframes milestone-burst {
+      0% { transform: scale(.6); opacity: 0; }
+      25% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1.15); opacity: 0; }
+    }
+    @keyframes dot-hop {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.85); }
+      100% { transform: scale(1.55); }
+    }
+    @keyframes logo-wiggle {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-8deg) scale(1.08); }
+      75% { transform: rotate(8deg) scale(1.08); }
+    }
+    @keyframes ticker-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(12px) scale(.95); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes toast-out {
+      to { opacity: 0; transform: translateY(-6px); }
+    }
+    .skel {
+      background: linear-gradient(90deg, #fce7f3 25%, #fdf2f8 50%, #fce7f3 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s ease infinite;
+      border-radius: 8px;
+    }
+
+    .shell {
+      height: 100%; max-width: 1140px; margin: 0 auto;
+      padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+    }
+
+    header {
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0; min-height: 36px;
+    }
+    .brand-lockup {
+      display: flex; align-items: center; gap: 8px;
+      min-width: 0; max-width: 42%;
+    }
+    .brand-logo {
+      width: 28px; height: 28px; flex-shrink: 0; cursor: pointer;
+      filter: drop-shadow(0 2px 4px rgba(219, 39, 119, .2));
+      transition: transform .2s ease;
+    }
+    .brand-logo:hover { transform: scale(1.06); }
+    .brand-logo.wiggle { animation: logo-wiggle .5s ease; }
+    .brand-text { min-width: 0; }
+    .brand-co {
+      font-size: 0.58rem; font-weight: 800;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+    .brand-tag {
+      font-size: 0.62rem; color: var(--muted); font-style: italic;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: opacity .3s ease;
+    }
+    .fun-ticker {
+      flex-shrink: 0; overflow: hidden; border-radius: 8px;
+      background: linear-gradient(90deg, var(--accent-soft), var(--week-soft));
+      border: 1px dashed var(--line); padding: 5px 0;
+    }
+    .fun-ticker-track {
+      display: flex; width: max-content;
+      animation: ticker-scroll 42s linear infinite;
+    }
+    .fun-ticker-track span {
+      padding: 0 28px; font-size: 0.68rem; font-weight: 600;
+      color: var(--accent-deep); white-space: nowrap;
+    }
+    .fun-ticker-track span::before { content: "✦ "; opacity: .5; }
+    h1 {
+      margin: 0; font-size: 0.82rem; font-weight: 600;
+      letter-spacing: -0.02em; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+      color: var(--ink);
+    }
+    .status {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.75rem; color: var(--muted); flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
+    .dot.live { background: var(--accent); animation: pulse-dot 1.5s ease infinite; }
+    .dot.stop { background: var(--bad); }
+    .acct {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 0.72rem; color: var(--muted); max-width: 26%; min-width: 0;
+    }
+    .acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .link-btn {
+      background: none; border: none; color: var(--accent);
+      font-size: 0.75rem; cursor: pointer; padding: 4px 8px; font-weight: 600;
+      border-radius: 6px; background: var(--accent-soft);
+      border: 1px solid rgba(244, 114, 182, .25);
+    }
+    .link-btn:hover { filter: brightness(1.08); }
+    .link-btn:disabled { opacity: .5; }
+    .link-btn.muted { color: var(--muted); background: #faf5f9; border-color: var(--line); }
+
+    .panel {
+      flex: 1; min-height: 0;
+      display: grid; grid-template-columns: 1fr 252px; gap: 10px;
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 10px; overflow: hidden;
+      box-shadow: 0 4px 24px rgba(219, 39, 119, .08);
+    }
+
+    .viewer {
+      min-height: 0; background: #1a1220; border-radius: 10px;
+      overflow: hidden; display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .viewer-watermark {
+      position: absolute; top: 8px; right: 10px; z-index: 2;
+      font-size: 0.58rem; font-weight: 800; letter-spacing: .12em;
+      color: rgba(255,255,255,.35); text-transform: uppercase;
+      pointer-events: none;
+    }
+    .viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .viewer img.enter { animation: frame-in .5s cubic-bezier(.22, 1, .36, 1); }
+    .viewer-empty { color: var(--muted); font-size: 0.8rem; font-style: italic; }
+    .viewer-stage {
+      width: 100%; height: 100%; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; min-height: 0;
+    }
+    .viewer-stage .img-wrap {
+      flex: 1; min-height: 0; width: 100%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .viewer-caption {
+      flex-shrink: 0; width: 100%; padding: 8px 12px;
+      font-size: 0.78rem; line-height: 1.35; color: #e5e7eb;
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,.75));
+      text-align: center;
+    }
+
+    .side {
+      display: flex; flex-direction: column; gap: 10px;
+      min-height: 0; overflow-y: auto;
+    }
+
+    .stat-card {
+      background: #fffbfd;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+      animation: card-in .4s ease both;
+    }
+    .stat-card.limits-card { animation-delay: .06s; }
+
+    .card-label {
+      font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 10px;
+    }
+
+    /* Frame dot progress rail */
+    .frame-rail {
+      flex-shrink: 0;
+      padding: 10px 12px 8px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(219, 39, 119, .06);
+    }
+    .frame-rail-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; margin-bottom: 8px;
+    }
+    .frame-rail-head .card-label { margin-bottom: 0; }
+    .frame-count {
+      font-size: 0.85rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    }
+    .frame-count.pop { animation: count-pop .5s cubic-bezier(.34, 1.2, .64, 1); }
+    .frame-dots {
+      display: flex; flex-wrap: wrap;
+      gap: var(--dot-gap, 3px); align-items: center;
+    }
+    .frame-dot {
+      width: var(--dot-size, 6px); height: var(--dot-size, 6px);
+      border-radius: 50%; background: #f0d4e8; flex-shrink: 0;
+      transition: background .35s ease, transform .35s cubic-bezier(.34, 1.2, .64, 1),
+                  box-shadow .35s ease;
+    }
+    .frame-dot.done { background: var(--accent); }
+    .frame-dot.current {
+      background: var(--accent);
+      transform: scale(1.55);
+      box-shadow: 0 0 0 2px var(--accent-soft), 0 0 8px rgba(219, 39, 119, .35);
+      position: relative; z-index: 1;
+    }
+    .frame-dot.current.tick { animation: dot-hop .45s cubic-bezier(.34, 1.3, .64, 1); }
+    .frame-dot.all-done { background: var(--accent); }
+    .frame-meta {
+      font-size: 0.72rem; color: var(--muted); margin-top: 6px; line-height: 1.35;
+    }
+    .frame-meta strong { color: var(--ink); font-weight: 600; }
+    .frame-rail.bump { animation: shake .45s ease; }
+    .frame-rail .milestone {
+      position: absolute; inset: 0; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; font-weight: 800; letter-spacing: .04em;
+      color: #fff; pointer-events: none; z-index: 3;
+      background: linear-gradient(135deg, rgba(219,39,119,.92), rgba(124,58,237,.92));
+      animation: milestone-burst 1.1s ease forwards;
+    }
+
+    /* Codex limits */
+    .limits { display: flex; flex-direction: column; gap: 10px; }
+    .limits.stale { opacity: .85; }
+
+    .limit-card {
+      position: relative;
+      padding: 12px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    .limit-card.five-card {
+      background: linear-gradient(160deg, #fff5fa 0%, #fff 55%);
+      border-color: #f9a8d4;
+    }
+    .limit-card.week-card {
+      background: linear-gradient(160deg, #faf5ff 0%, #fff 55%);
+      border-color: #d8b4fe;
+    }
+    .limit-card.countdown { animation: cd-ring-pulse 1.2s ease infinite; }
+    .limit-card.flash { background-color: #fff0f7; transition: background .3s; }
+    .limit-card.drain-hit { animation: shake .42s ease; }
+    .limit-card.critical { animation: wobble .9s ease infinite; }
+
+    .limit-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 8px; gap: 8px;
+    }
+    .limit-title { font-size: 0.8rem; font-weight: 700; line-height: 1.2; }
+    .limit-card.five-card .limit-title { color: #be185d; }
+    .limit-card.week-card .limit-title { color: #7e22ce; }
+    .limit-sub { font-size: 0.65rem; color: var(--muted); margin-top: 2px; font-weight: 500; }
+
+    .limit-pct {
+      font-size: 1.25rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .limit-pct.pop { animation: count-pop .45s cubic-bezier(.34, 1.2, .64, 1); }
+    .limit-pct.warn { color: var(--warn); }
+    .limit-pct.bad { color: var(--bad); }
+
+    .limit-track {
+      position: relative;
+      height: 10px; background: #f3d0e4; border-radius: 99px;
+      overflow: hidden;
+    }
+    .limit-track.skel { animation: shimmer 1.4s ease infinite; background-size: 200% 100%; }
+    .limit-fill {
+      height: 100%; width: 0%; border-radius: 99px;
+      transition: width .8s cubic-bezier(.34, 1.15, .64, 1);
+      position: relative; overflow: hidden;
+    }
+    .limit-fill.five {
+      background: linear-gradient(90deg, #f9a8d4, #db2777);
+      box-shadow: 0 0 14px rgba(219, 39, 119, .4);
+    }
+    .limit-fill.week {
+      background: linear-gradient(90deg, #d8b4fe, #7c3aed);
+      box-shadow: 0 0 12px rgba(124, 58, 237, .35);
+    }
+    .limit-fill.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b) !important; }
+    .limit-fill.bad { background: linear-gradient(90deg, #f87171, #dc2626) !important; box-shadow: 0 0 10px rgba(220,38,38,.2) !important; }
+    .limit-fill::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+      transform: translateX(-100%); opacity: 0;
+    }
+    .limit-fill.shine::after { opacity: 1; animation: shine-once .7s ease; }
+
+    .limit-reset {
+      font-size: 0.72rem; color: var(--muted); font-weight: 500;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .limit-reset::before {
+      content: "↻"; font-size: 0.85rem; opacity: .7;
+    }
+    .limit-reset.cd-mode {
+      justify-content: center; gap: 8px; margin-top: 4px;
+      font-size: inherit;
+    }
+    .limit-reset.cd-mode::before { display: none; }
+    .cd-num {
+      font-size: 1.75rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+      color: var(--accent);
+    }
+    .limit-card.week-card .cd-num { color: var(--week); }
+    .cd-num.tick { animation: cd-tick .5s cubic-bezier(.22, 1.2, .36, 1); }
+    .cd-num.cd-zero { color: var(--warn); font-size: 1.5rem; }
+    .cd-hint {
+      font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
+    }
+
+    .limit-card .burst {
+      position: absolute; inset: 0; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #fff;
+      background: linear-gradient(135deg, #db2777, #7c3aed);
+      pointer-events: none; z-index: 2;
+      animation: refill-burst 1.4s cubic-bezier(.22, 1, .36, 1) forwards;
+    }
+    .limit-card .burst.zany {
+      font-size: 0.78rem;
+      background: linear-gradient(135deg, #f59e0b, #ec4899, #6366f1);
+      background-size: 200% 200%;
+      animation: refill-burst 1.4s cubic-bezier(.22, 1, .36, 1) forwards,
+                 sim-bg-shift 1.2s ease infinite;
+    }
+
+    .viewer-sim {
+      width: 100%; height: 100%; position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, hsl(var(--hue) 55% 22%), hsl(calc(var(--hue) + 40) 60% 12%));
+      background-size: 200% 200%;
+      animation: sim-bg-shift 6s ease infinite;
+    }
+    .viewer-sim .sim-emoji {
+      font-size: clamp(3rem, 18vw, 5.5rem);
+      animation: sim-pop-in .55s cubic-bezier(.22, 1.2, .36, 1) both;
+      filter: drop-shadow(0 8px 24px rgba(0,0,0,.35));
+    }
+    .viewer-sim .sim-scanline {
+      position: absolute; left: 0; right: 0; height: 28%;
+      background: linear-gradient(180deg, transparent, rgba(255,255,255,.12), transparent);
+      animation: sim-scan 1.8s linear infinite;
+      pointer-events: none;
+    }
+    .viewer-sim .sim-frame-tag {
+      position: absolute; left: 10px; bottom: 10px;
+      font-size: 0.68rem; font-family: ui-monospace, Menlo, monospace;
+      color: rgba(255,255,255,.75); background: rgba(0,0,0,.35);
+      padding: 4px 8px; border-radius: 6px;
+    }
+    .viewer-sim .sim-caption {
+      position: absolute; top: 10px; left: 10px; right: 10px;
+      font-size: 0.72rem; font-weight: 700; color: rgba(255,255,255,.9);
+      text-shadow: 0 1px 8px rgba(0,0,0,.4);
+    }
+
+    .limits-note {
+      font-size: 0.72rem; color: var(--muted); text-align: center;
+      padding: 8px; line-height: 1.4;
+    }
+
+    .sim-banner {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(219,39,119,.15), rgba(124,58,237,.12));
+      border: 1px solid rgba(244, 114, 182, .3);
+      font-size: 0.72rem;
+      line-height: 1.4;
+    }
+    .sim-banner strong { color: var(--accent); }
+    .sim-log {
+      margin-top: 6px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px dashed #d8b4fe;
+      font-size: 0.68rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--week);
+      line-height: 1.45;
+    }
+    .sim-log .rule { color: var(--muted); font-family: inherit; display: block; margin-top: 4px; }
+
+    .toast-stack {
+      position: fixed; bottom: 16px; right: 16px; z-index: 99;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+      max-width: min(280px, 90vw);
+    }
+    .toast {
+      padding: 10px 14px; border-radius: 12px;
+      background: #fff; border: 1.5px solid var(--accent);
+      box-shadow: 0 6px 20px rgba(219, 39, 119, .15);
+      font-size: 0.75rem; font-weight: 600; color: var(--ink);
+      animation: toast-in .35s cubic-bezier(.22, 1.2, .36, 1) both;
+    }
+    .toast.leave { animation: toast-out .3s ease forwards; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 700px) {
+      html, body { overflow: auto; height: auto; }
+      .shell { height: auto; min-height: 100%; }
+      .panel { grid-template-columns: 1fr; }
+      .viewer { aspect-ratio: 16/9; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1 id="title">Image Tracker</h1>
-    <p class="sub" id="subtitle">Generating frames…</p>
-
-    <div class="grid">
-      <div class="stat"><div class="n" id="s-done">0</div><div class="l">Generated</div></div>
-      <div class="stat"><div class="n" id="s-total">0</div><div class="l">Total frames</div></div>
-      <div class="stat"><div class="n" id="s-pending">0</div><div class="l">Pending</div></div>
-      <div class="stat"><div class="n" id="s-workers">—</div><div class="l">Workers</div></div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <span class="pill idle" id="phase">idle</span>
-        <span class="muted" id="elapsed">—</span>
+  <div class="shell">
+    <header>
+      <div class="brand-lockup" id="brand-lockup">
+        <svg class="brand-logo" id="brand-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" title="Click me. Seriously.">
+          <rect x="2" y="4" width="28" height="24" rx="4" fill="#fff" stroke="#db2777" stroke-width="1.5"/>
+          <path d="M6 10h20" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="16" cy="20" r="5" fill="#fff" stroke="#111" stroke-width="1.2"/>
+          <path d="M14 19h2" stroke="#111" stroke-width="1.1" stroke-linecap="round"/>
+          <circle cx="18.5" cy="19" r=".9" fill="#111"/>
+          <path d="M11 22 Q16 26 21 22" stroke="#111" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+          <path d="M16 25 Q20 30 14 31" stroke="#f472b6" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="brand-text">
+          <div class="brand-co">Bendover Productions</div>
+          <h1 id="title">Studio</h1>
+          <div class="brand-tag" id="brand-tag">Strictly professional. Strictly not.</div>
+        </div>
       </div>
-      <div class="bar" style="margin-top:10px"><div class="fill" id="bar"></div></div>
-      <p class="muted" id="meta" style="margin-top:8px">—</p>
+      <div class="status">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Loading…</span>
+      </div>
+      <div class="acct" id="acct-line" title="">
+        <span class="dot" id="acct-dot"></span>
+        <span id="acct-label">—</span>
+      </div>
+      <button class="link-btn muted" id="narration-btn" type="button" title="Click to hear frame transcript">🔇</button>
+      <button class="link-btn hidden" id="refresh-btn" type="button">Refresh</button>
+    </header>
+
+    <div class="fun-ticker" id="fun-ticker-wrap" aria-hidden="true">
+      <div class="fun-ticker-track" id="fun-ticker"></div>
     </div>
 
-    <div class="card">
-      <h2>Codex credits</h2>
-      <p class="muted" id="c5">—</p>
-      <div class="bar"><div class="fill" id="bar5"></div></div>
-      <p class="muted" id="cw" style="margin-top:8px">—</p>
-      <div class="bar"><div class="fill" id="barw"></div></div>
+    <div class="sim-banner hidden" id="sim-banner">
+      <strong>Simulation mode</strong> — limits start at 100% and drain on a timer (not real Codex).
+      Remove <code>?sim=1</code> from the URL to use live limits.
+      <div class="sim-log" id="sim-log">—</div>
     </div>
 
-    <div class="card">
-      <h2>Latest frame</h2>
-      <div class="viewer" id="viewer"><span class="muted">Waiting for frames…</span></div>
-      <p class="muted" id="frame-info" style="margin-top:8px"></p>
-      <div class="filmstrip" id="strip"></div>
+    <div class="frame-rail" id="frame-rail">
+      <div class="frame-rail-head">
+        <span class="card-label">On set</span>
+        <span class="frame-count" id="frame-count">0/—</span>
+      </div>
+      <div class="frame-dots" id="frame-dots"></div>
+      <div class="frame-meta" id="frame-meta">Rolling camera…</div>
+    </div>
+
+    <div class="panel">
+      <div class="viewer" id="viewer">
+        <span class="viewer-watermark">Bendover</span>
+        <span class="viewer-empty" id="viewer-empty">Lights, camera… bend over and wait.</span>
+      </div>
+
+      <aside class="side">
+        <section class="stat-card limits-card">
+          <div class="card-label">Codex limits</div>
+          <div class="limits" id="limits-body">
+            <div class="limit-card five-card" id="limit-5h">
+              <div class="limit-head">
+                <div>
+                  <div class="limit-title">5-hour window</div>
+                  <div class="limit-sub">Rolling limit</div>
+                </div>
+                <div class="limit-pct" id="pct-5h">—</div>
+              </div>
+              <div class="limit-track" id="track-5h">
+                <div class="limit-fill five" id="fill-5h" style="width:0"></div>
+              </div>
+              <div class="limit-reset" id="reset-5h"></div>
+            </div>
+            <div class="limit-card week-card" id="limit-week">
+              <div class="limit-head">
+                <div>
+                  <div class="limit-title">Weekly</div>
+                  <div class="limit-sub">7-day limit</div>
+                </div>
+                <div class="limit-pct" id="pct-week">—</div>
+              </div>
+              <div class="limit-track" id="track-week">
+                <div class="limit-fill week" id="fill-week" style="width:0"></div>
+              </div>
+              <div class="limit-reset" id="reset-week"></div>
+            </div>
+          </div>
+          <div class="limits-note hidden" id="limits-empty"></div>
+        </section>
+      </aside>
     </div>
   </div>
 
+  <div class="toast-stack" id="toast-stack"></div>
+
   <script>
-    let startedAt = null;
+    const CD_THRESHOLD = 10;
+    const SIM = new URLSearchParams(location.search).has("sim");
+    const SIM_DRAIN_5H = 12;
+    const SIM_DRAIN_WEEK = 3;
+    const SIM_TICK_MS = 4000;
+    const SIM_FRAME_TICK_MS = 2500;
+    const SIM_RESET_WAIT = 15;
+    const SIM_EMOJIS = ["🎬", "🖼️", "✨", "🎨", "👀", "🔥", "🌈", "🦖", "🚀", "🍿", "🎭", "💫"];
+    const DRAIN_MSGS_5H = [
+      "5h limit −12%",
+      "Quick burn drained",
+      "Rolling window ticked down",
+      "Credits used",
+    ];
+    const DRAIN_MSGS_WEEK = [
+      "Weekly tank is blushing",
+      "Long haul got shorter",
+      "Seven days of regret",
+      "The ceiling's getting lower",
+    ];
+    const REFILL_MSGS = [
+      "METER REFILLED",
+      "Back on set, baby",
+      "Limits bent back up",
+      "Limits restored",
+      "Fresh burn window!",
+    ];
+    const FRAME_MSGS = [
+      "Bending pixels into shape…",
+      "One more take, darling…",
+      "Director's cut in progress…",
+      "Adding that Bendover flair…",
+      "On set — no safewords…",
+      "Consulting the style guide…",
+    ];
+    const MILESTONE_MSGS = {
+      25: "First quarter — keep bending! 🎬",
+      50: "Halfway there, don't stop now 🔥",
+      75: "Almost wrapped — push it 🚀",
+      100: "That's a wrap, productions! 🍿",
+    };
+    const ZERO_MSGS = ["Limit empty", "Flatlined", "BRB — refilling…", "Waiting on reset"];
+    const GEN_STATUS = [
+      "Bending frames into shape…",
+      "On set — generating…",
+      "Production in progress…",
+      "Making it look easy (it's not)…",
+      "Another take? Don't mind if we do…",
+      "GPU is working harder than our interns…",
+    ];
+    const BRAND_TAGS = [
+      "Strictly professional. Strictly not.",
+      "We'll fix it in post. Probably.",
+      "Lights. Camera. Bendover.",
+      "Not that kind of studio. Maybe.",
+      "Taking liberties with pixels.",
+      "Rated PG-13 for puns.",
+      "Your mom's favorite studio. Probably.",
+      "Extra take? Don't threaten us with a good time.",
+      "Where content goes to get flexible.",
+    ];
+    const TICKER_LINES = [
+      "Director says: one more take",
+      "Craft services is just vibes and coffee",
+      "Union break in 5… jk never",
+      "This scene brought to you by Codex",
+      "No frames were harmed in the making of… some of them",
+      "That's not a bug, it's artistic direction",
+      "Wrap party starts when the meter refills",
+      "Bendover: we're very professional. Mostly.",
+      "Stand-in pixels reporting for duty",
+      "Someone yell 'action' — we're already going",
+    ];
+    const FRAME_DONE_TOASTS = [
+      "Frame in the can! 🎬",
+      "That's a keeper (maybe)",
+      "Nailed it. Probably.",
+      "Another one bites the dust",
+      "Director approves* (*not really)",
+      "Pixel perfection. Ish.",
+      "Hot fresh frame, served bent",
+    ];
+    const EMPTY_VIEWER_MSGS = [
+      "Lights, camera… bend over and wait.",
+      "The set is empty. Like our souls. Kidding!",
+      "Waiting for pixels to show up on time…",
+      "Cue dramatic holding music…",
+      "No frame yet — go touch grass (then come back)",
+      "Casting call for PNGs still open",
+    ];
+    const DOT_TITLES = [
+      "This one's the money shot",
+      "Currently bending",
+      "Hot take incoming",
+      "Director's favorite (today)",
+      "Don't blink",
+      "Frame of the century (so far)",
+    ];
+    const LOGO_EASTER = [
+      "You found the clapper! Clap clap.",
+      "Bendover Productions™ — patent pending",
+      "That's what the logo said.",
+      "Nice click. Very professional.",
+      "Achievement unlocked: Logo molester",
+    ];
+    let startedAt = null, refreshing = false, loaded = false;
+    let isGenerating = false;
+    let prev5h = null, prevWeek = null, prevDone = null, prevTotal = null;
+    let dotsBuilt = 0;
+    let prevCurrentDot = -1;
+    let currentFrame = null;
+    let narrationOn = false;
+    let speechUnlocked = false;
+    let frameTiming = new Map();
+    let narrationBound = false;
+    let speakingFrame = null;
+    let resetAt = { "5h": null, week: null };
+    let resetElapsed = { "5h": false, week: false };
+    let lastCdSec = { "5h": null, week: null };
+    let lastAutoLimitRefresh = 0;
+    let lastMilestoneReal = 0;
+
+    const sim = {
+      pct5h: 100,
+      pctWeek: 100,
+      resetAt5h: null,
+      resetAtWeek: null,
+      tick: 0,
+      frameTick: 0,
+      framesDone: 0,
+      frameTotal: 124,
+      lastMilestone: 0,
+      lastAction: "Both limits start at 100% · frames at 0",
+      generating: true,
+    };
+
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function showToast(msg, ms = 3200) {
+      const stack = document.getElementById("toast-stack");
+      if (!stack) return;
+      const t = document.createElement("div");
+      t.className = "toast";
+      t.textContent = msg;
+      stack.appendChild(t);
+      while (stack.children.length > 4) stack.firstChild.remove();
+      setTimeout(() => {
+        t.classList.add("leave");
+        setTimeout(() => t.remove(), 300);
+      }, ms);
+    }
+
+    function initFunTicker() {
+      const el = document.getElementById("fun-ticker");
+      if (!el) return;
+      const line = (t) => `<span>${t}</span>`;
+      const html = TICKER_LINES.map(line).join("") + TICKER_LINES.map(line).join("");
+      el.innerHTML = html;
+    }
+
+    function rotateBrandTag() {
+      const el = document.getElementById("brand-tag");
+      if (!el) return;
+      el.style.opacity = "0";
+      setTimeout(() => {
+        el.textContent = pick(BRAND_TAGS);
+        el.style.opacity = "1";
+      }, 280);
+    }
+
+    let emptyViewerIdx = 0;
+    function rotateEmptyViewer() {
+      const el = document.getElementById("viewer-empty");
+      if (!el || currentFrame) return;
+      emptyViewerIdx = (emptyViewerIdx + 1) % EMPTY_VIEWER_MSGS.length;
+      el.textContent = EMPTY_VIEWER_MSGS[emptyViewerIdx];
+    }
+
+    document.getElementById("brand-logo")?.addEventListener("click", () => {
+      const logo = document.getElementById("brand-logo");
+      logo?.classList.remove("wiggle");
+      void logo?.offsetWidth;
+      logo?.classList.add("wiggle");
+      showToast(pick(LOGO_EASTER));
+    });
+
+    function flashLimitDrain(kind, before, after) {
+      const row = document.getElementById(`limit-${kind}`);
+      if (!row) return;
+      pulse(row, "drain-hit", 420);
+      row.classList.toggle("critical", after <= 15 && after > 0);
+      if (after === 0) row.classList.remove("critical");
+    }
+
+    function simWindow(pct, resetEpoch) {
+      const now = Math.floor(Date.now() / 1000);
+      const sec = Math.max(0, (resetEpoch || now + 1800) - now);
+      return {
+        remaining_percent: pct,
+        resets_at: resetEpoch || now + 1800,
+        reset_in_seconds: sec,
+        reset_in: fmtDuration(sec),
+      };
+    }
+
+    function simUsage() {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        credits_fresh: true,
+        five_hour: simWindow(sim.pct5h, sim.resetAt5h || now + 28 * 60),
+        weekly: simWindow(sim.pctWeek, sim.resetAtWeek || now + 90 * 3600),
+      };
+    }
+
+    function updateSimLog() {
+      const el = document.getElementById("sim-log");
+      if (!el) return;
+      const pct = sim.frameTotal ? Math.round((sim.framesDone / sim.frameTotal) * 100) : 0;
+      el.innerHTML =
+        `Limits #${sim.tick} · frames #${sim.frameTick} · ${sim.lastAction}` +
+        `<span class="rule">Limits every ${SIM_TICK_MS / 1000}s (−${SIM_DRAIN_5H}% / −${SIM_DRAIN_WEEK}%) · frames every ${SIM_FRAME_TICK_MS / 1000}s · video ${pct}% · refill after ${SIM_RESET_WAIT}s at 0%</span>`;
+    }
+
+    function simDrainKind(key, pctKey, resetKey, drain, label, msgs) {
+      const now = Math.floor(Date.now() / 1000);
+
+      if (sim[resetKey] && now >= sim[resetKey]) {
+        const before = sim[pctKey];
+        sim[pctKey] = 100;
+        sim[resetKey] = null;
+        if (key === "5h") prev5h = 0;
+        else prevWeek = 0;
+        sim.lastAction = `${label}: ${pick(REFILL_MSGS)} (${before}% → 100%)`;
+        return;
+      }
+
+      if (sim[resetKey] || sim[pctKey] <= 0) return;
+
+      const before = sim[pctKey];
+      sim[pctKey] = Math.max(0, before - drain);
+      flashLimitDrain(key, before, sim[pctKey]);
+      sim.lastAction = pick(msgs);
+      if (sim[pctKey] === 0) {
+        sim[resetKey] = now + SIM_RESET_WAIT;
+        sim.lastAction = `${pick(ZERO_MSGS)} · reset in ${SIM_RESET_WAIT}s`;
+      }
+    }
+
+    function showSimFrame(n) {
+      const v = document.getElementById("viewer");
+      const hue = (n * 47 + 120) % 360;
+      const emoji = SIM_EMOJIS[n % SIM_EMOJIS.length];
+      const pad = String(n).padStart(4, "0");
+      v.innerHTML =
+        `<div class="viewer-sim" style="--hue:${hue}">` +
+        `<div class="sim-caption">${pick(FRAME_MSGS)}</div>` +
+        `<div class="sim-scanline"></div>` +
+        `<span class="sim-emoji">${emoji}</span>` +
+        `<span class="sim-frame-tag">frame_${pad}.png</span></div>`;
+      currentFrame = `sim-${n}`;
+    }
+
+    function celebrateMilestone(pct) {
+      const hit = [25, 50, 75, 100].find(m => pct >= m && sim.lastMilestone < m);
+      if (!hit) return;
+      sim.lastMilestone = hit;
+      const rail = document.getElementById("frame-rail");
+      const burst = document.createElement("div");
+      burst.className = "milestone";
+      burst.textContent = MILESTONE_MSGS[hit];
+      rail?.appendChild(burst);
+      pulse(document.getElementById("frame-count"), "pop", 550);
+      pulse(rail, "bump", 450);
+      setTimeout(() => burst.remove(), 1100);
+    }
+
+    function applySimProgress() {
+      const total = sim.frameTotal || 124;
+      const done = Math.min(sim.framesDone, total);
+      const pending = Math.max(0, total - done);
+      const pct = total ? (done / total) * 100 : 0;
+      setVideoProgress(done, total);
+      celebrateMilestone(Math.round(pct));
+      if (done > 0) showSimFrame(done);
+      document.getElementById("status-dot").className = "dot live";
+      if (pending === 0 && total > 0) {
+        document.getElementById("status-text").textContent = "Simulation wrap — that's a wrap! 🍿";
+        sim.generating = false;
+      } else {
+        document.getElementById("status-text").textContent =
+          `Sim generating · ~${fmtDuration(Math.max(1, Math.round((pending * SIM_FRAME_TICK_MS) / 1000)))} left`;
+      }
+    }
+
+    function simFrameTick() {
+      if (!sim.generating) return;
+      sim.frameTick += 1;
+      const bump = 1 + Math.floor(Math.random() * 2);
+      sim.framesDone = Math.min(sim.framesDone + bump, sim.frameTotal || 124);
+      sim.lastAction = `+${bump} frame${bump > 1 ? "s" : ""} → ${sim.framesDone}/${sim.frameTotal}`;
+      applySimProgress();
+      updateSimLog();
+    }
+
+    function simTick() {
+      sim.tick += 1;
+      simDrainKind("5h", "pct5h", "resetAt5h", SIM_DRAIN_5H, "5h", DRAIN_MSGS_5H);
+      simDrainKind("week", "pctWeek", "resetAtWeek", SIM_DRAIN_WEEK, "Weekly", DRAIN_MSGS_WEEK);
+      updateSimLog();
+      renderLimits(simUsage(), { logged_in: true });
+    }
+
+    function startSimulation() {
+      document.getElementById("sim-banner")?.classList.remove("hidden");
+      document.getElementById("refresh-btn")?.classList.add("hidden");
+      document.getElementById("narration-btn")?.classList.add("hidden");
+      document.getElementById("title").textContent = "🎬 Sim Studio";
+      prev5h = prevWeek = prevDone = null;
+      applySimProgress();
+      updateSimLog();
+      renderLimits(simUsage(), { logged_in: true });
+      setInterval(simTick, SIM_TICK_MS);
+      setInterval(simFrameTick, SIM_FRAME_TICK_MS);
+    }
+
+    function pulse(el, cls, ms = 450) {
+      if (!el) return;
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), ms);
+    }
 
     function fmtDuration(sec) {
-      if (!sec || sec < 0) return "—";
+      if (sec == null || sec < 0) return "";
+      sec = Math.floor(sec);
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
       const s = sec % 60;
       if (h) return `${h}h ${m}m`;
-      if (m) return `${m}m ${s}s`;
-      return `${s}s`;
+      if (m) return `${m}m`;
+      if (s) return `${s}s`;
+      return "now";
     }
 
-    function setCreditBar(el, pct) {
-      el.style.width = `${Math.max(0, pct)}%`;
-      el.classList.toggle("bad", pct <= 10);
-      el.classList.toggle("warn", pct > 10 && pct <= 25);
+    function barClass(pct) {
+      if (pct <= 10) return "bad";
+      if (pct <= 25) return "warn";
+      return "";
     }
 
-    function showFrame(name, info) {
-      const v = document.getElementById("viewer");
-      if (!name) { v.innerHTML = '<span class="muted">Waiting for frames…</span>'; return; }
-      v.innerHTML = `<img src="/05-images/${name}?t=${Date.now()}" alt="">`;
-      document.getElementById("frame-info").textContent = info || name;
-      document.querySelectorAll("#strip img").forEach(img => {
-        img.classList.toggle("on", img.dataset.name === name);
+    function celebrateRefill(row, fill, pct) {
+      const width = `${Math.max(0, Math.min(100, pct))}%`;
+      row.querySelectorAll(".burst").forEach(b => b.remove());
+      const burst = document.createElement("div");
+      burst.className = "burst" + (SIM ? " zany" : "");
+      burst.textContent = pick(REFILL_MSGS);
+      if (!SIM) showToast(pick(REFILL_MSGS));
+      row.appendChild(burst);
+      fill.style.width = "0%";
+      requestAnimationFrame(() => {
+        fill.style.width = width;
+        pulse(fill, "shine", 700);
       });
+      setTimeout(() => burst.remove(), 1400);
     }
+
+    function updateResetUI(kind) {
+      const el = document.getElementById(`reset-${kind}`);
+      const row = document.getElementById(`limit-${kind}`);
+      if (!el || !row || !resetAt[kind]) return;
+
+      const sec = resetAt[kind] - Math.floor(Date.now() / 1000);
+
+      if (sec > 0 && sec <= CD_THRESHOLD) {
+        row.classList.add("countdown");
+        el.className = "limit-reset cd-mode";
+        if (lastCdSec[kind] !== sec) {
+          el.innerHTML = `<span class="cd-num">${sec}</span><span class="cd-hint">seconds to reset</span>`;
+          pulse(el.querySelector(".cd-num"), "tick", 500);
+          lastCdSec[kind] = sec;
+        }
+        return;
+      }
+
+      if (sec <= 0) {
+        const pct = kind === "5h" ? prev5h : prevWeek;
+        const stale = document.getElementById("limits-body")?.classList.contains("stale");
+        const waiting = resetElapsed[kind] || (pct !== null && pct <= 5);
+        if (waiting) {
+          row.classList.remove("countdown");
+          el.className = "limit-reset";
+          const msg = stale
+            ? "Reset passed — run Codex, then Refresh"
+            : "Waiting for updated limits…";
+          if (el.textContent !== msg) el.textContent = msg;
+          lastCdSec[kind] = null;
+          if (stale && !SIM && Date.now() - lastAutoLimitRefresh > 60000) {
+            lastAutoLimitRefresh = Date.now();
+            refreshCredits(true);
+          }
+          return;
+        }
+        row.classList.add("countdown");
+        el.className = "limit-reset cd-mode";
+        if (lastCdSec[kind] !== 0) {
+          el.innerHTML = `<span class="cd-num cd-zero">✓</span><span class="cd-hint">resetting now</span>`;
+          lastCdSec[kind] = 0;
+        }
+        return;
+      }
+
+      row.classList.remove("countdown");
+      el.className = "limit-reset";
+      lastCdSec[kind] = null;
+      el.textContent = `Resets in ${fmtDuration(sec)}`;
+    }
+
+    function tickResets() {
+      ["5h", "week"].forEach(updateResetUI);
+    }
+
+    function renderFrameDots(done, total) {
+      const container = document.getElementById("frame-dots");
+      if (!container) return;
+
+      if (total !== dotsBuilt) {
+        dotsBuilt = total;
+        const size = total > 160 ? 4 : total > 100 ? 5 : 6;
+        const gap = total > 160 ? 2 : 3;
+        container.style.setProperty("--dot-size", `${size}px`);
+        container.style.setProperty("--dot-gap", `${gap}px`);
+        container.innerHTML = "";
+        prevCurrentDot = -1;
+        for (let i = 0; i < total; i++) {
+          const dot = document.createElement("span");
+          dot.className = "frame-dot";
+          dot.title = `Take ${i + 1}`;
+          container.appendChild(dot);
+        }
+      }
+
+      if (total === 0) return;
+
+      const allDone = done >= total;
+      const currentIdx = allDone ? total - 1 : (done > 0 ? done - 1 : 0);
+      const dots = container.children;
+
+      for (let i = 0; i < dots.length; i++) {
+        const dot = dots[i];
+        const isCurrent = !allDone && i === currentIdx;
+        const isDone = allDone || (done > 0 && i < done - 1);
+        dot.classList.toggle("done", isDone);
+        dot.classList.toggle("all-done", allDone);
+        dot.classList.toggle("current", isCurrent);
+        if (isCurrent) {
+          dot.title = pick(DOT_TITLES) + ` (take ${i + 1})`;
+          if (i !== prevCurrentDot && prevDone !== null) pulse(dot, "tick", 450);
+        }
+      }
+
+      if (currentIdx !== prevCurrentDot) prevCurrentDot = currentIdx;
+    }
+
+    function setVideoProgress(done, total) {
+      const pending = Math.max(0, total - done);
+      const label = total ? `${done}/${total}` : "—";
+
+      const countEl = document.getElementById("frame-count");
+      if (countEl.textContent !== label) {
+        const wasDone = prevDone;
+        countEl.textContent = label;
+        if (prevDone !== null) {
+          pulse(countEl, "pop");
+          if (done > wasDone && !SIM && Math.random() < 0.35) {
+            showToast(pick(FRAME_DONE_TOASTS));
+          }
+        }
+      }
+
+      renderFrameDots(done, total);
+
+      const meta = document.getElementById("frame-meta");
+      if (total === 0) {
+        meta.innerHTML = "No cut list yet";
+      } else if (pending === 0) {
+        meta.innerHTML = "<strong>Wrapped — every frame in the can</strong>";
+      } else if (done === 0) {
+        meta.innerHTML = `<strong>${pending}</strong> takes left to shoot`;
+      } else {
+        meta.innerHTML = `<strong>${pending}</strong> more bends to go`;
+      }
+
+      if (!SIM && total > 0 && prevDone !== null) {
+        const pct = Math.round((done / total) * 100);
+        const hit = [25, 50, 75, 100].find(m => pct >= m && lastMilestoneReal < m);
+        if (hit && done > prevDone) {
+          lastMilestoneReal = hit;
+          const rail = document.getElementById("frame-rail");
+          const burst = document.createElement("div");
+          burst.className = "milestone";
+          burst.textContent = MILESTONE_MSGS[hit];
+          rail?.appendChild(burst);
+          showToast(MILESTONE_MSGS[hit]);
+          pulse(document.getElementById("frame-count"), "pop", 550);
+          pulse(rail, "bump", 450);
+          setTimeout(() => burst.remove(), 1100);
+        }
+      }
+
+      prevDone = done;
+      prevTotal = total;
+    }
+
+    function updateGeneratingUI(phase) {
+      isGenerating = phase === "running";
+    }
+
+    function setLimitBar(kind, pct, window) {
+      const track = document.getElementById(`track-${kind}`);
+      const pctEl = document.getElementById(`pct-${kind}`);
+      const fill = document.getElementById(`fill-${kind}`);
+      const row = document.getElementById(`limit-${kind}`);
+      const prev = kind === "5h" ? prev5h : prevWeek;
+      const rounded = Math.round(pct);
+      const width = `${Math.max(0, Math.min(100, pct))}%`;
+      const widthChanged = fill.style.width !== width && fill.style.width !== "";
+      const refilled = prev !== null && rounded > prev && (rounded - prev >= 12 || (prev <= 8 && rounded >= 40));
+
+      resetAt[kind] = window?.resets_at || null;
+      resetElapsed[kind] = !!window?.reset_elapsed;
+      track.classList.remove("skel");
+      fill.className = `limit-fill ${kind === "5h" ? "five" : "week"} ${barClass(pct)}`;
+
+      if (refilled) {
+        celebrateRefill(row, fill, pct);
+        lastCdSec[kind] = null;
+        row.classList.remove("countdown");
+      } else if (widthChanged) {
+        fill.style.width = width;
+        pulse(fill, "shine", 700);
+        row.classList.add("flash");
+        setTimeout(() => row.classList.remove("flash"), 500);
+      } else {
+        fill.style.width = width;
+      }
+
+      if (rounded !== prev) {
+        pctEl.textContent = `${rounded}%`;
+        pctEl.className = "limit-pct " + barClass(pct);
+        if (prev !== null) pulse(pctEl, "pop");
+        if (kind === "5h") prev5h = rounded;
+        else prevWeek = rounded;
+      }
+
+      if (resetAt[kind]) updateResetUI(kind);
+    }
+
+    function showLimitsSkeleton() {
+      ["5h", "week"].forEach(kind => {
+        document.getElementById(`track-${kind}`).classList.add("skel");
+        const fill = document.getElementById(`fill-${kind}`);
+        if (fill) fill.style.width = "0";
+        document.getElementById(`pct-${kind}`).textContent = "—";
+        const reset = document.getElementById(`reset-${kind}`);
+        reset.textContent = "";
+        reset.className = "limit-reset";
+        document.getElementById(`limit-${kind}`)?.classList.remove("countdown");
+      });
+      prev5h = prevWeek = null;
+      lastCdSec = { "5h": null, week: null };
+    }
+
+    function renderLimits(usage, acct) {
+      const body = document.getElementById("limits-body");
+      const empty = document.getElementById("limits-empty");
+      const refreshBtn = document.getElementById("refresh-btn");
+
+      if (!acct?.logged_in) {
+        body.classList.add("hidden");
+        empty.classList.remove("hidden");
+        empty.textContent = "Sign in with Codex to see limits";
+        refreshBtn.classList.add("hidden");
+        resetAt = { "5h": null, week: null };
+        return;
+      }
+
+      body.classList.remove("hidden");
+      body.classList.toggle("stale", !!(usage?.five_hour && !usage.credits_fresh));
+
+      if (usage?.five_hour && usage?.weekly) {
+        empty.classList.add("hidden");
+        const resetWaiting = !!(usage.five_hour?.reset_elapsed || usage.weekly?.reset_elapsed);
+        refreshBtn.classList.toggle("hidden", !!usage.credits_fresh && !resetWaiting);
+        setLimitBar("5h", usage.five_hour.remaining_percent, usage.five_hour);
+        setLimitBar("week", usage.weekly.remaining_percent, usage.weekly);
+        return;
+      }
+
+      showLimitsSkeleton();
+      resetAt = { "5h": null, week: null };
+      empty.classList.remove("hidden");
+      empty.textContent = "Run Codex once to load limits";
+      refreshBtn.classList.remove("hidden");
+    }
+
+    function pickVoice() {
+      if (!window.speechSynthesis) return null;
+      const voices = speechSynthesis.getVoices();
+      return voices.find(v => v.lang.startsWith("en") && v.localService)
+        || voices.find(v => v.lang.startsWith("en"))
+        || voices[0]
+        || null;
+    }
+
+    function updateSpeechBtn() {
+      const btn = document.getElementById("narration-btn");
+      if (!btn) return;
+      const on = narrationOn && speechUnlocked;
+      btn.classList.toggle("muted", !on);
+      btn.textContent = on ? "🔊" : "🔇";
+      btn.title = on
+        ? "Speech on — click to mute"
+        : "Click to hear frame transcript";
+    }
+
+    async function loadFrameTiming() {
+      try {
+        const res = await fetch("/api/frames?limit=200");
+        const data = await res.json();
+        frameTiming.clear();
+        for (const f of data.frames || []) {
+          frameTiming.set(f.filename, { transcript: f.transcript || "" });
+        }
+      } catch { /* offline */ }
+    }
+
+    function setupSpeech() {
+      if (!window.speechSynthesis) {
+        const btn = document.getElementById("narration-btn");
+        if (btn) {
+          btn.title = "Speech not supported in this browser";
+          btn.disabled = true;
+        }
+        return;
+      }
+      if (narrationBound) return;
+      narrationBound = true;
+      pickVoice();
+      if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = pickVoice;
+      }
+      const btn = document.getElementById("narration-btn");
+      btn.addEventListener("click", () => {
+        if (!speechUnlocked) {
+          speechUnlocked = true;
+          narrationOn = true;
+          updateSpeechBtn();
+          if (currentFrame && !String(currentFrame).startsWith("sim-")) {
+            playFrameNarration(currentFrame);
+          }
+          return;
+        }
+        narrationOn = !narrationOn;
+        updateSpeechBtn();
+        if (!narrationOn) stopNarration();
+        else if (currentFrame && !String(currentFrame).startsWith("sim-")) {
+          playFrameNarration(currentFrame);
+        }
+      });
+      updateSpeechBtn();
+    }
+
+    function stopNarration() {
+      speakingFrame = null;
+      if (window.speechSynthesis) speechSynthesis.cancel();
+    }
+
+    function playFrameNarration(filename) {
+      if (SIM || !window.speechSynthesis) return;
+      if (!narrationOn || !speechUnlocked) return;
+
+      const text = frameTiming.get(filename)?.transcript?.trim();
+      if (!text) return;
+
+      speakingFrame = filename;
+      speechSynthesis.cancel();
+
+      // Chrome / WebKit: speak after cancel, voices may load async
+      const speakNow = () => {
+        if (speakingFrame !== filename) return;
+        const utter = new SpeechSynthesisUtterance(text);
+        const voice = pickVoice();
+        if (voice) utter.voice = voice;
+        utter.rate = 0.95;
+        utter.pitch = 1;
+        utter.onend = () => {
+          if (speakingFrame === filename) speakingFrame = null;
+        };
+        utter.onerror = (e) => {
+          console.warn("speech error", e);
+          if (speakingFrame === filename) speakingFrame = null;
+        };
+        speechSynthesis.speak(utter);
+        // Chrome stuck-queue workaround
+        if (speechSynthesis.paused) speechSynthesis.resume();
+      };
+
+      setTimeout(speakNow, 80);
+    }
+
+    function showFrame(name) {
+      if (name === currentFrame) return;
+      currentFrame = name;
+      const v = document.getElementById("viewer");
+      if (!name) {
+        v.innerHTML =
+          `<span class="viewer-watermark">Bendover</span>` +
+          `<span class="viewer-empty" id="viewer-empty">${pick(EMPTY_VIEWER_MSGS)}</span>`;
+        return;
+      }
+      const caption = frameTiming.get(name)?.transcript || "";
+      const img = document.createElement("img");
+      img.alt = caption;
+      img.className = "enter";
+      const mount = () => {
+        v.innerHTML = `<span class="viewer-watermark">Bendover</span>`;
+        const stage = document.createElement("div");
+        stage.className = "viewer-stage";
+        const wrap = document.createElement("div");
+        wrap.className = "img-wrap";
+        wrap.appendChild(img);
+        stage.appendChild(wrap);
+        if (caption) {
+          const cap = document.createElement("div");
+          cap.className = "viewer-caption";
+          cap.textContent = caption;
+          stage.appendChild(cap);
+        }
+        v.appendChild(stage);
+      };
+      img.onload = mount;
+      img.src = `/05-images/${name}?t=${Date.now()}`;
+      if (img.complete) mount();
+      if (speechUnlocked && narrationOn) playFrameNarration(name);
+    }
+
+    function statusLabel(phase, dash, run, usage) {
+      if (phase === "running") {
+        const elapsed = startedAt ? Math.floor(Date.now() / 1000) - startedAt : 0;
+        const done = dash.done_frames || 0;
+        if (elapsed > 60 && done > 0 && dash.pending_frames > 0) {
+          return `Generating · ~${fmtDuration(Math.round(dash.pending_frames / (done / elapsed)))} left`;
+        }
+        return GEN_STATUS[Math.floor(Date.now() / 8000) % GEN_STATUS.length];
+      }
+      if (phase.includes("stop")) return run.stop_reason || "Cut! Paused.";
+      if (usage?.generation_blocked && usage?.stop_reason) return usage.stop_reason;
+      if (dash.pending_frames === 0 && dash.total_frames > 0) return "That's a wrap — all frames done";
+      return dash.step_label || "Standing by on set";
+    }
+
+    async function refreshCredits(quiet = false) {
+      if (refreshing) return;
+      refreshing = true;
+      const btn = document.getElementById("refresh-btn");
+      if (!quiet) btn.disabled = true;
+      try {
+        await fetch("/api/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "refresh_usage" }),
+        });
+        await new Promise(r => setTimeout(r, 1200));
+        await load();
+      } finally {
+        refreshing = false;
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", () => refreshCredits(false));
 
     async function load() {
-      const res = await fetch("/api/status?t=" + Date.now());
-      const d = await res.json();
+      let d;
+      try {
+        const res = await fetch("/api/status?t=" + Date.now());
+        d = await res.json();
+      } catch {
+        document.getElementById("status-text").textContent = "Offline";
+        return;
+      }
+
       const p = d.project || {};
       const dash = d.dashboard || {};
       const run = d.runner || {};
       const usage = d.usage || {};
-
-      document.getElementById("title").textContent = p.name ? `${p.name} — Image Tracker` : "Image Tracker";
-      document.getElementById("s-done").textContent = dash.done_frames ?? 0;
-      document.getElementById("s-total").textContent = dash.total_frames ?? 0;
-      document.getElementById("s-pending").textContent = dash.pending_frames ?? 0;
-      document.getElementById("s-workers").textContent = run.workers ?? p.workers ?? "—";
-
-      const pct = dash.percent ?? 0;
-      document.getElementById("bar").style.width = `${pct}%`;
-      document.getElementById("subtitle").textContent = `${pct}% complete`;
-
+      const acct = d.account || {};
       const phase = run.phase || "idle";
-      const pill = document.getElementById("phase");
-      pill.textContent = phase;
-      pill.className = "pill" + (phase.includes("stop") ? " stop" : phase === "running" ? "" : " idle");
+
+      document.getElementById("title").textContent = p.name || "Studio";
+      document.getElementById("status-dot").className =
+        "dot" + (phase === "running" ? " live" : phase.includes("stop") ? " stop" : "");
 
       if (run.started_at) startedAt = run.started_at;
-      const elapsed = startedAt ? Math.floor(Date.now() / 1000) - startedAt : 0;
-      const done = dash.done_frames || 0;
-      let eta = "";
-      if (elapsed > 60 && done > 0 && dash.pending_frames > 0) {
-        const rate = done / elapsed;
-        const remain = Math.round(dash.pending_frames / rate);
-        eta = ` · ~${fmtDuration(remain)} left`;
-      }
-      document.getElementById("elapsed").textContent =
-        phase === "running" ? `Elapsed ${fmtDuration(elapsed)}${eta}` : (run.stop_reason || "");
+      document.getElementById("status-text").textContent = statusLabel(phase, dash, run, usage);
+      if (!SIM) updateGeneratingUI(phase);
 
-      document.getElementById("meta").textContent = [
-        `${run.running_jobs || 0} active workers`,
-        run.completed_jobs ? `${run.completed_jobs} done this run` : "",
-        run.failed_jobs ? `${run.failed_jobs} failed` : "",
-      ].filter(Boolean).join(" · ") || "Not running";
+      const done = dash.done_frames ?? 0;
+      const total = dash.total_frames ?? 0;
+      if (SIM && total > 0) sim.frameTotal = total;
+      if (!SIM) setVideoProgress(done, total);
 
-      if (usage.five_hour) {
-        document.getElementById("c5").textContent = `5h: ${usage.five_hour.remaining_percent.toFixed(0)}% · resets ${usage.five_hour.reset_in}`;
-        setCreditBar(document.getElementById("bar5"), usage.five_hour.remaining_percent);
-        document.getElementById("cw").textContent = `Weekly: ${usage.weekly.remaining_percent.toFixed(0)}% · resets ${usage.weekly.reset_in}`;
-        setCreditBar(document.getElementById("barw"), usage.weekly.remaining_percent);
-      }
+      const loggedIn = !!acct.logged_in;
+      document.getElementById("acct-dot").style.background = loggedIn ? "var(--accent)" : "var(--line)";
+      document.getElementById("acct-label").textContent = loggedIn
+        ? (acct.email?.split("@")[0] || acct.name || "Signed in")
+        : "No Codex";
+      document.getElementById("acct-line").title = loggedIn
+        ? (acct.email || "") + (acct.plan_type ? ` · ${acct.plan_type}` : "")
+        : "Run codex login";
+
+      renderLimits(SIM ? simUsage() : usage, SIM ? { logged_in: true } : acct);
 
       const names = (d.recent?.recent_filenames) || [];
-      const strip = document.getElementById("strip");
-      strip.innerHTML = names.map(n =>
-        `<img src="/05-images/${n}?t=${Date.now()}" data-name="${n}" alt="">`
-      ).join("");
-      strip.querySelectorAll("img").forEach(img => {
-        img.onclick = () => showFrame(img.dataset.name, img.dataset.name);
-      });
-      if (names.length) showFrame(names[0], names[0]);
+      if (names.length) showFrame(names[0]);
+      else if (loaded) showFrame(null);
+      loaded = true;
     }
 
-    load();
-    setInterval(load, 2000);
+    async function boot() {
+      initFunTicker();
+      setInterval(rotateBrandTag, 14000);
+      setInterval(rotateEmptyViewer, 9000);
+      setupSpeech();
+      await loadFrameTiming();
+      if (SIM) {
+        startSimulation();
+        setInterval(load, 2000);
+        setInterval(tickResets, 1000);
+      } else {
+        await load();
+        setInterval(load, 2000);
+        setInterval(tickResets, 1000);
+      }
+    }
+    boot();
   </script>
 </body>
 </html>

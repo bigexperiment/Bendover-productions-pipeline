@@ -25,8 +25,11 @@ python3 scripts/03_images/generate_images.py --force  # ignore credit stop
 Start the tracker while generating:
 
 ```bash
-scripts/start_studio.sh   # http://127.0.0.1:47829/
+scripts/status_studio.sh   # check first
+scripts/start_studio.sh    # if down — detached, survives agent shell exit
 ```
+
+Do **not** run `python3 tracker/serve.py` directly. Do **not** re-run start if status is OK (idempotent script leaves a healthy server alone).
 
 The script:
 1. Reads all `pending` rows from `image_regen_manifest.csv`
@@ -38,9 +41,9 @@ The script:
 ## Monitor
 
 ```bash
-cat image_regen_progress.json
+cat 04-manifest/image_regen_progress.json
 cat tracker/usage.json
-scripts/start_studio.sh
+scripts/status_studio.sh
 ```
 
 ## Done when

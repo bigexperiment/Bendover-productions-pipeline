@@ -26,14 +26,14 @@ On **every** message: read `workflow/README.md` + `project.json`, check disk, re
 
 ## Steps
 
-0. Project name → `project.json` — ask user for name, update `name` + `step`; **tell user** they can edit any settings anytime in `project.json` at repo root
-1. `01-script/Script.txt` — user pastes script into empty file
+0. Project name → `project.json` — user gives title/topic; save to `name` + `step`; **tell user** they can edit any settings anytime in `project.json` at repo root
+1. `01-script/Script.txt` — **right after step 0** (if `Script.txt` is empty): **offer** to write the script for them **or** let them paste their own. If they say yes / write it / go ahead (or asked for both name + script in one message): **you** research web + write per **`workflow/script-generation-prompt.md`** → save `01-script/Script.txt` (raw prose, no headings/timestamps/line breaks, &lt;5000 chars). If they paste their own: wait for **done**
 2. `image_style`, `video_brief`, `style_guide`, `text_rules`, `tone` in project.json — user describes look, topic, and vibe (fun/informative, light sarcasm OK; **no text in frames by default** — only when absolutely necessary)
 3. `02-audio/` — user adds **one** narration MP3; verify on **done** (no combine script)
 4. `03-transcript/transcript.txt` — user pastes TurboScribe export into empty file
 5. Build manifest — **you** run `build_plan.py`
 6. `style_approved: true` — user approves samples
-7. Images — **you** start `scripts/start_studio.sh` + `generate_images.py` (Studio UI only here)
+7. Images — **you** start Studio (see **Studio tracker** below) + `generate_images.py`
 8. `06-output/final.mp4` — **you** run `render_draft_video.py`
 9. YouTube — **you** generate metadata + thumbnail, then upload (see below)
 10. Cleanup — **optional**; warn user to save outputs first, then **you** write + run a one-off Python reset script (see below)
@@ -83,3 +83,19 @@ Never paste commands to the user.
 4. **You** run that script. Set `step: "setup"` (or equivalent) when finished.
 
 Studio UI **only** step 7. Manifest cuts ~2s, up to 3s max, from transcript.
+
+## Studio tracker (step 7 — assistant MUST follow)
+
+**Always** use the repo scripts — never `python3 tracker/serve.py` directly or bare `nohup`.
+
+| Script | When |
+|--------|------|
+| `scripts/status_studio.sh` | **First** — check if Studio is already up |
+| `scripts/start_studio.sh` | Only if status is down; **idempotent** (leaves a healthy server alone) |
+| `scripts/stop_studio.sh` | Only when user wants Studio off |
+
+**Why:** Processes started in the Cursor agent shell die when the chat/harness ends. `start_studio.sh` runs `tracker/studio_supervisor.py --detach` (double-fork) so Studio survives after you stop responding. The supervisor also auto-restarts `serve.py` on crash.
+
+**Do not** re-run `start_studio.sh` every message — that used to kill a live server. Check status first; start once per image-gen session.
+
+URL: http://127.0.0.1:47829/ · log: `tracker/studio.log`

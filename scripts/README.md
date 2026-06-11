@@ -13,9 +13,20 @@ Run from project root.
 
 ## Studio tracker
 
-```bash
-scripts/start_studio.sh
-scripts/status_studio.sh
-```
+**Assistant: always use these scripts.** Never run `tracker/serve.py` directly.
 
-UI server: `tracker/serve.py`
+| Script | Purpose |
+|--------|---------|
+| `scripts/status_studio.sh` | Check health — run **before** start |
+| `scripts/start_studio.sh` | Start if down; **idempotent** + **detached** |
+| `scripts/stop_studio.sh` | Stop supervisor + free port |
+
+Flow: `start_studio.sh` → `tracker/studio_supervisor.py --detach` → `tracker/serve.py`
+
+- **Detached** — double-fork so Studio survives when the Cursor agent shell closes.
+- **Supervised** — supervisor restarts `serve.py` after crashes.
+- **Idempotent** — if http://127.0.0.1:47829/ already responds, start does nothing (won't kill a live server).
+
+Do **not** re-run start every chat message. Check status first; start once per image-gen session.
+
+Log: `tracker/studio.log` · PID: `tracker/studio.pid` · port: `tracker/port.txt`
