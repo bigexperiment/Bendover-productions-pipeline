@@ -4,7 +4,10 @@ Requires `03-transcript/transcript.txt` + one narration file in `02-audio/`.
 
 ~2s frames, max 3s at natural breaks.
 
+**Run preflight first** (assistant — see [preflight.md](../preflight.md)):
+
 ```bash
+python3 scripts/preflight.py
 python3 scripts/02_manifest/build_plan.py
 python3 scripts/02_manifest/build_plan.py refresh   # after images are generated
 ```

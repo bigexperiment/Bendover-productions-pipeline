@@ -50,6 +50,8 @@ def reset_project_dict(current: dict | None = None) -> dict:
         "name": "",
         "step": "setup",
         "title": "",
+        "thumbnail_text": "",
+        "thumbnail_frame": "",
         "description": "",
         "tags": [],
         "video_brief": "",

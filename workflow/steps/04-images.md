@@ -7,6 +7,7 @@ Requires `style_approved: true` in `project.json`.
 ## Before starting
 
 ```bash
+python3 scripts/preflight.py --images              # validate manifest + audio + transcript
 python3 scripts/02_manifest/build_plan.py          # cut plan + manifest
 python3 scripts/02_manifest/build_plan.py refresh  # update done/pending counts
 python3 scripts/07_credits/fetch_codex_usage.py --force        # check credits

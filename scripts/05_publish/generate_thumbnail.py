@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
-"""Generate YouTube thumbnail via Codex image generation → 07-upload/thumbnail.png"""
+"""YouTube thumbnail → 07-upload/thumbnail.png
+
+Default: crop a real frame from 05-images/ (matches video style) + overlay thumbnail_text.
+Fallback: --codex generates a new scene (often mismatches frame style).
+
+project.json:
+  thumbnail_text  — headline on image (required, ≠ title)
+  thumbnail_frame — PNG in 05-images/ (default: auto-pick fire/camp frame)
+"""
 from __future__ import annotations
 
+import csv
 import json
 import os
 import subprocess
@@ -10,10 +19,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from lib.folders import DIR_UPLOAD, SCRIPT_FILE, TRANSCRIPT_FILE, YOUTUBE_THUMBNAIL  # noqa: E402
-from lib.image_prompt import DEFAULT_IMAGE_STYLE, build_image_prompt_body  # noqa: E402
+from lib.folders import DIR_IMAGES, DIR_UPLOAD, MANIFEST_FILE, YOUTUBE_THUMBNAIL  # noqa: E402
+
+try:
+    from lib.thumbnail_overlay import compose_from_frame  # noqa: E402
+except ImportError as exc:
+    raise SystemExit("Pillow required: pip install pillow") from exc
+
+from lib.thumbnail_prompt import build_thumbnail_prompt  # noqa: E402
+from lib.thumbnail_overlay import overlay_headline  # noqa: E402
 
 PROJECT_FILE = ROOT / "project.json"
+
+FIRE_FRAME_HINTS = ("fire", "camp", "woodsmoke", "campfire", "flame")
 
 
 def load_project() -> dict:
@@ -22,41 +40,49 @@ def load_project() -> dict:
     return {}
 
 
-def read_snippet(path: Path, limit: int = 800) -> str:
-    if not path.is_file():
-        return ""
-    text = path.read_text(encoding="utf-8", errors="replace").strip()
-    return text[:limit] + ("…" if len(text) > limit else "")
+def resolve_headline(project: dict, headline_arg: str | None) -> str | None:
+    headline = (headline_arg or project.get("thumbnail_text") or "").strip()
+    if not headline:
+        return None
+    title = (project.get("title") or project.get("name") or "").strip()
+    if title and headline.lower() == title.lower():
+        print("ERROR: thumbnail_text must differ from YouTube title", file=sys.stderr)
+        return None
+    return headline
 
 
-def build_prompt(project: dict) -> str:
-    name = project.get("name") or project.get("title") or "video"
-    title = project.get("title") or name
-    script_bit = read_snippet(SCRIPT_FILE)
-    scene = (
-        f"YouTube thumbnail for \"{title}\". "
-        f"One bold focal scene about: {name}. "
-        f"Large headline text on image (3–6 words max). "
-        f"Script excerpt: {script_bit or '(none)'}"
-    )
-    body = build_image_prompt_body(project, scene)
+def pick_frame_from_manifest() -> Path | None:
+    if not MANIFEST_FILE.is_file():
+        return None
+    rows: list[dict[str, str]] = []
+    with MANIFEST_FILE.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("status") != "done":
+                continue
+            path = DIR_IMAGES / row["filename"]
+            if not path.is_file():
+                continue
+            rows.append(row)
 
-    return f"""{body}
+    for hint in FIRE_FRAME_HINTS:
+        for row in rows:
+            blob = f"{row.get('scene', '')} {row.get('transcript', '')}".lower()
+            if hint in blob:
+                return DIR_IMAGES / row["filename"]
 
-Thumbnail output:
-- Use the built-in image_gen tool exactly once
-- 16:9 landscape (1280×720 style), bold and readable at small size
-- High contrast, click-worthy, no clutter, no watermarks
-- Save to: 07-upload/thumbnail.png
-- After generating, ensure the file exists at {ROOT}/07-upload/thumbnail.png
-- Do not generate any other files
-"""
+    return DIR_IMAGES / rows[0]["filename"] if rows else None
 
 
-def main() -> int:
-    project = load_project()
-    DIR_UPLOAD.mkdir(parents=True, exist_ok=True)
+def resolve_frame(project: dict, frame_arg: str | None) -> Path | None:
+    name = (frame_arg or project.get("thumbnail_frame") or "").strip()
+    if name:
+        path = DIR_IMAGES / Path(name).name
+        return path if path.is_file() else None
+    return pick_frame_from_manifest()
 
+
+def generate_via_codex(project: dict, headline: str) -> int:
+    prompt = build_thumbnail_prompt(project, headline, YOUTUBE_THUMBNAIL, ROOT)
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
     command = [
@@ -69,7 +95,7 @@ def main() -> int:
         "--dangerously-bypass-approvals-and-sandbox",
         "-C",
         str(ROOT),
-        build_prompt(project),
+        prompt,
     ]
     result = subprocess.run(
         command,
@@ -79,19 +105,54 @@ def main() -> int:
         capture_output=True,
         text=True,
     )
-
     if result.returncode != 0:
         print(result.stdout)
         print(result.stderr, file=sys.stderr)
-        print(f"Thumbnail generation failed (exit {result.returncode})", file=sys.stderr)
         return result.returncode
-
     if not YOUTUBE_THUMBNAIL.is_file():
         print(f"ERROR: Expected thumbnail at {YOUTUBE_THUMBNAIL}", file=sys.stderr)
         return 1
-
-    print(f"Thumbnail saved: {YOUTUBE_THUMBNAIL}")
+    overlay_headline(YOUTUBE_THUMBNAIL, headline)
     return 0
+
+
+def main() -> int:
+    headline_arg = None
+    frame_arg = None
+    use_codex = False
+    for arg in sys.argv[1:]:
+        if arg.startswith("--headline="):
+            headline_arg = arg.split("=", 1)[1].strip()
+        elif arg.startswith("--frame="):
+            frame_arg = arg.split("=", 1)[1].strip()
+        elif arg == "--codex":
+            use_codex = True
+
+    project = load_project()
+    headline = resolve_headline(project, headline_arg)
+    if not headline:
+        print(
+            "ERROR: Set thumbnail_text in project.json (2–5 words, not the full title)",
+            file=sys.stderr,
+        )
+        return 1
+
+    DIR_UPLOAD.mkdir(parents=True, exist_ok=True)
+
+    if not use_codex:
+        frame = resolve_frame(project, frame_arg)
+        if frame:
+            print(f"Composing from video frame {frame.name} + headline {headline!r}…", flush=True)
+            compose_from_frame(frame, YOUTUBE_THUMBNAIL, headline)
+            print(f"Thumbnail saved: {YOUTUBE_THUMBNAIL}")
+            return 0
+        print("No frame found — falling back to Codex generation", file=sys.stderr)
+
+    print(f"Generating via Codex (headline: {headline!r})…", flush=True)
+    code = generate_via_codex(project, headline)
+    if code == 0:
+        print(f"Thumbnail saved (with headline overlay): {YOUTUBE_THUMBNAIL}")
+    return code
 
 
 if __name__ == "__main__":

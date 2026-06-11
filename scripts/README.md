@@ -5,10 +5,12 @@ Run from project root.
 | Step | Folder | Script |
 |------|--------|--------|
 | Audio | — | one narration file in `02-audio/` |
+| Preflight | — | `preflight.py` (before manifest + before images) |
 | Manifest | `02_manifest/` | `build_plan.py` |
 | Images | `03_images/` | `generate_images.py` |
 | Render | `04_render/` | `render_draft_video.py` |
-| Upload | `05_publish/` | `generate_thumbnail.py`, `upload_to_youtube.py` → `07-upload/` |
+| Thumbnail | `05_publish/` | `generate_thumbnail.py` — frame crop + `thumbnail_text` overlay (see `workflow/thumbnail.md`) |
+| Upload | `05_publish/` | `upload_to_youtube.py` (`--update` for live title/thumbnail) → `07-upload/` |
 | Credits | `07_credits/` | `fetch_codex_usage.py` |
 
 ## Studio tracker

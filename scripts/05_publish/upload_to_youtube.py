@@ -47,6 +47,7 @@ def load_upload_defaults() -> dict:
         "description": merged.get("description") or "",
         "privacy": merged.get("privacy") or "public",
         "tags": merged.get("tags") or [],
+        "youtube_video_id": merged.get("youtube_video_id"),
     }
 
 
@@ -58,7 +59,7 @@ DEFAULT_TAGS = _DEFAULTS["tags"]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Upload a video to YouTube.")
+    parser = argparse.ArgumentParser(description="Upload or update a video on YouTube.")
     parser.add_argument(
         "--video",
         type=Path,
@@ -86,6 +87,11 @@ def parse_args() -> argparse.Namespace:
         help="Tags (default: from project.json or upload_metadata.json).",
     )
     parser.add_argument(
+        "--video-id",
+        default=_DEFAULTS.get("youtube_video_id"),
+        help="Existing video ID for --update (default: project.json youtube_video_id).",
+    )
+    parser.add_argument(
         "--client-secrets",
         type=Path,
         default=DEFAULT_CLIENT_SECRETS,
@@ -101,6 +107,11 @@ def parse_args() -> argparse.Namespace:
         "--auth-only",
         action="store_true",
         help="Run browser login and save token without uploading.",
+    )
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Update title/description/tags/thumbnail on an existing video (--video-id or youtube_video_id).",
     )
     parser.add_argument(
         "--no-thumbnail",
@@ -175,6 +186,28 @@ def upload_video(
     return video_id
 
 
+def update_video_metadata(
+    youtube,
+    video_id: str,
+    title: str,
+    description: str,
+    tags: list[str],
+) -> None:
+    youtube.videos().update(
+        part="snippet",
+        body={
+            "id": video_id,
+            "snippet": {
+                "title": title,
+                "description": description,
+                "tags": tags,
+                "categoryId": "17",
+            },
+        },
+    ).execute()
+    print(f"Updated metadata for {video_id}")
+
+
 MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024
 
 
@@ -219,6 +252,15 @@ def set_thumbnail(youtube, video_id: str, thumbnail_path: Path) -> None:
             tmp.cleanup()
 
 
+def save_video_id_to_project(video_id: str) -> None:
+    if not PROJECT_FILE.is_file():
+        return
+    project = json.loads(PROJECT_FILE.read_text(encoding="utf-8"))
+    project["youtube_video_id"] = video_id
+    project["step"] = "upload"
+    PROJECT_FILE.write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
 
@@ -229,15 +271,33 @@ def main() -> int:
         print(f"Authenticated. Token saved to {args.token}")
         return 0
 
-    if not args.video.is_file():
-        print(f"Video not found: {args.video}", file=sys.stderr)
-        return 1
-
     if not args.title.strip():
         print("Missing title — generate metadata in project.json first.", file=sys.stderr)
         return 1
 
     tags = args.tags or []
+
+    if args.update:
+        video_id = (args.video_id or "").strip()
+        if not video_id:
+            print("Missing --video-id or youtube_video_id in project.json", file=sys.stderr)
+            return 1
+        print(f"Updating {video_id}…")
+        update_video_metadata(
+            youtube, video_id, args.title, args.description, tags
+        )
+        if not args.no_thumbnail and args.thumbnail.is_file():
+            set_thumbnail(youtube, video_id, args.thumbnail)
+        elif not args.no_thumbnail:
+            print(f"No thumbnail at {args.thumbnail}; skipping.")
+        print(f"Studio: https://studio.youtube.com/video/{video_id}/edit")
+        print(f"Watch:  https://youtu.be/{video_id}")
+        return 0
+
+    if not args.video.is_file():
+        print(f"Video not found: {args.video}", file=sys.stderr)
+        return 1
+
     print(f"Uploading {args.video.name} as {args.privacy}...")
     video_id = upload_video(
         youtube,
@@ -253,6 +313,7 @@ def main() -> int:
     elif not args.no_thumbnail:
         print(f"No thumbnail at {args.thumbnail}; skipping.")
 
+    save_video_id_to_project(video_id)
     print(f"Studio: https://studio.youtube.com/video/{video_id}/edit")
     print(f"Watch:  https://youtu.be/{video_id}")
     return 0

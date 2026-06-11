@@ -26,21 +26,23 @@ On **every** message: read `workflow/README.md` + `project.json`, check disk, re
 
 ## Steps
 
-0. Project name → `project.json` — user gives title/topic; save to `name` + `step`; **tell user** they can edit any settings anytime in `project.json` at repo root
+0. Project name → `project.json` — when `name` is empty / `step` is `setup`, **offer two options**: (A) user supplies their own question title, or (B) **suggest one** — read `.cursor/skills/evolutionary-explainer-topics/SKILL.md`, run `python3 scripts/suggest_topic.py` for a **random seed** (never pick from a fixed ordered list), craft one question title from that seed, show it; user accepts or asks for another roll. Save chosen title to `name` + `step`; **tell user** they can edit any settings anytime in `project.json` at repo root
 1. `01-script/Script.txt` — **right after step 0** (if `Script.txt` is empty): **offer** to write the script for them **or** let them paste their own. If they say yes / write it / go ahead (or asked for both name + script in one message): **you** research web + write per **`workflow/script-generation-prompt.md`** → save `01-script/Script.txt` (raw prose, no headings/timestamps/line breaks, &lt;5000 chars). If they paste their own: wait for **done**
 2. `image_style`, `video_brief`, `style_guide`, `text_rules`, `tone` in project.json — user describes look, topic, and vibe (fun/informative, light sarcasm OK; **no text in frames by default** — only when absolutely necessary)
 3. `02-audio/` — user adds **one** narration MP3; verify on **done** (no combine script)
 4. `03-transcript/transcript.txt` — user pastes TurboScribe export into empty file
-5. Build manifest — **you** run `build_plan.py`
+5. Build manifest — **you** run `python3 scripts/preflight.py` first; if OK, `build_plan.py` (see `workflow/preflight.md`)
 6. `style_approved: true` — user approves samples
-7. Images — **you** start Studio (see **Studio tracker** below) + `generate_images.py`
+7. Images — **you** run `python3 scripts/preflight.py --images`, then start Studio (see **Studio tracker** below) + `generate_images.py`
 8. `06-output/final.mp4` — **you** run `render_draft_video.py`
-9. YouTube — **you** generate metadata + thumbnail, then upload (see below)
+9. YouTube — **you** draft metadata + thumbnail, **stop for user approval**, then upload only after they confirm (see below)
 10. Cleanup — **optional**; warn user to save outputs first, then **you** write + run a one-off Python reset script (see below)
 
-## Step 9 — Upload prep + publish (agent runs everything)
+## Step 9 — Upload prep, then publish (two phases — user must approve)
 
 When `06-output/final.mp4` exists:
+
+**Phase A — prep only (do this when user says go / done on render). STOP after this phase.**
 
 ### A. Generate title + description (you write these)
 
@@ -52,20 +54,31 @@ Read `01-script/Script.txt`, `03-transcript/transcript.txt`, and `project.json` 
 - `tags` — 5–15 relevant tags (array)
 - `privacy` — default `public` unless user said otherwise
 
-Save to **`project.json`** and **`07-upload/upload_metadata.json`**. Show user title + description briefly; revise if they ask.
+Save to **`project.json`** and **`07-upload/upload_metadata.json`**.
 
-### B. Generate thumbnail (you run script)
+### B. Generate thumbnail (you set `thumbnail_text` + `thumbnail_frame`, then run script)
 
-**You** run: `python3 scripts/05_publish/generate_thumbnail.py`
+Read **`workflow/thumbnail.md`** — full rules. Summary:
+- **`title`** = YouTube listing only (can name the topic)
+- **`thumbnail_text`** = 2–5 words burned onto the PNG; must **≠ title**; curiosity, no spoilers, not a paraphrase of title
+- **`thumbnail_frame`** = `05-images/` filename; default auto-pick from manifest. **Never** Codex-only art (style drift)
 
-Output: `07-upload/thumbnail.png` (uses `image_style` + title). Show user the thumbnail path; regenerate if they reject.
+**You** run: `python3 scripts/05_publish/generate_thumbnail.py` → `07-upload/thumbnail.png` (real frame crop + Pillow text overlay)
 
-### C. Upload
+### C. **STOP — show user and wait**
 
-1. **You** run: `pip3 install -r 07-upload/requirements-youtube.txt`
+Show **title**, **description** (brief), and **thumbnail path** (`07-upload/thumbnail.png`). Ask them to review.
+
+- Revise title/description/thumbnail if they request changes (regenerate thumbnail on rejection).
+- **Do not upload** until they explicitly approve (e.g. “upload”, “approved”, “looks good, publish”, “ship it”).
+- **Never** treat render-step “go” / “done” as upload approval — that only starts Phase A.
+
+**Phase B — upload (only after explicit user approval)**
+
+1. **You** run: `pip3 install -r 07-upload/requirements-youtube.txt` (or project venv if system pip fails)
 2. No `07-upload/youtube_token.json`? **You** run `--auth-only` — user completes browser popup only
-3. **You** run `upload_to_youtube.py` (reads title/description/tags/privacy from `project.json` automatically)
-4. Save `youtube_video_id` to `project.json`, set `step: "upload"`
+3. **You** run `upload_to_youtube.py` (new) or `upload_to_youtube.py --update` (change live title/thumbnail)
+4. Saves `youtube_video_id` to `project.json`, set `step: "upload"`
 
 Never paste commands to the user.
 

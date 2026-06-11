@@ -19,6 +19,8 @@ Transcript: user pastes timestamped export from [turboscribe.com](https://turbos
 
 Manifest: intelligent cuts ~2s (max 3s) from transcript — not fixed-interval script chop.
 
+**Preflight (mandatory):** Before `build_plan.py` and before image generation, run `python3 scripts/preflight.py` (add `--images` for step 7). Fix all errors; only then run the next script. See [preflight.md](preflight.md).
+
 ## Studio UI (image generation only)
 
 Start when bulk image gen begins. **Assistant runs these — never raw `serve.py`.**
@@ -40,14 +42,15 @@ scripts/stop_studio.sh      # explicit shutdown only
 - Refresh manifest during generation
 - `scripts/03_images/generate_images.py` if `style_approved: true`
 - Render when images complete: `scripts/04_render/render_draft_video.py --output 06-output/final.mp4`
-- **Upload prep (assistant generates — not the user):**
+- **Upload prep (Phase A — assistant generates, then STOPS):**
   - Write `title`, `description`, `tags` from script + transcript → `project.json` + `07-upload/upload_metadata.json`
-  - `python3 scripts/05_publish/generate_thumbnail.py` → `07-upload/thumbnail.png`
-  - Show user title/description/thumbnail for quick approval
-- **Upload when approved:**
+  - Set `thumbnail_text` + optional `thumbnail_frame` in `project.json`, then `generate_thumbnail.py` → `07-upload/thumbnail.png` (see **`workflow/thumbnail.md`**)
+  - Show user title, description, and thumbnail path — **wait for explicit approval**
+  - **Never** upload on the same turn as prep. Render-step “go” is **not** upload approval.
+- **Upload (Phase B — only after user approves title + thumbnail):**
   - `pip3 install -r 07-upload/requirements-youtube.txt`
   - If no token: `--auth-only` (user completes browser login)
-  - `python3 scripts/05_publish/upload_to_youtube.py` (reads `project.json` automatically)
+  - `python3 scripts/05_publish/upload_to_youtube.py` (new upload) or `--update` (live title/thumbnail)
   - Save `youtube_video_id` to `project.json`, set `step: "upload"`
 - Stop when credits hit 0%
 - **Cleanup (optional, step 10):**
@@ -59,7 +62,7 @@ scripts/stop_studio.sh      # explicit shutdown only
 
 - Style approval (3–5 samples) before bulk gen
 - Worker count (default 5)
-- Quick approval of generated title/description/thumbnail before upload (revise if user rejects)
+- **Mandatory** approval of title + thumbnail before upload — assistant must stop after prep; user says “upload” / “approved” / equivalent
 - Resume after credit stop
 - **Cleanup** — always warn + get confirmation before resetting the workspace
 
@@ -74,6 +77,7 @@ python3 scripts/05_publish/generate_thumbnail.py
 pip3 install -r 07-upload/requirements-youtube.txt
 python3 scripts/05_publish/upload_to_youtube.py --auth-only
 python3 scripts/05_publish/upload_to_youtube.py
+python3 scripts/05_publish/upload_to_youtube.py --update
 scripts/status_studio.sh   # check first
 scripts/start_studio.sh    # if down — detached, idempotent
 scripts/stop_studio.sh     # stop when done

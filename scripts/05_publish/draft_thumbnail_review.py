@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.folders import DIR_UPLOAD  # noqa: E402
-from lib.image_prompt import build_image_prompt_body  # noqa: E402
+from lib.thumbnail_prompt import build_thumbnail_prompt  # noqa: E402
 
 PROJECT_FILE = ROOT / "project.json"
 DEFAULT_OUT = DIR_UPLOAD / "thumbnail_review.png"
@@ -29,52 +29,9 @@ def load_project() -> dict:
     return {}
 
 
-def build_thumbnail_scene(project: dict, headline: str) -> str:
-    name = (project.get("name") or "Untitled video").strip()
-    title = (project.get("title") or name).strip()
-    return f"""YouTube thumbnail — SIMPLE, BRIGHT, MINIMAL. Single panel only.
-
-Video title (for context only — do NOT put this on the image): "{title}"
-Thumbnail headline (use EXACTLY this text on the image): "{headline}"
-
-FORBIDDEN (do not include any of these):
-- Split screen, diptych, before/after, torn-paper divider, red arrows
-- Campfire groups, tribes, multiple characters
-- Dark rooms, wolf shadows, monsters, moon windows, horror mood
-- Busy backgrounds, clutter, extra props
-
-REQUIRED:
-- ONE stickman only, slightly worried/lonely expression, sitting on simple bed or standing in empty soft room
-- Background: flat light cream or pale yellow (#FFF8E7), very minimal — maybe one simple window with daylight
-- 16:9 landscape, 60% empty space, calm and bright
-- Headline text EXACTLY (letter-for-letter, no substitutions): "{headline}"
-- Do NOT use the video title or phrases like "fear being alone" on the image
-- TEXT MUST POP: very large bold cartoon lettering, white fill, extra-thick black outline (heavy stroke),
-  subtle bright yellow or hot-pink drop shadow behind letters for depth — readable at phone thumbnail size
-- Stack on two lines if needed (e.g. IT'S NOT IN / YOUR HEAD), centered as a block
-- TEXT SAFE ZONE (critical — YouTube crops outer edges on mobile/TV):
-  keep ALL letters inside the center 50% of the frame only
-  minimum 22% empty margin from TOP, LEFT, RIGHT, and BOTTOM — no letter near any border
-  imagine a dashed inner rectangle; text lives fully inside it
-- Text block in upper-middle third (not touching top); character in lower-middle — both inside safe zone
-- Stickman doodle style: thick black outlines, flat colors, round white head (match video frames)
-- No watermarks
-"""
-
-
 def build_prompt(project: dict, out_path: Path, headline: str) -> str:
-    body = build_image_prompt_body(project, build_thumbnail_scene(project, headline))
-    rel = out_path.relative_to(ROOT)
-    return f"""{body}
-
-Thumbnail output:
-- Use the built-in image_gen tool exactly once
-- 16:9 landscape (1280×720), headline must dominate and pop at small size; verify safe margins
-- Save to: {rel}
-- After generating, ensure the file exists at {out_path}
-- Do not generate any other files
-- Do not overwrite 07-upload/thumbnail.png
-"""
+    prompt = build_thumbnail_prompt(project, headline, out_path, ROOT)
+    return prompt + "\n- Do not overwrite 07-upload/thumbnail.png\n"
 
 
 def main() -> int:
