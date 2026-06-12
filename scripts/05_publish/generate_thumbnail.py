@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""YouTube thumbnail → 07-upload/thumbnail.png
+"""YouTube thumbnail → 07-upload/thumbnail.png (or --output path).
 
-Default: crop a real frame from 05-images/ (matches video style) + overlay thumbnail_text.
-Fallback: --codex generates a new scene (often mismatches frame style).
+Default: Codex generates the full thumbnail (scene + headline text in the image).
+Never uses Pillow text overlay.
+
+Use --variant=1|2|3 for different scene angles (assistant generates 3, user picks one).
 
 project.json:
-  thumbnail_text  — headline on image (required, ≠ title)
-  thumbnail_frame — PNG in 05-images/ (default: auto-pick fire/camp frame)
+  thumbnail_text  — headline burned into image by Codex (required, ≠ title)
 """
 from __future__ import annotations
 
@@ -22,15 +23,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from lib.folders import DIR_IMAGES, DIR_UPLOAD, MANIFEST_FILE, YOUTUBE_THUMBNAIL  # noqa: E402
 
 try:
-    from lib.thumbnail_overlay import compose_from_frame  # noqa: E402
+    from PIL import Image
 except ImportError as exc:
-    raise SystemExit("Pillow required: pip install pillow") from exc
+    raise SystemExit("Pillow required for --frame crop: pip install pillow") from exc
 
 from lib.thumbnail_prompt import build_thumbnail_prompt  # noqa: E402
-from lib.thumbnail_overlay import overlay_headline  # noqa: E402
 
 PROJECT_FILE = ROOT / "project.json"
-
+THUMB_SIZE = (1280, 720)
 FIRE_FRAME_HINTS = ("fire", "camp", "woodsmoke", "campfire", "flame")
 
 
@@ -81,8 +81,29 @@ def resolve_frame(project: dict, frame_arg: str | None) -> Path | None:
     return pick_frame_from_manifest()
 
 
-def generate_via_codex(project: dict, headline: str) -> int:
-    prompt = build_thumbnail_prompt(project, headline, YOUTUBE_THUMBNAIL, ROOT)
+def crop_frame_to_thumbnail(frame_path: Path, out_path: Path) -> None:
+    tw, th = THUMB_SIZE
+    src = Image.open(frame_path).convert("RGB")
+    src_ratio = src.width / src.height
+    tgt_ratio = tw / th
+
+    if src_ratio > tgt_ratio:
+        new_h = th
+        new_w = int(th * src_ratio)
+    else:
+        new_w = tw
+        new_h = int(tw / src_ratio)
+
+    resized = src.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    left = (new_w - tw) // 2
+    top = (new_h - th) // 2
+    canvas = resized.crop((left, top, left + tw, top + th))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out_path, format="PNG")
+
+
+def generate_via_codex(project: dict, headline: str, out_path: Path, variant: int) -> int:
+    prompt = build_thumbnail_prompt(project, headline, out_path, ROOT, variant=variant)
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
     command = [
@@ -109,27 +130,49 @@ def generate_via_codex(project: dict, headline: str) -> int:
         print(result.stdout)
         print(result.stderr, file=sys.stderr)
         return result.returncode
-    if not YOUTUBE_THUMBNAIL.is_file():
-        print(f"ERROR: Expected thumbnail at {YOUTUBE_THUMBNAIL}", file=sys.stderr)
+    if not out_path.is_file():
+        print(f"ERROR: Expected thumbnail at {out_path}", file=sys.stderr)
         return 1
-    overlay_headline(YOUTUBE_THUMBNAIL, headline)
     return 0
 
 
-def main() -> int:
+def parse_args() -> tuple[str | None, str | None, Path, bool, int]:
     headline_arg = None
     frame_arg = None
-    use_codex = False
+    out_path = YOUTUBE_THUMBNAIL
+    frame_only = False
+    variant = 1
     for arg in sys.argv[1:]:
         if arg.startswith("--headline="):
             headline_arg = arg.split("=", 1)[1].strip()
         elif arg.startswith("--frame="):
             frame_arg = arg.split("=", 1)[1].strip()
-        elif arg == "--codex":
-            use_codex = True
+            frame_only = True
+        elif arg.startswith("--output="):
+            out_path = ROOT / arg.split("=", 1)[1].strip()
+        elif arg.startswith("--variant="):
+            variant = int(arg.split("=", 1)[1].strip())
+        elif arg == "--frame":
+            frame_only = True
+    return headline_arg, frame_arg, out_path, frame_only, variant
 
+
+def main() -> int:
+    headline_arg, frame_arg, out_path, frame_only, variant = parse_args()
     project = load_project()
     headline = resolve_headline(project, headline_arg)
+    DIR_UPLOAD.mkdir(parents=True, exist_ok=True)
+
+    if frame_only:
+        frame = resolve_frame(project, frame_arg)
+        if not frame:
+            print("ERROR: No frame found for --frame crop", file=sys.stderr)
+            return 1
+        print(f"Cropping {frame.name} → {out_path.name} (no text)…", flush=True)
+        crop_frame_to_thumbnail(frame, out_path)
+        print(f"Thumbnail saved: {out_path}")
+        return 0
+
     if not headline:
         print(
             "ERROR: Set thumbnail_text in project.json (2–5 words, not the full title)",
@@ -137,21 +180,13 @@ def main() -> int:
         )
         return 1
 
-    DIR_UPLOAD.mkdir(parents=True, exist_ok=True)
-
-    if not use_codex:
-        frame = resolve_frame(project, frame_arg)
-        if frame:
-            print(f"Composing from video frame {frame.name} + headline {headline!r}…", flush=True)
-            compose_from_frame(frame, YOUTUBE_THUMBNAIL, headline)
-            print(f"Thumbnail saved: {YOUTUBE_THUMBNAIL}")
-            return 0
-        print("No frame found — falling back to Codex generation", file=sys.stderr)
-
-    print(f"Generating via Codex (headline: {headline!r})…", flush=True)
-    code = generate_via_codex(project, headline)
+    print(
+        f"Generating variant {variant} via Codex ({headline!r}) → {out_path.name}…",
+        flush=True,
+    )
+    code = generate_via_codex(project, headline, out_path, variant)
     if code == 0:
-        print(f"Thumbnail saved (with headline overlay): {YOUTUBE_THUMBNAIL}")
+        print(f"Thumbnail saved: {out_path}")
     return code
 
 

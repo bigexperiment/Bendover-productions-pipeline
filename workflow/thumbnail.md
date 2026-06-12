@@ -9,64 +9,56 @@ YouTube uses **two different strings**. The assistant must never put the full `t
 | **`title`** | YouTube listing (search, watch page) | Full question or hook, &lt;100 chars, can name the topic |
 | **`thumbnail_text`** | **On the PNG only** | 2–5 words, ALL CAPS OK, must **differ** from `title` |
 
-### `title` examples
-- `How Ancient Humans Fed Their Babies?`
-- `Why Your Brain Needs Iron Before Age Two`
+**Assistant:** offer 5–10 `thumbnail_text` options. Favor **curiosity + no spoiler + not title-shaped**.
 
-### `thumbnail_text` examples (good)
-- `FIRE IS NOT ENOUGH` — lateral, sparks curiosity, no spoiler
-- `NOT ON THE PLAQUE` — mystery, not a paraphrase of title
-- `STRANGER THAN BERRIES` — from script vibe, oblique
+## Thumbnail workflow (mandatory — 3 stops)
 
-### `thumbnail_text` examples (bad)
-- `HOW ANCIENT HUMANS FED BABIES` — repeats the title
-- `PRE-CHEWED FOOD` — spoils the story twist
-- `ANCIENT BABY FOOD` — too on-the-nose / same topic as title
+Codex draws scene + text **in the image**. **Never** Pillow text overlay.
 
-**Assistant:** offer 5–10 `thumbnail_text` options when user asks. Favor **curiosity + no spoiler + not title-shaped**.
+### Stop 1 — confirm `thumbnail_text` only
 
-## `thumbnail_frame` (style match)
+After title/description are drafted:
 
-Thumbnails must look like the video. **Do not** use Codex to paint a new scene by default — it drifts from frame style.
+1. Propose 5–10 `thumbnail_text` options (or take user's wording)
+2. **STOP** — wait for user to confirm exact `thumbnail_text`
+3. Save confirmed text to `project.json` → `thumbnail_text`
+4. **Do not generate any images yet**
 
-| Field | Purpose |
-|-------|---------|
-| **`thumbnail_frame`** | Filename in `05-images/` (e.g. `0_26.png`) |
+### Stop 2 — three variations, user picks one
 
-**Default:** `generate_thumbnail.py` auto-picks a manifest row whose scene/transcript matches fire/camp hints, or uses `thumbnail_frame` when set.
+Only after `thumbnail_text` is confirmed:
 
-**Pipeline:**
-1. Crop real frame → 1280×720
-2. Dark gradient on top third (text legibility)
-3. Pillow overlay of exact `thumbnail_text` (Codex cannot be trusted for typography)
+1. **You** run Codex **3 times** (different scene angles, same headline text):
 
 ```bash
-python3 scripts/05_publish/generate_thumbnail.py
-python3 scripts/05_publish/generate_thumbnail.py --frame=0_26.png
-python3 scripts/05_publish/generate_thumbnail.py --headline="FIRE IS NOT ENOUGH"
-python3 scripts/05_publish/generate_thumbnail.py --codex   # avoid unless no frames exist
+python3 scripts/05_publish/generate_thumbnail.py --variant=1 --output=07-upload/thumbnail_v1.png
+python3 scripts/05_publish/generate_thumbnail.py --variant=2 --output=07-upload/thumbnail_v2.png
+python3 scripts/05_publish/generate_thumbnail.py --variant=3 --output=07-upload/thumbnail_v3.png
 ```
 
-Output: `07-upload/thumbnail.png`
+2. **STOP** — show all three paths. User picks **1**, **2**, or **3** (or asks for regen)
+3. Copy winner → `07-upload/thumbnail.png` (only then is the final thumbnail chosen)
+4. User may instead supply their own PNG (e.g. ChatGPT) → save as `07-upload/thumbnail.png`
 
-## Publish gate (mandatory)
+### Stop 3 — upload approval
+
+Show **title**, **description** (brief), and final **`07-upload/thumbnail.png`**.
+
+- **Do not upload** until user explicitly approves
+- Render-step “go” is **not** upload approval
+
+## Generation rules
+
+- Codex renders headline text in the artwork — not post-production overlay
+- `--variant=1|2|3` changes scene composition; same `thumbnail_text`
+- `--frame` crops a video frame only (no text) — rare fallback
+
+## Publish gate
 
 1. Save `title`, `description`, `tags` → `project.json` + `07-upload/upload_metadata.json`
-2. Set `thumbnail_text` (+ optional `thumbnail_frame`) → run `generate_thumbnail.py`
-3. **STOP** — show user title + thumbnail path; wait for explicit approval
-4. Only then upload or `--update` live video
-
-Render-step **go** = start prep (steps 1–2). **Not** upload approval.
-
-## Update live video (already published)
-
-When `youtube_video_id` is set and user approves new title/thumbnail:
-
-```bash
-.venv-youtube/bin/python scripts/05_publish/upload_to_youtube.py --update
-```
-
-Reads `project.json` + `07-upload/thumbnail.png`; updates title, description, tags, and thumbnail via API.
+2. Confirm `thumbnail_text` → generate 3 variants → user picks → `thumbnail.png`
+3. **STOP** for upload approval
+4. Only then `upload_to_youtube.py`
 
 ## `project.json` fields
 
@@ -75,8 +67,6 @@ Reads `project.json` + `07-upload/thumbnail.png`; updates title, description, ta
   "title": "How Ancient Humans Fed Their Babies?",
   "thumbnail_text": "FIRE IS NOT ENOUGH",
   "thumbnail_frame": "0_26.png",
-  "youtube_video_id": "oXrB8JGi-qc"
+  "youtube_video_id": null
 }
 ```
-
-Cleared on workspace cleanup (with `title`, `description`, etc.). Not preserved across resets.

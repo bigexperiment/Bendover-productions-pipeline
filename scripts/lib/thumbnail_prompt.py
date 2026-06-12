@@ -1,35 +1,74 @@
-"""YouTube thumbnail prompts — visual only; headline added by thumbnail_overlay.py."""
+"""YouTube thumbnail prompts — Codex renders scene + headline text in the image (no Pillow overlay)."""
 from __future__ import annotations
 
 from pathlib import Path
 
 from lib.image_prompt import image_style
 
+VARIANT_SCENES = {
+    1: (
+        "Pain hook: stickman clutching swollen red jaw, agony stars, sweat — dominant left side. "
+        "Second stickman small on right offering a green leaf. Cave interior, simple background."
+    ),
+    2: (
+        "Choice hook: two stickmen center-frame — one holds leafy green twig, other holds purple "
+        "berries with tiny skull icon. Worried vs hopeful expressions. Sandy cave floor."
+    ),
+    3: (
+        "Animal-learned hook: chimp or ape eating bitter leaf on left, prehistoric human watching "
+        "and copying on right. Jungle-cave edge, bright sky through opening."
+    ),
+}
 
-def build_thumbnail_scene(project: dict, headline: str) -> str:
+
+def build_thumbnail_scene(project: dict, headline: str, variant: int = 1) -> str:
     title = (project.get("title") or project.get("name") or "").strip()
+    brief = (project.get("video_brief") or "").strip()
+    if not brief:
+        brief = f'Educational stickman explainer about: "{title}"'
 
-    return f"""YouTube thumbnail BACKGROUND ONLY — do NOT draw any letters, words, or typography.
-Headline "{headline}" will be added in post-production.
+    text = headline.strip().upper()
+    scene_angle = VARIANT_SCENES.get(variant, VARIANT_SCENES[1])
 
-YouTube title (never render as text): "{title}"
+    return f"""YouTube thumbnail — draw the scene AND the headline text in one image.
 
-VISUAL (supports "fire isn't enough" — no spoilers):
-- ONE prehistoric stickman kneeling by a campfire, staring at a large raw antelope haunch on the ground
-- Puzzled/frustrated expression: fire is roaring but the meat is still uncooked and unchewable
-- NO baby, NO feeding, NO spoon, NO mouth-to-mouth, NO text of any kind
-- Bright hunter-gatherer camp: simple tent, blue sky, clean doodle style — thick black outlines, flat colors
-- Leave the upper 35% of the frame relatively clear (sky/simple background) for text overlay
-- 16:9 landscape, high contrast, click-worthy
+HEADLINE (render as large text in the image — exact wording):
+"{text}"
 
-FORBIDDEN: any written text, letters, numbers, labels, speech bubbles, watermarks, baby feeding scenes
+YouTube listing title (do NOT use this as the thumbnail text): "{title}"
+
+TEXT RULES:
+- Place headline in the TOP third, centered, clear of character faces
+- Bold sans-serif, ALL CAPS, yellow letters with thick black outline
+- Split to 2 lines if it reads better
+- Readable at phone thumbnail size — high contrast
+- Spell the headline exactly — do NOT paraphrase
+- Do NOT use the full YouTube title as thumbnail text
+
+VIDEO CONTEXT:
+{brief}
+
+THIS VARIATION (make it visually distinct from other variants):
+{scene_angle}
+
+COMPOSITION:
+- 16:9 landscape, 1280×720
+- Characters and action in the BOTTOM 55–60% only
+- Headline text in the top — not overlapping faces
+
+STYLE: stickman doodle explainer — thick black outlines, flat colors, exaggerated expressions
+
+FORBIDDEN: UI boxes, title bars, lower-thirds, watermarks, speech bubbles, Pillow overlays
+FORBIDDEN: realism, 3D, cinematic lighting, gore
 """
 
 
-def build_thumbnail_prompt(project: dict, headline: str, out_path: Path, root: Path) -> str:
-    scene = build_thumbnail_scene(project, headline)
+def build_thumbnail_prompt(
+    project: dict, headline: str, out_path: Path, root: Path, *, variant: int = 1
+) -> str:
+    scene = build_thumbnail_scene(project, headline, variant=variant)
     rel = out_path.relative_to(root)
-    return f"""Create a YouTube thumbnail background (NO TEXT).
+    return f"""Create a complete YouTube thumbnail (scene + headline text in the image).
 
 Style:
 {image_style(project)}
@@ -39,7 +78,8 @@ Scene:
 
 Thumbnail output:
 - Use the built-in image_gen tool exactly once
-- 16:9 landscape (1280×720), no typography in the image
+- 16:9 landscape (1280×720)
+- Include the headline text drawn into the artwork — do not leave text for post-production
 - Save to: {rel}
 - After generating, ensure the file exists at {out_path}
 - Do not generate any other files

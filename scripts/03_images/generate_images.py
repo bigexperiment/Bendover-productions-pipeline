@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.folders import DIR_IMAGES as IMAGES_DIR, MANIFEST_FILE, PROGRESS_FILE  # noqa: E402
 from lib.image_prompt import FrameJob, build_frame_prompt  # noqa: E402
+from lib.notify import notify_credits_stopped, notify_images_complete  # noqa: E402
 PROJECT_FILE = ROOT / "project.json"
 TRACKER_DIR = ROOT / "tracker"
 TRACKER_STATUS = TRACKER_DIR / "status.json"
@@ -160,6 +161,13 @@ def write_status(
     refresh_usage()
 
 
+def read_progress_counts() -> tuple[int, int]:
+    if not PROGRESS_FILE.is_file():
+        return 0, 0
+    progress = json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
+    return int(progress.get("done_frames", 0)), int(progress.get("total_frames", 0))
+
+
 def write_recent(limit: int = 8) -> None:
     images = sorted(IMAGES_DIR.glob("*.png"), key=lambda p: p.stat().st_mtime, reverse=True)
     TRACKER_RECENT.write_text(
@@ -200,6 +208,12 @@ def main() -> int:
 
     if not jobs:
         refresh_manifest()
+        progress = json.loads(PROGRESS_FILE.read_text(encoding="utf-8")) if PROGRESS_FILE.is_file() else {}
+        done = progress.get("done_frames", 0)
+        total = progress.get("total_frames", 0)
+        if total and done >= total:
+            if notify_images_complete(project.get("name", "")):
+                print("ntfy: all images complete notification sent.")
         print("No pending frames — manifest is complete.")
         write_status(workers=workers, total=0, completed=0, failed=0, running=0, queued=0, phase="complete")
         return 0
@@ -209,6 +223,8 @@ def main() -> int:
     if blocked and not force:
         append_log(f"not started: {reason}")
         write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="stopped_credits", stop_reason=reason)
+        if notify_credits_stopped(project.get("name", ""), usage):
+            print("ntfy: credits stopped notification sent.")
         print(f"Stopped: {reason}")
         return 2
 
@@ -277,6 +293,14 @@ def main() -> int:
     phase = "stopped_credits" if stopped else "complete"
     write_status(workers=workers, total=total, completed=completed, failed=failed, running=0, queued=len(queue), phase=phase, stop_reason=stop_reason)
     refresh_manifest()
+    done, total_frames = read_progress_counts()
+    if stopped:
+        usage = refresh_usage(force=True)
+        if notify_credits_stopped(project.get("name", ""), usage):
+            print("ntfy: credits stopped notification sent.")
+    elif not queue and total_frames and done >= total_frames:
+        if notify_images_complete(project.get("name", "")):
+            print("ntfy: all images complete notification sent.")
     print(f"Done. completed={completed} failed={failed} queued={len(queue)}")
     return 0 if not stopped else 2
 

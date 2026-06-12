@@ -9,7 +9,7 @@ Run from project root.
 | Manifest | `02_manifest/` | `build_plan.py` |
 | Images | `03_images/` | `generate_images.py` |
 | Render | `04_render/` | `render_draft_video.py` |
-| Thumbnail | `05_publish/` | `generate_thumbnail.py` — frame crop + `thumbnail_text` overlay (see `workflow/thumbnail.md`) |
+| Thumbnail | `05_publish/` | `generate_thumbnail.py` — Codex renders scene + `thumbnail_text` in image (see `workflow/thumbnail.md`) |
 | Upload | `05_publish/` | `upload_to_youtube.py` (`--update` for live title/thumbnail) → `07-upload/` |
 | Credits | `07_credits/` | `fetch_codex_usage.py` |
 

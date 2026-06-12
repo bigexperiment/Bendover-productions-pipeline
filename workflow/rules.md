@@ -44,8 +44,8 @@ scripts/stop_studio.sh      # explicit shutdown only
 - Render when images complete: `scripts/04_render/render_draft_video.py --output 06-output/final.mp4`
 - **Upload prep (Phase A — assistant generates, then STOPS):**
   - Write `title`, `description`, `tags` from script + transcript → `project.json` + `07-upload/upload_metadata.json`
-  - Set `thumbnail_text` + optional `thumbnail_frame` in `project.json`, then `generate_thumbnail.py` → `07-upload/thumbnail.png` (see **`workflow/thumbnail.md`**)
-  - Show user title, description, and thumbnail path — **wait for explicit approval**
+  - Confirm `thumbnail_text` with user first (STOP), then generate 3 Codex variants (`thumbnail_v1/v2/v3.png`), user picks → `thumbnail.png` (see **`workflow/thumbnail.md`**)
+  - Show user title, description, and final thumbnail — **wait for explicit upload approval**
   - **Never** upload on the same turn as prep. Render-step “go” is **not** upload approval.
 - **Upload (Phase B — only after user approves title + thumbnail):**
   - `pip3 install -r 07-upload/requirements-youtube.txt`
@@ -61,6 +61,7 @@ scripts/stop_studio.sh      # explicit shutdown only
 ## Ask first
 
 - Style approval (3–5 samples) before bulk gen
+- Thumbnail text confirmation, then 3 thumbnail variants — user picks before upload prep is final
 - Worker count (default 5)
 - **Mandatory** approval of title + thumbnail before upload — assistant must stop after prep; user says “upload” / “approved” / equivalent
 - Resume after credit stop

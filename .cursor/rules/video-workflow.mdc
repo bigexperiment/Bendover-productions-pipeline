@@ -33,7 +33,7 @@ On **every** message: read `workflow/README.md` + `project.json`, check disk, re
 4. `03-transcript/transcript.txt` — user pastes TurboScribe export into empty file
 5. Build manifest — **you** run `python3 scripts/preflight.py` first; if OK, `build_plan.py` (see `workflow/preflight.md`)
 6. `style_approved: true` — user approves samples
-7. Images — **you** run `python3 scripts/preflight.py --images`, then start Studio (see **Studio tracker** below) + `generate_images.py`
+7. Images — **you** run `python3 scripts/preflight.py --images`, then start Studio (see **Studio tracker** below) + `generate_images.py`. See **Phone alerts** below — only two ntfy events, nothing else.
 8. `06-output/final.mp4` — **you** run `render_draft_video.py`
 9. YouTube — **you** draft metadata + thumbnail, **stop for user approval**, then upload only after they confirm (see below)
 10. Cleanup — **optional**; warn user to save outputs first, then **you** write + run a one-off Python reset script (see below)
@@ -56,21 +56,33 @@ Read `01-script/Script.txt`, `03-transcript/transcript.txt`, and `project.json` 
 
 Save to **`project.json`** and **`07-upload/upload_metadata.json`**.
 
-### B. Generate thumbnail (you set `thumbnail_text` + `thumbnail_frame`, then run script)
+### B. Thumbnail — two stops before any image gen (read **`workflow/thumbnail.md`**)
 
-Read **`workflow/thumbnail.md`** — full rules. Summary:
-- **`title`** = YouTube listing only (can name the topic)
-- **`thumbnail_text`** = 2–5 words burned onto the PNG; must **≠ title**; curiosity, no spoilers, not a paraphrase of title
-- **`thumbnail_frame`** = `05-images/` filename; default auto-pick from manifest. **Never** Codex-only art (style drift)
+Codex draws scene + `thumbnail_text` **in the image**. **Never** Pillow text overlay.
 
-**You** run: `python3 scripts/05_publish/generate_thumbnail.py` → `07-upload/thumbnail.png` (real frame crop + Pillow text overlay)
+**B1 — confirm text only (STOP #1)**
+- Offer 5–10 `thumbnail_text` options (2–5 words, ≠ `title`, curiosity, no spoilers)
+- **Wait** for user to confirm exact wording → save to `project.json` → `thumbnail_text`
+- **Do not generate thumbnails until text is confirmed**
 
-### C. **STOP — show user and wait**
+**B2 — three variations, user picks (STOP #2)**
+- Only after B1, **you** run Codex 3× (same text, different `--variant`):
 
-Show **title**, **description** (brief), and **thumbnail path** (`07-upload/thumbnail.png`). Ask them to review.
+```bash
+python3 scripts/05_publish/generate_thumbnail.py --variant=1 --output=07-upload/thumbnail_v1.png
+python3 scripts/05_publish/generate_thumbnail.py --variant=2 --output=07-upload/thumbnail_v2.png
+python3 scripts/05_publish/generate_thumbnail.py --variant=3 --output=07-upload/thumbnail_v3.png
+```
 
-- Revise title/description/thumbnail if they request changes (regenerate thumbnail on rejection).
-- **Do not upload** until they explicitly approve (e.g. “upload”, “approved”, “looks good, publish”, “ship it”).
+- **STOP** — show `thumbnail_v1.png`, `v2`, `v3`; user picks **1 / 2 / 3** (or supplies own PNG)
+- Copy winner → `07-upload/thumbnail.png` — **only then** is thumbnail final
+
+### C. **STOP #3 — upload approval**
+
+Show **title**, **description** (brief), and final **`07-upload/thumbnail.png`**.
+
+- Revise on request; regen variants if thumbnail rejected (re-confirm text if they change it).
+- **Do not upload** until explicit approval (“upload”, “approved”, “ship it”).
 - **Never** treat render-step “go” / “done” as upload approval — that only starts Phase A.
 
 **Phase B — upload (only after explicit user approval)**
@@ -112,3 +124,19 @@ Studio UI **only** step 7. Manifest cuts ~2s, up to 3s max, from transcript.
 **Do not** re-run `start_studio.sh` every message — that used to kill a live server. Check status first; start once per image-gen session.
 
 URL: http://127.0.0.1:47829/ · log: `tracker/studio.log`
+
+## Phone alerts — ntfy only these two (always)
+
+Topic: `ntfy.sh/bendoverproductions123` via `scripts/lib/notify.py`. **Never** ping for partial progress, tests (unless user asks), render done, upload, etc.
+
+| When | Message shape | Who sends |
+|------|----------------|-----------|
+| **All clips done** (`pending_frames: 0`) | `All clips Done! <video name>` | `generate_images.py` + **you** if you notice in chat first |
+| **Codex credits hit 0% / run stops** | `Failed! Credits exhausted. Credits reset at <h:MM AM/PM>` | `generate_images.py` + **you** if you notice in chat first |
+
+```bash
+curl -fsS -d "All clips Done! <video name>" https://ntfy.sh/bendoverproductions123
+curl -fsS -d "Failed! Credits exhausted. Credits reset at <time>" https://ntfy.sh/bendoverproductions123
+```
+
+Reset time from `tracker/usage.json` → `five_hour.resets_at` (local clock).
