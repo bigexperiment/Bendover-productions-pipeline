@@ -21,6 +21,7 @@ Wait for explicit confirmation. Do not run cleanup unprompted.
 1. Write a one-off Python script (tailored to current folder layout — see `scripts/lib/folders.py`)
 2. Script should typically:
    - Clear generated content in `01-script/` … `06-output/` (and tracker logs if needed)
+   - **Do not** delete `assets/style-samples/` — style picker previews live there
    - Reset empty placeholders via **`scripts/lib/project_template.py`** → `ensure_workspace_template_files()` — keeps `01-script/Script.txt` and `03-transcript/transcript.txt` present but **empty**
    - Reset `project.json` via **`reset_project_dict(current)`** (never hand-roll a blank template)
    - That helper **preserves** `image_style`, `style_guide`, `text_rules`, `tone`, `workers`, `privacy` — or restores repo defaults if empty

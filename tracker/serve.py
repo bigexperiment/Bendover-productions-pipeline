@@ -28,20 +28,23 @@ from lib.folders import (  # noqa: E402
     DIR_MANIFEST,
     DIR_OUTPUT,
     DIR_SCRIPT,
-    DIR_TRANSCRIPT,
+    DIR_STYLE_SAMPLES,
     FINAL_MP4,
     MANIFEST_FILE,
     PREVIEW_MP4,
     PROGRESS_FILE,
+    PROJECT_FILE,
     SCRIPT_FILE,
+    STYLE_EXPLORE_RUN,
+    STYLE_SAMPLES_MANIFEST,
     TRANSCRIPT_FILE,
 )
 from lib.style_presets import apply_style_preset, load_style_presets  # noqa: E402
-PROJECT_FILE = ROOT / "project.json"
-STYLE_EXPLORE_DIR = DIR_IMAGES / "style-explore"
-STYLE_EXPLORE_MANIFEST = STYLE_EXPLORE_DIR / "manifest.json"
-STYLE_EXPLORE_PROGRESS = STYLE_EXPLORE_DIR / "progress.json"
-STYLE_EXPLORE_CREDITS = STYLE_EXPLORE_DIR / "credits_log.json"
+
+STYLE_EXPLORE_RUN_DIR = STYLE_EXPLORE_RUN
+STYLE_EXPLORE_MANIFEST = STYLE_EXPLORE_RUN_DIR / "manifest.json"
+STYLE_EXPLORE_PROGRESS = STYLE_EXPLORE_RUN_DIR / "progress.json"
+STYLE_EXPLORE_CREDITS = STYLE_EXPLORE_RUN_DIR / "credits_log.json"
 INDEX_FILE = TRACKER / "index.html"
 PORT = 47829
 HOST = "0.0.0.0"
@@ -231,7 +234,7 @@ def load_style_explore() -> dict:
     runner = load_json(TRACKER / "status.json", {})
     active = runner.get("mode") == "style_explore" or bool(progress.get("mode") == "style_explore")
     variants = manifest.get("variants") or []
-    done = sum(1 for v in variants if (STYLE_EXPLORE_DIR / v.get("filename", "")).is_file())
+    done = sum(1 for v in variants if (STYLE_EXPLORE_RUN_DIR / v.get("filename", "")).is_file())
     total = int(manifest.get("total") or len(variants) or 0)
     return {
         "active": active,
@@ -255,8 +258,8 @@ def paginate_style_explore_frames(
     frames: list[dict] = []
     for row in manifest.get("variants") or []:
         filename = row.get("filename", "")
-        rel = f"style-explore/{filename}" if filename else ""
-        exists = (STYLE_EXPLORE_DIR / filename).is_file() if filename else False
+        rel = f"style-explore-run/{filename}" if filename else ""
+        exists = (STYLE_EXPLORE_RUN_DIR / filename).is_file() if filename else False
         status = "done" if exists else row.get("status", "pending")
         frames.append(
             {

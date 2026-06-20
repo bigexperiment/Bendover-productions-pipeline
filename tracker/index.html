@@ -1732,7 +1732,7 @@
 
     function previewPathForPreset(preset) {
       if (!preset || preset.id === "default") return null;
-      return `style-explore/explore_${preset.id}.png`;
+      return `assets/style-samples/explore_${preset.id}.png`;
     }
 
     function findStylePreset(id) {
@@ -1809,7 +1809,7 @@
           if (empty) empty.classList.add("hidden");
           img.classList.remove("hidden");
         };
-        img.src = `/05-images/${path}?t=${Date.now()}`;
+        img.src = `/${path}?t=${Date.now()}`;
         img.alt = preset.label;
       } else {
         if (empty) {

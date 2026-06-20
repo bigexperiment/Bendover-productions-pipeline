@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate style-exploration frames — each one a unique scene + style.
 
-Outputs to 05-images/style-explore/ (separate from production frames).
+Outputs to tracker/style-explore-run/ (ephemeral — not production frames).
+Committed previews live in assets/style-samples/.
 Runs sequentially (1 worker) by default so credit tracking is accurate.
 """
 from __future__ import annotations
@@ -17,14 +18,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.image_prompt import DEFAULT_STYLE_GUIDE, DEFAULT_TEXT_RULES, DEFAULT_TONE  # noqa: E402
+from lib.folders import (  # noqa: E402
+    PROJECT_FILE,
+    STYLE_EXPLORE_RUN,
+    STYLE_SAMPLES_MANIFEST,
+    STYLE_SAMPLES_VARIANTS,
+)
 from lib.notify import notify_credits_stopped  # noqa: E402
 
-EXPLORE_DIR = ROOT / "05-images" / "style-explore"
-VARIANTS_FILE = Path(__file__).resolve().parent / "style_explore_variants.json"
+EXPLORE_DIR = STYLE_EXPLORE_RUN
+VARIANTS_FILE = STYLE_SAMPLES_VARIANTS
 MANIFEST_FILE = EXPLORE_DIR / "manifest.json"
 PROGRESS_FILE = EXPLORE_DIR / "progress.json"
 CREDITS_LOG = EXPLORE_DIR / "credits_log.json"
-PROJECT_FILE = ROOT / "project.json"
 TRACKER_DIR = ROOT / "tracker"
 TRACKER_STATUS = TRACKER_DIR / "status.json"
 TRACKER_RECENT = TRACKER_DIR / "recent.json"
@@ -168,7 +174,7 @@ Characters should have personality — NOT generic stick figures.
 Output:
 - 16:9 landscape
 - Use the built-in image_gen tool exactly once
-- Save to: 05-images/style-explore/{job.filename}
+- Save to: tracker/style-explore-run/{job.filename}
 - Verify file exists at {out_path}
 - Do not create any other files
 
@@ -367,7 +373,7 @@ def write_recent(limit: int = 8) -> None:
         json.dumps(
             {
                 "mode": "style_explore",
-                "recent_filenames": [f"style-explore/{p.name}" for p in images[:limit]],
+                "recent_filenames": [f"style-explore-run/{p.name}" for p in images[:limit]],
                 "updated_at": int(time.time()),
             },
             indent=2,

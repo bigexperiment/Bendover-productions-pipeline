@@ -4,15 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from lib.folders import DIR_IMAGES
+from lib.folders import DIR_STYLE_SAMPLES, STYLE_SAMPLES_VARIANTS
 from lib.image_prompt import DEFAULT_IMAGE_STYLE
-
-ROOT = Path(__file__).resolve().parents[2]
-VARIANTS_FILE = ROOT / "scripts" / "03_images" / "style_explore_variants.json"
-EXPLORE_DIR = DIR_IMAGES / "style-explore"
 
 DEFAULT_PRESET_ID = "default"
 DEFAULT_PRESET_LABEL = "Classic stick figure explainer"
+PREVIEW_URL_PREFIX = "assets/style-samples"
 
 
 def _default_preset() -> dict:
@@ -27,17 +24,17 @@ def _default_preset() -> dict:
 
 
 def load_variant_rows() -> list[dict]:
-    if not VARIANTS_FILE.is_file():
+    if not STYLE_SAMPLES_VARIANTS.is_file():
         return []
-    data = json.loads(VARIANTS_FILE.read_text(encoding="utf-8"))
+    data = json.loads(STYLE_SAMPLES_VARIANTS.read_text(encoding="utf-8"))
     return data.get("variants") or []
 
 
 def preset_from_variant(row: dict) -> dict:
     preset_id = str(row.get("id", "")).strip()
     filename = f"explore_{preset_id}.png"
-    preview_rel = f"style-explore/{filename}"
-    has_preview = (EXPLORE_DIR / filename).is_file()
+    preview_rel = f"{PREVIEW_URL_PREFIX}/{filename}"
+    has_preview = (DIR_STYLE_SAMPLES / filename).is_file()
     return {
         "id": preset_id,
         "label": row.get("label") or f"Style {preset_id}",

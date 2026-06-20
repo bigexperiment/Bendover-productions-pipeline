@@ -13,6 +13,7 @@ DIR_MANIFEST = ROOT / "04-manifest"
 DIR_IMAGES = ROOT / "05-images"
 DIR_OUTPUT = ROOT / "06-output"
 DIR_UPLOAD = ROOT / "07-upload"
+DIR_STYLE_SAMPLES = ROOT / "assets" / "style-samples"
 
 SCRIPT_FILE = DIR_SCRIPT / "Script.txt"
 TRANSCRIPT_FILE = DIR_TRANSCRIPT / "transcript.txt"
@@ -31,6 +32,10 @@ YOUTUBE_THUMBNAIL = DIR_UPLOAD / "thumbnail.png"
 YOUTUBE_METADATA = DIR_UPLOAD / "upload_metadata.json"
 YOUTUBE_REQUIREMENTS = DIR_UPLOAD / "requirements-youtube.txt"
 PROJECT_FILE = ROOT / "project.json"
+
+STYLE_SAMPLES_VARIANTS = DIR_STYLE_SAMPLES / "variants.json"
+STYLE_SAMPLES_MANIFEST = DIR_STYLE_SAMPLES / "manifest.json"
+STYLE_EXPLORE_RUN = ROOT / "tracker" / "style-explore-run"
 
 
 def youtube_client_secrets() -> Path:
