@@ -36,7 +36,12 @@ from lib.folders import (  # noqa: E402
     SCRIPT_FILE,
     TRANSCRIPT_FILE,
 )
+from lib.style_presets import apply_style_preset, load_style_presets  # noqa: E402
 PROJECT_FILE = ROOT / "project.json"
+STYLE_EXPLORE_DIR = DIR_IMAGES / "style-explore"
+STYLE_EXPLORE_MANIFEST = STYLE_EXPLORE_DIR / "manifest.json"
+STYLE_EXPLORE_PROGRESS = STYLE_EXPLORE_DIR / "progress.json"
+STYLE_EXPLORE_CREDITS = STYLE_EXPLORE_DIR / "credits_log.json"
 INDEX_FILE = TRACKER / "index.html"
 PORT = 47829
 HOST = "0.0.0.0"
@@ -91,17 +96,20 @@ def load_json(path: Path, default: dict | list | None = None):
 
 
 def save_project(data: dict) -> None:
+    data = apply_style_preset(data)
     PROJECT_FILE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def load_project() -> dict:
-    return load_json(PROJECT_FILE, {
+    project = load_json(PROJECT_FILE, {
         "name": "my-video",
         "step": "setup",
         "title": "",
         "description": "",
         "privacy": "public",
         "workers": 5,
+        "style_preset_id": "",
+        "style_preset_label": "",
         "image_style": (
             "simple educational cartoon illustration, hand-drawn doodle animation style, "
             "thick black outlines, flat colors, minimal shading, stickman characters, "
@@ -111,6 +119,7 @@ def load_project() -> dict:
         "style_approved": False,
         "youtube_video_id": None,
     })
+    return apply_style_preset(project)
 
 
 def script_path() -> Path | None:
@@ -215,12 +224,69 @@ def get_all_frames() -> list[dict]:
     return load_disk_frames()
 
 
-def paginate_frames(
+def load_style_explore() -> dict:
+    progress = load_json(STYLE_EXPLORE_PROGRESS, {})
+    manifest = load_json(STYLE_EXPLORE_MANIFEST, {})
+    credits = load_json(STYLE_EXPLORE_CREDITS, {})
+    runner = load_json(TRACKER / "status.json", {})
+    active = runner.get("mode") == "style_explore" or bool(progress.get("mode") == "style_explore")
+    variants = manifest.get("variants") or []
+    done = sum(1 for v in variants if (STYLE_EXPLORE_DIR / v.get("filename", "")).is_file())
+    total = int(manifest.get("total") or len(variants) or 0)
+    return {
+        "active": active,
+        "scene": manifest.get("scene", ""),
+        "total": total,
+        "done": done,
+        "pending": max(0, total - done),
+        "progress": progress,
+        "credits": credits,
+        "variants": variants,
+    }
+
+
+def paginate_style_explore_frames(
     *,
     status_filter: str = "all",
     offset: int = 0,
     limit: int = 60,
 ) -> dict:
+    manifest = load_json(STYLE_EXPLORE_MANIFEST, {})
+    frames: list[dict] = []
+    for row in manifest.get("variants") or []:
+        filename = row.get("filename", "")
+        rel = f"style-explore/{filename}" if filename else ""
+        exists = (STYLE_EXPLORE_DIR / filename).is_file() if filename else False
+        status = "done" if exists else row.get("status", "pending")
+        frames.append(
+            {
+                "timestamp": row.get("id", ""),
+                "filename": rel,
+                "label": row.get("label", ""),
+                "scene": manifest.get("scene", ""),
+                "transcript": row.get("label", ""),
+                "status": status,
+                "exists": exists,
+            }
+        )
+    if status_filter == "done":
+        frames = [f for f in frames if f["exists"]]
+    elif status_filter == "pending":
+        frames = [f for f in frames if not f["exists"]]
+    total = len(frames)
+    page = frames[offset : offset + limit]
+    return {"total": total, "offset": offset, "limit": limit, "frames": page, "mode": "style_explore"}
+
+
+def paginate_frames(
+    *,
+    status_filter: str = "all",
+    offset: int = 0,
+    limit: int = 60,
+    mode: str = "production",
+) -> dict:
+    if mode == "style_explore":
+        return paginate_style_explore_frames(status_filter=status_filter, offset=offset, limit=limit)
     frames = get_all_frames()
     if status_filter == "done":
         frames = [f for f in frames if f["exists"] or f["status"] == "done"]
@@ -250,14 +316,22 @@ def build_status() -> dict:
     usage = read_usage_payload(force=False, max_cache_age=30)
     account = read_codex_account()
     recent = load_json(TRACKER / "recent.json", {})
+    style_explore = load_style_explore()
     script = script_path()
     audio = audio_status()
     manifest = MANIFEST_FILE.is_file()
     final_mp4 = FINAL_MP4.is_file()
 
-    total = int(progress.get("total_frames") or 0)
-    done = int(progress.get("done_frames") or 0)
-    pending = int(progress.get("pending_frames") or progress.get("missing_frames") or 0)
+    explore_active = runner.get("mode") == "style_explore" or recent.get("mode") == "style_explore"
+    if explore_active and style_explore.get("total"):
+        total = int(style_explore.get("total") or 0)
+        done = int(style_explore.get("done") or 0)
+        pending = int(style_explore.get("pending") or 0)
+        progress = style_explore.get("progress") or progress
+    else:
+        total = int(progress.get("total_frames") or 0)
+        done = int(progress.get("done_frames") or 0)
+        pending = int(progress.get("pending_frames") or progress.get("missing_frames") or 0)
 
     inferred = infer_step(project, script, audio, manifest, total, pending, final_mp4)
     project = sync_project_step(project, inferred)
@@ -282,6 +356,8 @@ def build_status() -> dict:
         "usage": usage,
         "account": account,
         "recent": recent,
+        "style_explore": style_explore,
+        "style_presets": load_style_presets(),
         "audio": audio,
     }
 
@@ -322,6 +398,10 @@ def handle_run(body: dict) -> dict:
         "generate_images": (
             ["python3", "scripts/03_images/generate_images.py", str(workers)] + (["--force"] if force else []),
             f"Generate images ({workers} workers)",
+        ),
+        "generate_style_explore": (
+            ["python3", "scripts/03_images/generate_style_explore.py", str(workers)] + (["--force"] if force else []),
+            f"Style explore ({workers} workers)",
         ),
         "refresh_usage": (["python3", "scripts/07_credits/fetch_codex_usage.py", "--force"], "Refresh Codex usage"),
         "render_preview": (["python3", "scripts/04_render/render_draft_video.py", "--limit", "30", "--output", "06-output/preview.mp4"], "Render preview"),
@@ -429,12 +509,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/project":
             self._send_json(load_project())
             return
+        if path == "/api/style-presets":
+            self._send_json({"presets": load_style_presets()})
+            return
         if path == "/api/frames":
             query = parse_qs(parsed.query)
             status_filter = (query.get("status") or ["all"])[0]
             offset = int((query.get("offset") or ["0"])[0])
             limit = min(int((query.get("limit") or ["80"])[0]), 200)
-            self._send_json(paginate_frames(status_filter=status_filter, offset=offset, limit=limit))
+            mode = (query.get("mode") or ["production"])[0]
+            self._send_json(paginate_frames(status_filter=status_filter, offset=offset, limit=limit, mode=mode))
             return
 
         file_path = resolve_file(self.path)
@@ -452,7 +536,7 @@ class Handler(BaseHTTPRequestHandler):
             current = load_project()
             current.update(data)
             save_project(current)
-            self._send_json({"ok": True, "project": current})
+            self._send_json({"ok": True, "project": load_project()})
             return
 
         if path == "/api/run":

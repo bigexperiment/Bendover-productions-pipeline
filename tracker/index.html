@@ -260,6 +260,43 @@
     .link-btn:disabled { opacity: .5; }
     .link-btn.muted { color: var(--muted); background: #fff; border-color: var(--line); }
 
+    .style-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      max-width: min(220px, 32vw);
+      padding: 5px 10px 5px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      background: var(--card-raised);
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .style-toggle:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+    .style-toggle-label {
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+    .style-toggle-value {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent-deep);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .style-toggle.unset .style-toggle-value {
+      color: var(--accent);
+      font-style: italic;
+      font-weight: 500;
+    }
+
     .panel {
       flex: 1; min-height: 0;
       display: grid; grid-template-columns: 1fr 272px; gap: 12px;
@@ -588,6 +625,83 @@
 
     .hidden { display: none !important; }
 
+    /* Style preset picker */
+    .style-card { margin-bottom: 12px; }
+    .style-card .card-label { margin-bottom: 8px; }
+    .style-select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1.5px solid var(--line);
+      background: var(--card-raised);
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .style-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+    .style-preview-wrap {
+      margin-top: 10px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1.5px solid var(--line);
+      background: #1a1418;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .style-preview-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .style-preview-empty {
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-align: center;
+      padding: 12px;
+      line-height: 1.4;
+    }
+    .style-caption {
+      margin: 8px 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .style-active {
+      margin-top: 6px;
+      font-size: 0.82rem;
+      color: var(--accent-deep);
+      font-weight: 600;
+    }
+    .style-save-btn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .15s;
+    }
+    .style-save-btn:hover:not(:disabled) { background: var(--accent-deep); }
+    .style-save-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .style-save-btn.saved { background: var(--gold); }
+    .style-card.highlight {
+      box-shadow: 0 0 0 2px var(--accent-soft);
+      border-color: var(--accent);
+    }
+
     @media (max-width: 700px) {
       html, body { overflow: auto; height: auto; }
       .shell { height: auto; min-height: 100%; }
@@ -623,6 +737,10 @@
         <span id="acct-label">—</span>
       </div>
       <button class="link-btn muted" id="narration-btn" type="button" title="Click to hear frame transcript">🔇</button>
+      <button class="style-toggle hidden unset" id="style-picker-toggle" type="button" title="Choose art style for this video">
+        <span class="style-toggle-label">Style</span>
+        <span class="style-toggle-value" id="style-toggle-value">Pick one…</span>
+      </button>
       <button class="link-btn hidden" id="refresh-btn" type="button">Refresh</button>
     </header>
 
@@ -652,6 +770,19 @@
       </div>
 
       <aside class="side">
+        <section class="stat-card style-card" id="style-picker">
+          <div class="card-label">Art style · this video</div>
+          <select class="style-select" id="style-select" aria-label="Choose art style">
+            <option value="">Loading styles…</option>
+          </select>
+          <div class="style-preview-wrap" id="style-preview-wrap">
+            <span class="style-preview-empty" id="style-preview-empty">Pick a style to preview</span>
+            <img id="style-preview" class="hidden" alt="Style preview">
+          </div>
+          <p class="style-caption" id="style-caption"></p>
+          <p class="style-active hidden" id="style-active"></p>
+          <button class="style-save-btn" id="style-save-btn" type="button" disabled>Use this style</button>
+        </section>
         <section class="stat-card limits-card">
           <div class="card-label">Production budget</div>
           <div class="limits" id="limits-body">
@@ -1169,7 +1300,7 @@
       if (currentIdx !== prevCurrentDot) prevCurrentDot = currentIdx;
     }
 
-    function setVideoProgress(done, total) {
+    function setVideoProgress(done, total, explore = null) {
       const pending = Math.max(0, total - done);
       const label = total ? `${done}/${total}` : "—";
 
@@ -1188,7 +1319,16 @@
       renderFrameDots(done, total);
 
       const meta = document.getElementById("frame-meta");
-      if (total === 0) {
+      const creditSummary = explore?.credits?.summary;
+      if (explore?.active && creditSummary?.avg_five_hour_per_image != null) {
+        const fh = creditSummary.avg_five_hour_per_image;
+        const wk = creditSummary.avg_weekly_per_image ?? "—";
+        const p50fh = creditSummary.projected_50_five_hour ?? "—";
+        const p50wk = creditSummary.projected_50_weekly ?? "—";
+        meta.innerHTML =
+          `<strong>Style lab</strong> — ~${fh}% per 5h window / ~${wk}% weekly per image · ` +
+          `50 ≈ ${p50fh}% 5h / ${p50wk}% weekly`;
+      } else if (total === 0) {
         meta.innerHTML = "No cut list yet";
       } else if (pending === 0) {
         meta.innerHTML = "<strong>Wrapped — every frame in the can</strong>";
@@ -1331,13 +1471,14 @@
         : "Click to hear frame transcript";
     }
 
-    async function loadFrameTiming() {
+    async function loadFrameTiming(exploreMode = false) {
       try {
-        const res = await fetch("/api/frames?limit=200");
+        const mode = exploreMode ? "style_explore" : "production";
+        const res = await fetch(`/api/frames?mode=${mode}&limit=200`);
         const data = await res.json();
         frameTiming.clear();
         for (const f of data.frames || []) {
-          frameTiming.set(f.filename, { transcript: f.transcript || "" });
+          frameTiming.set(f.filename, { transcript: f.label || f.transcript || "" });
         }
       } catch { /* offline */ }
     }
@@ -1447,7 +1588,8 @@
         v.appendChild(stage);
       };
       img.onload = mount;
-      img.src = `/05-images/${name}?t=${Date.now()}`;
+      const imgPath = name.includes("/") ? name : name;
+      img.src = `/05-images/${imgPath}?t=${Date.now()}`;
       if (img.complete) mount();
       if (speechUnlocked && narrationOn) playFrameNarration(name);
     }
@@ -1503,9 +1645,13 @@
       const run = d.runner || {};
       const usage = d.usage || {};
       const acct = d.account || {};
+      const explore = d.style_explore || {};
+      const exploreActive = run.mode === "style_explore" || (d.recent?.mode === "style_explore" && explore.total > 0);
       const phase = run.phase || "idle";
 
-      document.getElementById("title").textContent = p.name ? `${p.name} · On Set` : "On Set · Sound Stage B";
+      document.getElementById("title").textContent = exploreActive
+        ? "Style explore · finding the look"
+        : (p.name ? `${p.name} · On Set` : "On Set · Sound Stage B");
       document.getElementById("status-dot").className =
         "dot" + (phase === "running" ? " live" : phase.includes("stop") ? " stop" : "");
 
@@ -1516,7 +1662,7 @@
       const done = dash.done_frames ?? 0;
       const total = dash.total_frames ?? 0;
       if (SIM && total > 0) sim.frameTotal = total;
-      if (!SIM) setVideoProgress(done, total);
+      if (!SIM) setVideoProgress(done, total, exploreActive ? explore : null);
 
       const loggedIn = !!acct.logged_in;
       document.getElementById("acct-dot").style.background = loggedIn ? "var(--accent)" : "var(--line)";
@@ -1529,24 +1675,248 @@
 
       renderLimits(SIM ? simUsage() : usage, SIM ? { logged_in: true } : acct);
 
+      if (d.style_presets?.length) {
+        const countChanged = stylePresets.length !== d.style_presets.length;
+        stylePresets = d.style_presets;
+        if (countChanged || !styleOptionsBuilt) styleOptionsBuilt = false;
+        populateStyleSelect(p);
+      }
+      bindStylePicker(p);
+
       const names = (d.recent?.recent_filenames) || [];
+      const wasExplore = exploreModeActive;
+      exploreModeActive = exploreActive;
+      if (wasExplore !== exploreModeActive) loadFrameTiming(exploreModeActive);
       if (names.length) showFrame(names[0]);
       else if (loaded) showFrame(null);
       loaded = true;
     }
+
+    let exploreModeActive = false;
+    let stylePresets = [];
+    let styleDirty = false;
+    let styleOptionsBuilt = false;
+    let lastStylePresetId = "";
+    let stylePickerForced = false;
+
+    function shouldShowStylePicker(project) {
+      if (stylePickerForced) return true;
+      const step = project?.step || "setup";
+      if (!project?.style_preset_id && (step === "setup" || step === "audio")) return true;
+      return false;
+    }
+
+    function canChangeStyle(project) {
+      if (project?.style_approved) return false;
+      const step = project?.step || "setup";
+      return ["setup", "audio", "manifest"].includes(step);
+    }
+
+    function updateStylePickerVisibility(project) {
+      const picker = document.getElementById("style-picker");
+      const toggle = document.getElementById("style-picker-toggle");
+      const toggleValue = document.getElementById("style-toggle-value");
+      const show = shouldShowStylePicker(project);
+      picker?.classList.toggle("hidden", !show);
+      const canChange = canChangeStyle(project);
+      toggle?.classList.toggle("hidden", show || !canChange);
+      const label = project?.style_preset_label || "";
+      if (toggle && toggleValue && !show && canChange) {
+        toggle.classList.toggle("unset", !label);
+        toggleValue.textContent = label || "Pick one…";
+        toggle.title = label
+          ? `Art style: ${label} — click to change`
+          : "Choose art style for this video";
+      }
+    }
+
+    function previewPathForPreset(preset) {
+      if (!preset || preset.id === "default") return null;
+      return `style-explore/explore_${preset.id}.png`;
+    }
+
+    function findStylePreset(id) {
+      return stylePresets.find(p => p.id === id) || null;
+    }
+
+    function buildStyleOptions() {
+      const sel = document.getElementById("style-select");
+      if (!sel || !stylePresets.length) return;
+      const sorted = [...stylePresets].sort((a, b) => {
+        if (a.id === "default") return -1;
+        if (b.id === "default") return 1;
+        if (a.has_preview !== b.has_preview) return a.has_preview ? -1 : 1;
+        return Number(a.id) - Number(b.id);
+      });
+      sel.innerHTML = sorted.map(p => {
+        const suffix = p.has_preview ? "" : " (no sample yet)";
+        return `<option value="${p.id}">${p.label}${suffix}</option>`;
+      }).join("");
+      stylePresets = sorted;
+      styleOptionsBuilt = true;
+    }
+
+    function syncStyleSelect(project) {
+      const sel = document.getElementById("style-select");
+      if (!sel || !stylePresets.length) return;
+      const savedId = project?.style_preset_id || "";
+      const pick = (savedId && findStylePreset(savedId)) ? savedId : sel.value;
+      if (pick && findStylePreset(pick)) sel.value = pick;
+      lastStylePresetId = project?.style_preset_id || "";
+      updateStylePreview();
+    }
+
+    function populateStyleSelect(project) {
+      if (!styleOptionsBuilt) buildStyleOptions();
+      syncStyleSelect(project || {});
+    }
+
+    function updateStylePreview() {
+      const sel = document.getElementById("style-select");
+      const img = document.getElementById("style-preview");
+      const empty = document.getElementById("style-preview-empty");
+      const caption = document.getElementById("style-caption");
+      const saveBtn = document.getElementById("style-save-btn");
+      if (!sel) return;
+      const preset = findStylePreset(sel.value);
+      if (!preset) {
+        if (empty) empty.classList.remove("hidden");
+        if (img) img.classList.add("hidden");
+        if (caption) caption.textContent = "";
+        if (saveBtn) saveBtn.disabled = true;
+        return;
+      }
+      if (caption) {
+        caption.textContent = preset.image_style.length > 140
+          ? preset.image_style.slice(0, 137) + "…"
+          : preset.image_style;
+      }
+      const path = preset.preview || previewPathForPreset(preset);
+      if (path && img) {
+        if (empty) {
+          empty.classList.add("hidden");
+          empty.textContent = "Pick a style to preview";
+        }
+        img.classList.remove("hidden");
+        img.onerror = () => {
+          img.classList.add("hidden");
+          if (empty) {
+            empty.classList.remove("hidden");
+            empty.textContent = "No sample image for this style yet.";
+          }
+        };
+        img.onload = () => {
+          if (empty) empty.classList.add("hidden");
+          img.classList.remove("hidden");
+        };
+        img.src = `/05-images/${path}?t=${Date.now()}`;
+        img.alt = preset.label;
+      } else {
+        if (empty) {
+          empty.classList.remove("hidden");
+          empty.textContent = "Classic default — no sample image.";
+        }
+        if (img) img.classList.add("hidden");
+      }
+      if (saveBtn) saveBtn.disabled = false;
+    }
+
+    async function saveStylePreset() {
+      const sel = document.getElementById("style-select");
+      const saveBtn = document.getElementById("style-save-btn");
+      const activeEl = document.getElementById("style-active");
+      if (!sel || !saveBtn) return;
+      const preset = findStylePreset(sel.value);
+      if (!preset) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        const res = await fetch("/api/project", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            style_preset_id: preset.id,
+            style_preset_label: preset.label,
+            image_style: preset.image_style,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Save failed");
+        styleDirty = false;
+        if (activeEl) {
+          activeEl.classList.remove("hidden");
+          activeEl.textContent = `Saved: ${preset.label}`;
+        }
+        showToast(`Look locked: ${preset.label}`);
+        stylePickerForced = false;
+        document.getElementById("style-picker")?.classList.remove("highlight");
+        await load();
+      } catch (err) {
+        showToast(String(err.message || err));
+      } finally {
+        saveBtn.textContent = "Use this style";
+        saveBtn.disabled = false;
+      }
+    }
+
+    function bindStylePicker(project) {
+      const sel = document.getElementById("style-select");
+      const saveBtn = document.getElementById("style-save-btn");
+      const picker = document.getElementById("style-picker");
+      const activeEl = document.getElementById("style-active");
+      if (!sel || !stylePresets.length) return;
+
+      const savedId = project?.style_preset_id || "";
+      if (savedId && savedId !== lastStylePresetId && findStylePreset(savedId)) {
+        sel.value = savedId;
+        updateStylePreview();
+      }
+
+      const isEarly = (project?.step === "setup" || project?.step === "audio") && !project?.style_approved;
+      const needsPick = !project?.style_preset_id;
+      picker?.classList.toggle("highlight", isEarly && needsPick);
+      updateStylePickerVisibility(project);
+
+      if (activeEl) {
+        if (project?.style_preset_label) {
+          activeEl.classList.remove("hidden");
+          activeEl.textContent = `Current: ${project.style_preset_label}`;
+        } else {
+          activeEl.classList.add("hidden");
+        }
+      }
+
+      if (!sel.dataset.bound) {
+        sel.dataset.bound = "1";
+        sel.addEventListener("change", () => {
+          styleDirty = true;
+          updateStylePreview();
+          if (activeEl) activeEl.classList.add("hidden");
+        });
+        saveBtn?.addEventListener("click", saveStylePreset);
+      }
+    }
+
+    document.getElementById("style-picker-toggle")?.addEventListener("click", () => {
+      stylePickerForced = true;
+      const picker = document.getElementById("style-picker");
+      picker?.classList.remove("hidden");
+      document.getElementById("style-picker-toggle")?.classList.add("hidden");
+      picker?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
 
     async function boot() {
       initFunTicker();
       setInterval(rotateBrandTag, 14000);
       setInterval(rotateEmptyViewer, 9000);
       setupSpeech();
-      await loadFrameTiming();
       if (SIM) {
         startSimulation();
         setInterval(load, 2000);
         setInterval(tickResets, 1000);
       } else {
         await load();
+        await loadFrameTiming(exploreModeActive);
         setInterval(load, 2000);
         setInterval(tickResets, 1000);
       }

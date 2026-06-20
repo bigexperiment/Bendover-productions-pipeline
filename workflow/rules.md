@@ -58,9 +58,15 @@ scripts/stop_studio.sh      # explicit shutdown only
   - Wait for explicit user OK
   - Write a one-off Python reset script on the fly (no repo cleanup script); run it yourself; call `ensure_workspace_template_files()` + `reset_project_dict()` so empty `Script.txt`/`transcript.txt` and style prefs survive
 
+## Style approval (step 6)
+
+Default: offer 3–5 sample frames before bulk gen.
+
+**Skip samples:** If the user says to skip samples / start the process / they'll stop after a few generations if they don't like it — set `style_approved: true` and start step 7 immediately. They can halt in Studio or ask you to stop; do not insist on samples.
+
 ## Ask first
 
-- Style approval (3–5 samples) before bulk gen
+- Style approval (3–5 samples) before bulk gen — **unless** user opts to skip (see above)
 - Thumbnail text confirmation, then 3 thumbnail variants — user picks before upload prep is final
 - Worker count (default 5)
 - **Mandatory** approval of title + thumbnail before upload — assistant must stop after prep; user says “upload” / “approved” / equivalent

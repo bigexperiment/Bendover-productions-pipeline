@@ -5,6 +5,8 @@ from lib.folders import SCRIPT_FILE, TRANSCRIPT_FILE
 from lib.image_prompt import DEFAULT_IMAGE_STYLE, DEFAULT_STYLE_GUIDE, DEFAULT_TEXT_RULES, DEFAULT_TONE
 
 STYLE_PERSIST_KEYS = (
+    "style_preset_id",
+    "style_preset_label",
     "image_style",
     "style_guide",
     "text_rules",
@@ -57,5 +59,7 @@ def reset_project_dict(current: dict | None = None) -> dict:
         "video_brief": "",
         "style_approved": False,
         "youtube_video_id": None,
+        "style_preset_id": "",
+        "style_preset_label": "",
         **style,
     }

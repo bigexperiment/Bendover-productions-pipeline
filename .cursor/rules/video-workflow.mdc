@@ -32,7 +32,7 @@ On **every** message: read `workflow/README.md` + `project.json`, check disk, re
 3. `02-audio/` — user adds **one** narration MP3; verify on **done** (no combine script)
 4. `03-transcript/transcript.txt` — user pastes TurboScribe export into empty file
 5. Build manifest — **you** run `python3 scripts/preflight.py` first; if OK, `build_plan.py` (see `workflow/preflight.md`)
-6. `style_approved: true` — user approves samples
+6. `style_approved: true` — user approves samples **or** explicitly skips samples to start bulk gen immediately (they can stop after a few frames in Studio if the look is wrong). On skip: set `style_approved: true` and go to step 7 — do **not** block on sample frames.
 7. Images — **you** run `python3 scripts/preflight.py --images`, then start Studio (see **Studio tracker** below) + `generate_images.py`. See **Phone alerts** below — only two ntfy events, nothing else.
 8. `06-output/final.mp4` — **you** run `render_draft_video.py`
 9. YouTube — **you** draft metadata + thumbnail, **stop for user approval**, then upload only after they confirm (see below)

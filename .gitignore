@@ -20,6 +20,10 @@ project.json
 # Generated frame images
 05-images/*
 !05-images/.gitkeep
+!05-images/style-explore/
+05-images/style-explore/*
+!05-images/style-explore/explore_*.png
+!05-images/style-explore/manifest.json
 
 # Rendered video
 06-output/*
@@ -44,6 +48,8 @@ tracker/status.json
 tracker/usage.json
 tracker/recent.json
 tracker/logs/
+tracker/credit_calibration.log
+tracker/style_explore_run.log
 
 # --- Python / OS ---
 .env

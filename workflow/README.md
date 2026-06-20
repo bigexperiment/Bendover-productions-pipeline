@@ -27,7 +27,7 @@ Assistant runs all scripts — user never gets terminal commands.
 | 3 | one file in `02-audio/` | User adds narration MP3, says **done** |
 | 4 | `03-transcript/transcript.txt` | User pastes TurboScribe export into empty file, says **done** |
 | 5 | `04-manifest/` | Assistant runs preflight, then builds |
-| 6 | `style_approved` | User approves samples |
+| 6 | `style_approved` | User approves samples — or skips samples to start bulk gen (can stop in Studio after a few frames) |
 | 7 | all frames in `05-images/` | Assistant starts studio + generates |
 | 8 | `06-output/final.mp4` | Assistant renders |
 | 9a | title + `07-upload/thumbnail.png` | Assistant drafts metadata + thumbnail, **stops** — user must approve |

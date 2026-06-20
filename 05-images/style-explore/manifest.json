@@ -1,0 +1,407 @@
+{
+  "version": 2,
+  "note": "Each frame is a unique scene, composition, and art style.",
+  "total": 50,
+  "variants": [
+    {
+      "id": "01",
+      "label": "Chibi mammoth chase",
+      "filename": "explore_01.png",
+      "image_style": "chibi anime, huge expressive eyes, thick outlines, flat pastels",
+      "scene": "Wide shot: tiny chibi hunter sprinting from an adorable but enormous mammoth on snowy tundra. Motion lines, panicked face vs grumpy mammoth.",
+      "status": "done"
+    },
+    {
+      "id": "02",
+      "label": "Rubber hose fire discovery",
+      "filename": "explore_02.png",
+      "image_style": "1920s rubber hose cartoon, noodle limbs, pie-cut eyes, vintage flat colors",
+      "scene": "Close-up: cave person jolts backward in slapstick shock as they accidentally spark fire from flint. Bouncy smoke curls, starburst surprise.",
+      "status": "done"
+    },
+    {
+      "id": "03",
+      "label": "Vector migration map",
+      "filename": "explore_03.png",
+      "image_style": "flat vector motion graphics, geometric humans, bold saturated shapes",
+      "scene": "Bird's-eye view: dotted arrow path across continents, small geometric families walking. One big idea \u2014 mass migration.",
+      "status": "done"
+    },
+    {
+      "id": "04",
+      "label": "Ligne claire tool maker",
+      "filename": "explore_04.png",
+      "image_style": "ligne claire clear-line comic, uniform outlines, flat European comic colors",
+      "scene": "Medium shot: skilled craftsperson chips a sharp stone tool, chips flying. Focused calm face, workbench of flint pieces.",
+      "status": "done"
+    },
+    {
+      "id": "05",
+      "label": "Ink sketch sabertooth",
+      "filename": "explore_05.png",
+      "image_style": "scratchy pen-and-ink editorial sketch, crosshatching, warm paper tone",
+      "scene": "Low angle: hunter frozen behind a boulder, peering at a saber-toothed cat on a ridge. Tension in scratchy shadows.",
+      "status": "done"
+    },
+    {
+      "id": "06",
+      "label": "Watercolor gathering",
+      "filename": "explore_06.png",
+      "image_style": "soft watercolor washes, loose outlines, storybook palette",
+      "scene": "Wide meadow: group gathering berries and roots, baskets, one kid sneaking a berry. Gentle golden-hour feel.",
+      "status": "done"
+    },
+    {
+      "id": "07",
+      "label": "Paper collage volcano",
+      "filename": "explore_07.png",
+      "image_style": "cut-paper collage, layered shapes, craft shadows",
+      "scene": "Distant volcano erupting; paper-cut families flee with bundles. Dramatic red-orange sky layers, simple terror and urgency.",
+      "status": "done"
+    },
+    {
+      "id": "08",
+      "label": "Pixel art hunt",
+      "filename": "explore_08.png",
+      "image_style": "16-bit pixel art, chunky sprites, limited retro palette",
+      "scene": "Side-scroller style: hunter with spear approaching pixel deer in forest. Health-bar joke optional via posture, no text.",
+      "status": "done"
+    },
+    {
+      "id": "09",
+      "label": "Manga storm shelter",
+      "filename": "explore_09.png",
+      "image_style": "manga screentone, dynamic speed lines, one accent color",
+      "scene": "Family huddled in cave mouth as lightning manga-style slashes sky. Fear, closeness, rain streaks.",
+      "status": "done"
+    },
+    {
+      "id": "10",
+      "label": "Claymation cook",
+      "filename": "explore_10.png",
+      "image_style": "claymation look, soft clay texture, rounded forms, warm light",
+      "scene": "Close-up hands turning meat on a spit; proud cook grin, grease drip exaggerated. Cozy campfire clay scene.",
+      "status": "done"
+    },
+    {
+      "id": "11",
+      "label": "Puppet ritual",
+      "filename": "explore_11.png",
+      "image_style": "wooden marionette theater, visible joints, stage spotlight",
+      "scene": "Marionette shaman dancing by fire, tribe puppets watching in arc. Theatrical curtains at edges.",
+      "status": "done"
+    },
+    {
+      "id": "12",
+      "label": "Chalkboard evolution",
+      "filename": "explore_12.png",
+      "image_style": "white chalk on dark green board, smudgy lecture doodle",
+      "scene": "Chalk timeline from ape to upright human with arrow; professor-stick figure pointing with stick. Classroom diagram energy.",
+      "status": "done"
+    },
+    {
+      "id": "13",
+      "label": "Woodcut plague flee",
+      "filename": "explore_13.png",
+      "image_style": "medieval woodcut, bold carved lines, high contrast ink",
+      "scene": "Families abandon village carrying sacks; crows on posts. Dark fairytale woodcut urgency.",
+      "status": "done"
+    },
+    {
+      "id": "14",
+      "label": "Synthwave night hunt",
+      "filename": "explore_14.png",
+      "image_style": "neon synthwave silhouettes, glowing outlines, purple-pink gradient",
+      "scene": "Neon silhouettes with spears against giant moon and grid horizon. Retro 80s cosmic savanna.",
+      "status": "done"
+    },
+    {
+      "id": "15",
+      "label": "Gouache ice crossing",
+      "filename": "explore_15.png",
+      "image_style": "storybook gouache, soft brush, rich simple colors",
+      "scene": "Ice bridge over frigid gorge; parent pulls child, wind in hair. Epic but cozy children's book.",
+      "status": "done"
+    },
+    {
+      "id": "16",
+      "label": "Marker brain boost",
+      "filename": "explore_16.png",
+      "image_style": "bold marker whiteboard sketch, thick strokes, one accent color",
+      "scene": "Split concept: small brain vs bigger brain above two heads; hunter vs planner. Visual metaphor, no labels.",
+      "status": "done"
+    },
+    {
+      "id": "17",
+      "label": "Shadow puppet origin",
+      "filename": "explore_17.png",
+      "image_style": "shadow puppet silhouettes, warm backlight, theater screen",
+      "scene": "Shadow hands cast first tool shape on cave wall; audience silhouettes gasp. Origin-of-art moment.",
+      "status": "done"
+    },
+    {
+      "id": "18",
+      "label": "Art nouveau river",
+      "filename": "explore_18.png",
+      "image_style": "art nouveau flowing lines, decorative curves, poster palette",
+      "scene": "Women washing at ornamental river curve, fish jumping in stylized arc. Elegant flowing composition.",
+      "status": "done"
+    },
+    {
+      "id": "19",
+      "label": "Ukiyo-e tsunami",
+      "filename": "explore_19.png",
+      "image_style": "Japanese ukiyo-e woodblock, flat planes, traditional palette",
+      "scene": "Great wave looming behind coastal foragers on rocks. Hokusai homage with tiny humans.",
+      "status": "done"
+    },
+    {
+      "id": "20",
+      "label": "Single-line embrace",
+      "filename": "explore_20.png",
+      "image_style": "continuous single-line drawing, minimalist gallery sketch",
+      "scene": "One unbroken line forms parent hugging child under stars. Intimate, elegant simplicity.",
+      "status": "done"
+    },
+    {
+      "id": "21",
+      "label": "Pop art discovery",
+      "filename": "explore_21.png",
+      "image_style": "pop art Ben-Day dots, primary colors, thick comic outlines",
+      "scene": "WOW burst as someone holds up glowing ember for first time. Lichtenstein shock face.",
+      "status": "done"
+    },
+    {
+      "id": "22",
+      "label": "Graffiti wall story",
+      "filename": "explore_22.png",
+      "image_style": "street-art graffiti cartoon, spray texture, vibrant urban palette",
+      "scene": "Cave wall covered in graffiti-style ancient hunt murals; modern street energy on prehistoric subject.",
+      "status": "done"
+    },
+    {
+      "id": "23",
+      "label": "Stained glass tribe",
+      "filename": "explore_23.png",
+      "image_style": "stained glass lead lines, luminous jewel-tone panes",
+      "scene": "Circular window composition: tribe around fire in colored glass segments. Cathedral epic.",
+      "status": "done"
+    },
+    {
+      "id": "24",
+      "label": "Cross-stitch home",
+      "filename": "explore_24.png",
+      "image_style": "embroidery cross-stitch texture, craft pattern aesthetic",
+      "scene": "Cozy stitched scene of family inside hut, rain outside window grid. Domestic warmth.",
+      "status": "done"
+    },
+    {
+      "id": "25",
+      "label": "Origami boat",
+      "filename": "explore_25.png",
+      "image_style": "origami folded paper figures, crisp geometric folds",
+      "scene": "Paper humans push origami log boat into river. Sculptural simple water triangles.",
+      "status": "done"
+    },
+    {
+      "id": "26",
+      "label": "Comic punch mammoth",
+      "filename": "explore_26.png",
+      "image_style": "American comic halftone, bold ink, dynamic action",
+      "scene": "Hunter mid-leap spear thrust at mammoth; action lines, heroic absurd confidence.",
+      "status": "done"
+    },
+    {
+      "id": "27",
+      "label": "Mid-century drought",
+      "filename": "explore_27.png",
+      "image_style": "Saul Bass mid-century poster, abstract geometric shapes",
+      "scene": "Cracked earth geometry, tiny humans carrying water jars across harsh flat horizon. Poster minimalism.",
+      "status": "done"
+    },
+    {
+      "id": "28",
+      "label": "Cave painting meta",
+      "filename": "explore_28.png",
+      "image_style": "prehistoric ochre cave painting on rough rock",
+      "scene": "Hand print on wall beside painted bison; artist blowing pigment. Meta cave-art creation.",
+      "status": "done"
+    },
+    {
+      "id": "29",
+      "label": "Egyptian grain store",
+      "filename": "explore_29.png",
+      "image_style": "ancient Egyptian flat profile, sandstone palette",
+      "scene": "Profile figures stacking grain jars in temple-storehouse. Hieroglyphic clarity, side view.",
+      "status": "done"
+    },
+    {
+      "id": "30",
+      "label": "Greek vase argument",
+      "filename": "explore_30.png",
+      "image_style": "Greek red-figure pottery style, orange on black",
+      "scene": "Two warriors debating around pot on vase-shaped frame border. Classical tension.",
+      "status": "done"
+    },
+    {
+      "id": "31",
+      "label": "Manuscript margin",
+      "filename": "explore_31.png",
+      "image_style": "illuminated manuscript gold accents, parchment",
+      "scene": "Monk-like scribe in margin doodling hunters chasing rabbit. Medieval humor vignette.",
+      "status": "pending"
+    },
+    {
+      "id": "32",
+      "label": "Cutout cliff edge",
+      "filename": "explore_32.png",
+      "image_style": "flat cutout TV animation, thick outlines, snappy shapes",
+      "scene": "Character dangling comically off cliff grabbing root; far valley below. Vertigo comedy.",
+      "status": "pending"
+    },
+    {
+      "id": "33",
+      "label": "Stretchy tar pit",
+      "filename": "explore_33.png",
+      "image_style": "stretchy limbed adventure cartoon, noodly arms, big eyes",
+      "scene": "Wobbly human almost stuck in tar bubble; friend pulling with stretchy arm. Gross-funny.",
+      "status": "pending"
+    },
+    {
+      "id": "34",
+      "label": "Mystery footprints",
+      "filename": "explore_34.png",
+      "image_style": "quirky angular mystery cartoon, woodsy palette",
+      "scene": "Flashlight on giant unknown footprints in mud; scared kids and brave adult. Spooky-cute.",
+      "status": "pending"
+    },
+    {
+      "id": "35",
+      "label": "Dot birds migration",
+      "filename": "explore_35.png",
+      "image_style": "kurzgesagt dot-eye flat vector, cosmic educational palette",
+      "scene": "V-formation birds over map-like landscape; tiny dot humans pointing up. Infographic wonder.",
+      "status": "pending"
+    },
+    {
+      "id": "36",
+      "label": "Geometric city dawn",
+      "filename": "explore_36.png",
+      "image_style": "kurzgesagt geometric blocks, soft gradients",
+      "scene": "First huts forming settlement at sunrise; block people building. Civilization dawn.",
+      "status": "pending"
+    },
+    {
+      "id": "37",
+      "label": "Blob feast",
+      "filename": "explore_37.png",
+      "image_style": "chunky blob humans, minimal features, bold flat colors",
+      "scene": "Long table of blob people devouring mammoth steak piles. Gluttony comedy.",
+      "status": "pending"
+    },
+    {
+      "id": "38",
+      "label": "Doodle bee sting",
+      "filename": "explore_38.png",
+      "image_style": "expressive hand doodle, thick lines, funny detailed faces",
+      "scene": "Face swollen comically from bee sting; friend laughing. Pain humor close-up.",
+      "status": "pending"
+    },
+    {
+      "id": "39",
+      "label": "Paper doll dress",
+      "filename": "explore_39.png",
+      "image_style": "paper doll joints, craft cutout tabs",
+      "scene": "Figures swapping animal-hide outfits on paper tabs. Costume change visual gag.",
+      "status": "pending"
+    },
+    {
+      "id": "40",
+      "label": "Isometric camp",
+      "filename": "explore_40.png",
+      "image_style": "isometric low-poly diorama, pastel blocks",
+      "scene": "Cutaway isometric village: huts, fire, drying fish racks, tiny paths. SimCity prehistoric.",
+      "status": "pending"
+    },
+    {
+      "id": "41",
+      "label": "Felt baby first step",
+      "filename": "explore_41.png",
+      "image_style": "felt puppet texture, button eyes, fuzzy fabric",
+      "scene": "Parent felt puppet arms open as baby takes first wobbly step. Tender kids-show moment.",
+      "status": "pending"
+    },
+    {
+      "id": "42",
+      "label": "Crayon monster shadow",
+      "filename": "explore_42.png",
+      "image_style": "child crayon drawing, waxy rough strokes, primary colors",
+      "scene": "Kid drawing scary shadow on wall that's only a rabbit. Innocent misunderstanding.",
+      "status": "pending"
+    },
+    {
+      "id": "43",
+      "label": "Blueprint trap",
+      "filename": "explore_43.png",
+      "image_style": "technical blueprint white on blue grid",
+      "scene": "Overhead blueprint of pit trap with measurements and stick figures falling in. Deadpan engineering joke.",
+      "status": "pending"
+    },
+    {
+      "id": "44",
+      "label": "Noir betrayal",
+      "filename": "explore_44.png",
+      "image_style": "film noir high contrast black white, dramatic shadows",
+      "scene": "Two figures under single streetlamp \u2014 one handing poison berry, noir suspicion. Moody silhouette.",
+      "status": "pending"
+    },
+    {
+      "id": "45",
+      "label": "Kawaii pet wolf",
+      "filename": "explore_45.png",
+      "image_style": "pastel kawaii, blush cheeks, soft gradients",
+      "scene": "Cute human petting adorable wolf pup; heart sparkles. Wholesome wrong-era friendship.",
+      "status": "pending"
+    },
+    {
+      "id": "46",
+      "label": "Charcoal funeral",
+      "filename": "explore_46.png",
+      "image_style": "charcoal gestural sketch, smudged dramatic tones",
+      "scene": "Tribe silhouettes mourning by burial mound under heavy sky. Respectful, somber.",
+      "status": "pending"
+    },
+    {
+      "id": "47",
+      "label": "Duotone standoff",
+      "filename": "explore_47.png",
+      "image_style": "duotone risograph two-ink print",
+      "scene": "Two hunters from rival groups face off over deer carcass. Tense standoff, bold contrast.",
+      "status": "pending"
+    },
+    {
+      "id": "48",
+      "label": "Retro diner time warp",
+      "filename": "explore_48.png",
+      "image_style": "1950s retro diner cartoon, teal coral chrome",
+      "scene": "Anachronism gag: cave person staring into shiny retro jukebox in desert. Surreal humor.",
+      "status": "pending"
+    },
+    {
+      "id": "49",
+      "label": "Botanical heal",
+      "filename": "explore_49.png",
+      "image_style": "scientific botanical illustration, fine ink, watercolor tint",
+      "scene": "Healer examining medicinal plants with magnifying leaf; patient with bandaged leg. Field journal.",
+      "status": "pending"
+    },
+    {
+      "id": "50",
+      "label": "Whiteboard big idea",
+      "filename": "explore_50.png",
+      "image_style": "premium whiteboard marker explainer, confident lines, one accent",
+      "scene": "Presenter drawing lightbulb above head while tribe watches confused. Meta explainer energy, personality-rich humans not stick figures.",
+      "status": "pending"
+    }
+  ]
+}

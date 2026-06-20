@@ -4,6 +4,8 @@
 
 Requires `style_approved: true` in `project.json`.
 
+**Skip samples:** User may skip sample frames and start bulk gen directly — set `style_approved: true` and proceed. They can stop after a few frames in Studio if the style is wrong.
+
 ## Before starting
 
 ```bash
