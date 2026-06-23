@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generate all pending frames from the manifest via parallel Codex workers."""
+"""Generate all pending frames from the manifest via parallel Codex workers.
+
+Credit-aware: when credits run out, automatically waits for the 5-hour window
+to reset, then resumes generation. Alerts the user via ntfy at key moments.
+Never exits due to credits — runs until every frame is done (or killed).
+"""
 from __future__ import annotations
 
 import csv
@@ -8,6 +13,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 
@@ -15,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.folders import DIR_IMAGES as IMAGES_DIR, MANIFEST_FILE, PROGRESS_FILE  # noqa: E402
 from lib.image_prompt import FrameJob, build_frame_prompt  # noqa: E402
-from lib.notify import notify_credits_stopped, notify_images_complete  # noqa: E402
+from lib.notify import notify_credits_stopped, notify_images_complete, send_ntfy  # noqa: E402
 PROJECT_FILE = ROOT / "project.json"
 TRACKER_DIR = ROOT / "tracker"
 TRACKER_STATUS = TRACKER_DIR / "status.json"
@@ -25,7 +31,9 @@ RUNNER_LOG = TRACKER_DIR / "runner.log"
 MANIFEST_SCRIPT = ROOT / "scripts/02_manifest/build_plan.py"
 CREDITS_DIR = ROOT / "scripts/07_credits"
 DEFAULT_WORKERS = 5
-JOB_TIMEOUT_SEC = 20 * 60  # kill hung codex exec per frame
+JOB_TIMEOUT_SEC = 20 * 60
+CREDIT_POLL_INTERVAL = 5 * 60  # poll every 5 min while waiting
+EXTRA_WAIT_AFTER_RESET = 90  # buffer after reset timestamp passes
 
 sys.path.insert(0, str(CREDITS_DIR))
 from fetch_codex_usage import read_usage_payload, should_stop_generation  # noqa: E402
@@ -90,8 +98,9 @@ def launch_job(job: FrameJob, project: dict) -> subprocess.Popen[str]:
 
 def append_log(message: str) -> None:
     TRACKER_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%H:%M:%S")
     with RUNNER_LOG.open("a", encoding="utf-8") as handle:
-        handle.write(message + "\n")
+        handle.write(f"[{ts}] {message}\n")
 
 
 def refresh_manifest() -> None:
@@ -111,6 +120,36 @@ def refresh_usage(force: bool = False) -> dict:
         capture_output=True,
     )
     return read_usage_payload(force=force)
+
+
+def wait_for_credits(project: dict) -> None:
+    """Block until credits are available. Alerts user, sleeps, auto-resumes."""
+    usage = refresh_usage(force=True)
+    notify_credits_stopped(project.get("name", ""), usage)
+
+    five_hour = usage.get("five_hour") or {}
+    resets_at = int(five_hour.get("resets_at") or 0)
+    now = int(time.time())
+
+    if resets_at and resets_at > now:
+        wait_secs = (resets_at - now) + EXTRA_WAIT_AFTER_RESET
+        resume_time = datetime.fromtimestamp(resets_at + EXTRA_WAIT_AFTER_RESET).strftime("%-I:%M %p")
+        append_log(f"credits exhausted — sleeping {wait_secs // 60}m, auto-resume ~{resume_time}")
+        print(f"Credits exhausted. Auto-resuming at ~{resume_time} ({wait_secs // 60}m wait)")
+        time.sleep(wait_secs)
+    else:
+        append_log(f"credits exhausted — polling every {CREDIT_POLL_INTERVAL // 60}m")
+        print(f"Credits exhausted. Polling every {CREDIT_POLL_INTERVAL // 60}m until available...")
+
+    while True:
+        usage = refresh_usage(force=True)
+        blocked, _ = should_stop_generation(usage)
+        if not blocked:
+            append_log("credits available — resuming generation")
+            send_ntfy(f"Credits back! Resuming generation: {project.get('name', 'video')}")
+            print("Credits available — resuming")
+            return
+        time.sleep(CREDIT_POLL_INTERVAL)
 
 
 def write_status(
@@ -139,7 +178,7 @@ def write_status(
     started_at = existing.get("started_at")
     if phase == "running" and not started_at:
         started_at = now
-    if phase in ("complete", "stopped_credits") and started_at:
+    if phase in ("complete", "waiting_credits") and started_at:
         started_at = existing.get("started_at")
 
     payload = {
@@ -195,56 +234,33 @@ def parse_args() -> tuple[int, int | None, bool]:
     return workers, limit, force
 
 
-def main() -> int:
-    workers, limit, force = parse_args()
-    project = load_project()
-
-    if not project.get("style_approved"):
-        print("ERROR: Set style_approved: true in project.json after user approves samples.")
-        return 1
-
-    jobs = read_pending_jobs(limit=limit)
-    total = len(jobs)
-
-    if not jobs:
-        refresh_manifest()
-        progress = json.loads(PROGRESS_FILE.read_text(encoding="utf-8")) if PROGRESS_FILE.is_file() else {}
-        done = progress.get("done_frames", 0)
-        total = progress.get("total_frames", 0)
-        if total and done >= total:
-            if notify_images_complete(project.get("name", "")):
-                print("ntfy: all images complete notification sent.")
-        print("No pending frames — manifest is complete.")
-        write_status(workers=workers, total=0, completed=0, failed=0, running=0, queued=0, phase="complete")
-        return 0
-
-    usage = refresh_usage(force=True)
-    blocked, reason = should_stop_generation(usage)
-    if blocked and not force:
-        append_log(f"not started: {reason}")
-        write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="stopped_credits", stop_reason=reason)
-        if notify_credits_stopped(project.get("name", ""), usage):
-            print("ntfy: credits stopped notification sent.")
-        print(f"Stopped: {reason}")
-        return 2
-
-    queue = jobs[:]
+def run_generation_batch(
+    queue: list[FrameJob],
+    workers: int,
+    project: dict,
+    completed: int,
+    failed: int,
+    total: int,
+) -> tuple[list[FrameJob], int, int, bool]:
+    """Run one batch until queue empty or credits die. Returns remaining queue + counts."""
     running: dict[str, tuple[FrameJob, subprocess.Popen[str], float]] = {}
-    completed = failed = 0
-    stopped = False
-    stop_reason = ""
-
-    append_log(f"generate_images workers={workers} pending={total}")
-    write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="running")
+    credits_hit = False
 
     while queue or running:
         usage = refresh_usage(force=True)
         if should_stop_generation(usage)[0]:
-            stopped = True
-            stop_reason = should_stop_generation(usage)[1]
+            credits_hit = True
             for _, (_, proc, _) in list(running.items()):
                 if proc.poll() is None:
                     proc.terminate()
+            for filename, (job, proc, _) in list(running.items()):
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                if not (IMAGES_DIR / filename).is_file():
+                    queue.insert(0, job)
+            running.clear()
             break
 
         while queue and len(running) < workers:
@@ -284,25 +300,87 @@ def main() -> int:
             failed=failed,
             running=len(running),
             queued=len(queue),
-            phase="stopped_credits" if stopped else "running",
-            stop_reason=stop_reason,
+            phase="running",
         )
         if not done_now and running:
             time.sleep(2)
 
-    phase = "stopped_credits" if stopped else "complete"
-    write_status(workers=workers, total=total, completed=completed, failed=failed, running=0, queued=len(queue), phase=phase, stop_reason=stop_reason)
+    return queue, completed, failed, credits_hit
+
+
+def main() -> int:
+    workers, limit, force = parse_args()
+    project = load_project()
+
+    if not project.get("style_approved"):
+        print("ERROR: Set style_approved: true in project.json after user approves samples.")
+        return 1
+
+    jobs = read_pending_jobs(limit=limit)
+    total = len(jobs)
+
+    if not jobs:
+        refresh_manifest()
+        progress = json.loads(PROGRESS_FILE.read_text(encoding="utf-8")) if PROGRESS_FILE.is_file() else {}
+        done = progress.get("done_frames", 0)
+        total = progress.get("total_frames", 0)
+        if total and done >= total:
+            if notify_images_complete(project.get("name", "")):
+                print("ntfy: all images complete notification sent.")
+        print("No pending frames — manifest is complete.")
+        write_status(workers=workers, total=0, completed=0, failed=0, running=0, queued=0, phase="complete")
+        return 0
+
+    # If credits are blocked at start, wait (don't exit)
+    usage = refresh_usage(force=True)
+    blocked, reason = should_stop_generation(usage)
+    if blocked and not force:
+        append_log(f"credits blocked at start: {reason} — waiting for reset")
+        write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="waiting_credits", stop_reason=reason)
+        print(f"Credits blocked: {reason}")
+        wait_for_credits(project)
+
+    queue = jobs[:]
+    completed = failed = 0
+
+    append_log(f"generate_images workers={workers} pending={total}")
+    write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="running")
+
+    while queue:
+        queue, completed, failed, credits_hit = run_generation_batch(
+            queue, workers, project, completed, failed, total
+        )
+
+        if credits_hit and queue:
+            write_status(
+                workers=workers,
+                total=total,
+                completed=completed,
+                failed=failed,
+                running=0,
+                queued=len(queue),
+                phase="waiting_credits",
+                stop_reason="Waiting for credit reset — will auto-resume",
+            )
+            wait_for_credits(project)
+            write_status(
+                workers=workers,
+                total=total,
+                completed=completed,
+                failed=failed,
+                running=0,
+                queued=len(queue),
+                phase="running",
+            )
+
+    write_status(workers=workers, total=total, completed=completed, failed=failed, running=0, queued=0, phase="complete")
     refresh_manifest()
     done, total_frames = read_progress_counts()
-    if stopped:
-        usage = refresh_usage(force=True)
-        if notify_credits_stopped(project.get("name", ""), usage):
-            print("ntfy: credits stopped notification sent.")
-    elif not queue and total_frames and done >= total_frames:
+    if total_frames and done >= total_frames:
         if notify_images_complete(project.get("name", "")):
             print("ntfy: all images complete notification sent.")
-    print(f"Done. completed={completed} failed={failed} queued={len(queue)}")
-    return 0 if not stopped else 2
+    print(f"Done. completed={completed} failed={failed}")
+    return 0
 
 
 if __name__ == "__main__":

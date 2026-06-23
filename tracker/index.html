@@ -1603,6 +1603,10 @@
         }
         return GEN_STATUS[Math.floor(Date.now() / 8000) % GEN_STATUS.length];
       }
+      if (phase === "waiting_credits") {
+        const reason = run.stop_reason || "Waiting for credits to reset — will auto-resume";
+        return `⏳ ${reason}`;
+      }
       if (phase.includes("stop")) return run.stop_reason || "Cut! Paused.";
       if (usage?.generation_blocked && usage?.stop_reason) return usage.stop_reason;
       if (dash.pending_frames === 0 && dash.total_frames > 0) return "That's a wrap — all frames done";
