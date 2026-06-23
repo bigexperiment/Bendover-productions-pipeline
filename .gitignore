@@ -54,6 +54,8 @@ tracker/logs/
 tracker/credit_calibration.log
 tracker/style_explore_run.log
 tracker/style-explore-run/
+tracker/overnight.log
+tracker/overnight.pid
 
 # --- Python / OS ---
 .env
