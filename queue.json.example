@@ -1,0 +1,7 @@
+{
+  "projects": [
+    {"path": ".", "name": "Current project (repo root)"},
+    {"path": "projects/my-second-video", "name": "My Second Video"},
+    {"path": "/absolute/path/to/another-project", "name": "Another Project"}
+  ]
+}

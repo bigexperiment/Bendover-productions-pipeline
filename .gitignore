@@ -1,17 +1,12 @@
 # --- Per-video project content (local only) ---
 project.json
+queue.json
 
-# Script — empty Script.txt tracked as template; other files local
+# Script, audio, transcript — project-specific, never committed
 01-script/*
-!01-script/Script.txt
-
-# Narration audio
 02-audio/*
 !02-audio/.gitkeep
-
-# Transcript — empty transcript.txt tracked as template; other files local
 03-transcript/*
-!03-transcript/transcript.txt
 
 # Generated manifest / cut plan
 04-manifest/*
@@ -42,6 +37,10 @@ assets/style-samples/*
 07-upload/thumbnail.png
 07-upload.zip
 
+# --- Multi-project queue ---
+projects/*
+!projects/.gitkeep
+
 # --- Studio runtime (tracker) ---
 tracker/studio.pid
 tracker/studio.log
@@ -56,6 +55,9 @@ tracker/style_explore_run.log
 tracker/style-explore-run/
 tracker/overnight.log
 tracker/overnight.pid
+tracker/queue.log
+tracker/queue.pid
+tracker/bulk_prompt.txt
 
 # --- Python / OS ---
 .env
@@ -65,3 +67,4 @@ __pycache__/
 .DS_Store
 .cache/
 .venv/
+.venv-youtube/

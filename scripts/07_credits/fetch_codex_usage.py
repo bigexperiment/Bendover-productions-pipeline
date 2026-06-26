@@ -9,7 +9,9 @@ from pathlib import Path
 CREDITS_FRESH_SECONDS = 20 * 60
 
 
-ROOT = Path(__file__).resolve().parents[2]
+import os
+SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)
 USAGE_FILE = ROOT / "tracker" / "usage.json"
 CODEX_HOME = Path.home() / ".codex"
 SESSIONS_DIR = CODEX_HOME / "sessions"
@@ -43,6 +45,12 @@ def parse_event_timestamp(value: str | None) -> int | None:
 
 
 def latest_rate_limits() -> tuple[dict | None, str | None, int | None]:
+    """Scan recent Codex session logs for rate-limit data.
+
+    Prefers sessions with real primary-window data (image generation sessions)
+    over sessions where primary is null (plain codex exec calls don't report it).
+    Falls back to null-primary data only if nothing better is found.
+    """
     if not SESSIONS_DIR.exists():
         return None, "No Codex sessions directory found", None
 
@@ -52,7 +60,9 @@ def latest_rate_limits() -> tuple[dict | None, str | None, int | None]:
         reverse=True,
     )
 
-    for session_file in session_files[:80]:
+    fallback: tuple[dict, str, int | None] | None = None
+
+    for session_file in session_files[:200]:
         try:
             lines = session_file.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -64,9 +74,17 @@ def latest_rate_limits() -> tuple[dict | None, str | None, int | None]:
                 continue
             payload = event.get("payload", {})
             rate_limits = parse_rate_limits(payload)
-            if rate_limits:
-                event_at = parse_event_timestamp(event.get("timestamp"))
+            if not rate_limits:
+                continue
+            event_at = parse_event_timestamp(event.get("timestamp"))
+            if rate_limits.get("primary") is not None:
+                # Real primary data — use immediately.
                 return rate_limits, str(session_file), event_at
+            if fallback is None:
+                fallback = (rate_limits, str(session_file), event_at)
+
+    if fallback:
+        return fallback
     return None, "No recent Codex rate-limit events found", None
 
 
@@ -79,15 +97,34 @@ def credits_are_fresh(event_at: int | None, now: int | None = None) -> bool:
 
 def should_stop_generation(payload: dict) -> tuple[bool, str]:
     credits = payload.get("credits") or {}
+    # Paid/unlimited workspace → always allow.
     if credits.get("has_credits") is True or credits.get("unlimited") is True:
         return False, ""
 
-    five_hour = payload.get("five_hour")
-    if five_hour and float(five_hour.get("remaining_percent") or 0) <= 0:
-        return True, "5-hour Codex limit reached (0% remaining)"
+    now = int(time.time())
 
-    if credits.get("has_credits") is False:
-        return True, "Workspace credits exhausted"
+    def _window_exhausted(window: dict | None, label: str) -> tuple[bool, str]:
+        if not window:
+            # No data for this window — don't block; we can't confirm exhaustion.
+            return False, ""
+        remaining = float(window.get("remaining_percent") or 0)
+        resets_at = int(window.get("resets_at") or 0)
+        # If the known reset time has already passed, the window has refreshed.
+        window_reset = resets_at > 0 and now >= resets_at
+        if remaining <= 0 and not window_reset:
+            reset_in = window.get("reset_in") or "unknown"
+            return True, f"{label} exhausted (0% remaining, resets in {reset_in})"
+        return False, ""
+
+    # Check 5-hour (primary) window first — the binding constraint for image gen.
+    blocked, reason = _window_exhausted(payload.get("five_hour"), "5-hour rate limit")
+    if blocked:
+        return True, reason
+
+    # Check weekly (secondary) window — rarely hit but causes silent frame failures if ignored.
+    blocked, reason = _window_exhausted(payload.get("weekly"), "Weekly rate limit")
+    if blocked:
+        return True, reason
 
     return False, ""
 

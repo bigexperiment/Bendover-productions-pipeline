@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -53,7 +54,12 @@ def detach_from_terminal() -> None:
     if pid > 0:
         os.close(write_fd)
         try:
-            os.read(read_fd, 1)
+            ready, _, _ = select.select([read_fd], [], [], 10.0)
+            if ready:
+                os.read(read_fd, 1)
+            else:
+                # grandchild didn't signal within 10s — it may have crashed
+                sys.stderr.write("studio_supervisor: warning: daemon did not signal ready\n")
         except OSError:
             pass
         os.close(read_fd)

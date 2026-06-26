@@ -19,19 +19,21 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+import os
+SCRIPTS_ROOT = Path(__file__).resolve().parents[1]  # repo root — where scripts/ lives
+ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
+sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 
 from lib.folders import FINAL_MP4, MANIFEST_FILE, PROJECT_FILE  # noqa: E402
 from lib.notify import send_ntfy  # noqa: E402
 
 LOG_FILE = ROOT / "tracker" / "overnight.log"
-PREFLIGHT = ROOT / "scripts" / "preflight.py"
-BUILD_PLAN = ROOT / "scripts" / "02_manifest" / "build_plan.py"
-GENERATE = ROOT / "scripts" / "03_images" / "generate_images.py"
-RENDER = ROOT / "scripts" / "04_render" / "render_draft_video.py"
-START_STUDIO = ROOT / "scripts" / "start_studio.sh"
-STATUS_STUDIO = ROOT / "scripts" / "status_studio.sh"
+PREFLIGHT = SCRIPTS_ROOT / "scripts" / "preflight.py"
+BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
+GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
+RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
+START_STUDIO = SCRIPTS_ROOT / "scripts" / "start_studio.sh"
+STATUS_STUDIO = SCRIPTS_ROOT / "scripts" / "status_studio.sh"
 
 
 def log(msg: str) -> None:

@@ -1,7 +1,9 @@
 """Numbered project folders — match workflow steps."""
+import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+# PIPELINE_ROOT lets the queue runner point scripts at any project directory.
+ROOT = Path(os.environ.get("PIPELINE_ROOT") or Path(__file__).resolve().parents[2])
 
 # 01 script · 02 audio · 03 transcript · 04 manifest · 05 images · 06 output · 07 upload
 # Style lives in project.json at repo root.

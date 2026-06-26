@@ -15,10 +15,13 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import IO
 
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
+import os
+SCRIPTS_ROOT = Path(__file__).resolve().parents[2]   # repo root — where scripts/ lives
+ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
+sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 from lib.folders import DIR_IMAGES as IMAGES_DIR, MANIFEST_FILE, PROGRESS_FILE  # noqa: E402
 from lib.image_prompt import FrameJob, build_frame_prompt  # noqa: E402
 from lib.notify import notify_credits_stopped, notify_images_complete, send_ntfy  # noqa: E402
@@ -28,12 +31,13 @@ TRACKER_STATUS = TRACKER_DIR / "status.json"
 TRACKER_RECENT = TRACKER_DIR / "recent.json"
 TRACKER_LOGS = TRACKER_DIR / "logs"
 RUNNER_LOG = TRACKER_DIR / "runner.log"
-MANIFEST_SCRIPT = ROOT / "scripts/02_manifest/build_plan.py"
-CREDITS_DIR = ROOT / "scripts/07_credits"
+MANIFEST_SCRIPT = SCRIPTS_ROOT / "scripts/02_manifest/build_plan.py"
+CREDITS_DIR = SCRIPTS_ROOT / "scripts/07_credits"
 DEFAULT_WORKERS = 5
 JOB_TIMEOUT_SEC = 20 * 60
 CREDIT_POLL_INTERVAL = 5 * 60  # poll every 5 min while waiting
 EXTRA_WAIT_AFTER_RESET = 90  # buffer after reset timestamp passes
+MAX_RETRIES = 3  # max attempts per frame before marking permanently failed
 
 sys.path.insert(0, str(CREDITS_DIR))
 from fetch_codex_usage import read_usage_payload, should_stop_generation  # noqa: E402
@@ -67,7 +71,7 @@ def read_pending_jobs(limit: int | None = None) -> list[FrameJob]:
     return jobs[:limit] if limit else jobs
 
 
-def launch_job(job: FrameJob, project: dict) -> subprocess.Popen[str]:
+def launch_job(job: FrameJob, project: dict) -> tuple[subprocess.Popen[str], IO[str]]:
     TRACKER_LOGS.mkdir(parents=True, exist_ok=True)
     log_path = TRACKER_LOGS / f"{job.filename}.log"
     env = os.environ.copy()
@@ -85,7 +89,7 @@ def launch_job(job: FrameJob, project: dict) -> subprocess.Popen[str]:
         build_frame_prompt(project, job, ROOT, MANIFEST_SCRIPT),
     ]
     log_handle = log_path.open("w", encoding="utf-8")
-    return subprocess.Popen(
+    proc = subprocess.Popen(
         command,
         stdin=subprocess.DEVNULL,
         stdout=log_handle,
@@ -94,6 +98,7 @@ def launch_job(job: FrameJob, project: dict) -> subprocess.Popen[str]:
         cwd=ROOT,
         env=env,
     )
+    return proc, log_handle
 
 
 def append_log(message: str) -> None:
@@ -104,12 +109,14 @@ def append_log(message: str) -> None:
 
 
 def refresh_manifest() -> None:
-    subprocess.run(
+    result = subprocess.run(
         ["python3", str(MANIFEST_SCRIPT), "refresh"],
         cwd=ROOT,
-        check=False,
         capture_output=True,
     )
+    if result.returncode != 0:
+        msg = result.stderr.decode(errors="replace")[:200]
+        append_log(f"manifest refresh failed (exit={result.returncode}): {msg}")
 
 
 def refresh_usage(force: bool = False) -> dict:
@@ -127,13 +134,18 @@ def wait_for_credits(project: dict) -> None:
     usage = refresh_usage(force=True)
     notify_credits_stopped(project.get("name", ""), usage)
 
-    five_hour = usage.get("five_hour") or {}
-    resets_at = int(five_hour.get("resets_at") or 0)
+    # Find the soonest reset across both rate-limit windows.
     now = int(time.time())
+    soonest_reset = 0
+    for key in ("five_hour", "weekly"):
+        window = usage.get(key) or {}
+        resets_at = int(window.get("resets_at") or 0)
+        if resets_at > now:
+            soonest_reset = resets_at if not soonest_reset else min(soonest_reset, resets_at)
 
-    if resets_at and resets_at > now:
-        wait_secs = (resets_at - now) + EXTRA_WAIT_AFTER_RESET
-        resume_time = datetime.fromtimestamp(resets_at + EXTRA_WAIT_AFTER_RESET).strftime("%-I:%M %p")
+    if soonest_reset:
+        wait_secs = (soonest_reset - now) + EXTRA_WAIT_AFTER_RESET
+        resume_time = datetime.fromtimestamp(soonest_reset + EXTRA_WAIT_AFTER_RESET).strftime("%-I:%M %p")
         append_log(f"credits exhausted — sleeping {wait_secs // 60}m, auto-resume ~{resume_time}")
         print(f"Credits exhausted. Auto-resuming at ~{resume_time} ({wait_secs // 60}m wait)")
         time.sleep(wait_secs)
@@ -241,23 +253,26 @@ def run_generation_batch(
     completed: int,
     failed: int,
     total: int,
+    retry_counts: dict[str, int],
 ) -> tuple[list[FrameJob], int, int, bool]:
     """Run one batch until queue empty or credits die. Returns remaining queue + counts."""
-    running: dict[str, tuple[FrameJob, subprocess.Popen[str], float]] = {}
+    # running holds: job, proc, start_time, log_handle
+    running: dict[str, tuple[FrameJob, subprocess.Popen[str], float, IO[str]]] = {}
     credits_hit = False
 
     while queue or running:
         usage = refresh_usage(force=True)
         if should_stop_generation(usage)[0]:
             credits_hit = True
-            for _, (_, proc, _) in list(running.items()):
+            for _, (_, proc, _, _) in list(running.items()):
                 if proc.poll() is None:
                     proc.terminate()
-            for filename, (job, proc, _) in list(running.items()):
+            for filename, (job, proc, _, log_handle) in list(running.items()):
                 try:
                     proc.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+                log_handle.close()
                 if not (IMAGES_DIR / filename).is_file():
                     queue.insert(0, job)
             running.clear()
@@ -265,28 +280,43 @@ def run_generation_batch(
 
         while queue and len(running) < workers:
             job = queue.pop(0)
-            running[job.filename] = (job, launch_job(job, project), time.time())
+            proc, log_handle = launch_job(job, project)
+            running[job.filename] = (job, proc, time.time(), log_handle)
 
         done_now: list[str] = []
-        for filename, (job, proc, started) in running.items():
+        for filename, (job, proc, started, log_handle) in running.items():
             code = proc.poll()
             if code is None:
                 if time.time() - started > JOB_TIMEOUT_SEC:
-                    append_log(f"timeout {filename} after {JOB_TIMEOUT_SEC}s")
                     proc.terminate()
                     try:
                         proc.wait(timeout=10)
                     except subprocess.TimeoutExpired:
                         proc.kill()
+                    log_handle.close()
                     done_now.append(filename)
-                    failed += 1
+                    attempt = retry_counts.get(filename, 0) + 1
+                    retry_counts[filename] = attempt
+                    if attempt <= MAX_RETRIES:
+                        queue.insert(0, job)
+                        append_log(f"timeout {filename} — retry {attempt}/{MAX_RETRIES}")
+                    else:
+                        failed += 1
+                        append_log(f"timeout {filename} — exceeded {MAX_RETRIES} retries, marking failed")
                 continue
+            log_handle.close()
             done_now.append(filename)
             if code == 0 and (IMAGES_DIR / filename).is_file():
                 completed += 1
             else:
-                failed += 1
-                append_log(f"failed {filename} exit={code}")
+                attempt = retry_counts.get(filename, 0) + 1
+                retry_counts[filename] = attempt
+                if attempt <= MAX_RETRIES:
+                    queue.insert(0, job)
+                    append_log(f"failed {filename} exit={code} — retry {attempt}/{MAX_RETRIES}")
+                else:
+                    failed += 1
+                    append_log(f"failed {filename} exit={code} — exceeded {MAX_RETRIES} retries, marking failed")
 
         for filename in done_now:
             del running[filename]
@@ -342,13 +372,14 @@ def main() -> int:
 
     queue = jobs[:]
     completed = failed = 0
+    retry_counts: dict[str, int] = {}
 
     append_log(f"generate_images workers={workers} pending={total}")
     write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="running")
 
     while queue:
         queue, completed, failed, credits_hit = run_generation_batch(
-            queue, workers, project, completed, failed, total
+            queue, workers, project, completed, failed, total, retry_counts
         )
 
         if credits_hit and queue:

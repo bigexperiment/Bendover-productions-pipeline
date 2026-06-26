@@ -101,6 +101,13 @@ def run_preflight(*, phase: str = "manifest") -> int:
                 fail(errors, f"project.json missing or empty: {key}")
         if project.get("name"):
             ok(f"project name: {project['name']!r}")
+        if "workers" in project:
+            try:
+                w = int(project["workers"])
+                if w < 1 or w > 20:
+                    warn(warnings, f"project.json workers={w} is outside recommended range 1–20")
+            except (TypeError, ValueError):
+                fail(errors, f"project.json workers must be an integer, got: {project['workers']!r}")
 
     # --- script ---
     if not SCRIPT_FILE.is_file():
@@ -152,7 +159,12 @@ def run_preflight(*, phase: str = "manifest") -> int:
                     )
                 last_end = max(seg.end for seg in segments)
                 drift = abs(last_end - int(round(duration)))
-                if drift > 15:
+                if drift > 30:
+                    fail(
+                        errors,
+                        f"Transcript end ({last_end}s) differs from audio ({duration:.0f}s) by {drift}s — fix timestamps or re-export",
+                    )
+                elif drift > 15:
                     warn(
                         warnings,
                         f"Transcript end ({last_end}s) differs from audio ({duration:.0f}s) by {drift}s",
@@ -169,6 +181,23 @@ def run_preflight(*, phase: str = "manifest") -> int:
                 fail(errors, f"Missing 04-manifest/{label} — run build_plan.py first")
             else:
                 ok(f"04-manifest/{label}")
+
+        if MANIFEST_FILE.is_file():
+            import csv as _csv
+            from lib.folders import DIR_IMAGES
+            manifest_rows = []
+            with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as fh:
+                manifest_rows = list(_csv.DictReader(fh))
+            total_frames = len(manifest_rows)
+            done_in_manifest = [r["filename"] for r in manifest_rows if r.get("status") == "done"]
+            done_count = sum(1 for r in manifest_rows if (DIR_IMAGES / r["filename"]).is_file())
+            pending_count = total_frames - done_count
+            ok(f"{done_count}/{total_frames} frames generated ({pending_count} pending)")
+            # Only fail if frames marked 'done' in manifest are missing from disk — real inconsistency.
+            # Frames with status 'pending' or 'failed' being absent is expected.
+            done_but_missing = [fn for fn in done_in_manifest if not (DIR_IMAGES / fn).is_file()]
+            if done_but_missing:
+                fail(errors, f"{len(done_but_missing)} frames marked done but missing from 05-images/: {', '.join(done_but_missing[:5])}{'...' if len(done_but_missing) > 5 else ''}")
 
         if PROJECT_FILE.is_file():
             project = json.loads(PROJECT_FILE.read_text(encoding="utf-8"))

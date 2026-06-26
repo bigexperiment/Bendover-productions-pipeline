@@ -2,24 +2,29 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from datetime import datetime
 
 NTFY_TOPIC = "bendoverproductions123"
 
 
-def send_ntfy(message: str, *, topic: str = NTFY_TOPIC) -> bool:
-    """POST message to ntfy.sh. Returns True on success."""
-    try:
-        subprocess.run(
-            ["curl", "-fsS", "-d", message, f"https://ntfy.sh/{topic}"],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-        print(f"ntfy notify failed: {exc}")
-        return False
+def send_ntfy(message: str, *, topic: str = NTFY_TOPIC, retries: int = 3) -> bool:
+    """POST message to ntfy.sh. Retries up to `retries` times with exponential backoff."""
+    for attempt in range(retries):
+        try:
+            subprocess.run(
+                ["curl", "-fsS", "-d", message, f"https://ntfy.sh/{topic}"],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+            else:
+                print(f"ntfy notify failed after {retries} attempts: {exc}")
+    return False
 
 
 def credits_reset_clock(usage: dict | None) -> str:

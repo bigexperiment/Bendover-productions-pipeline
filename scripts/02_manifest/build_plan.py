@@ -8,15 +8,19 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
+import os
+SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)
+sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 from lib.audio_paths import find_narration_audio  # noqa: E402
 from lib.folders import (  # noqa: E402
     DIR_IMAGES as IMAGES_DIR,
@@ -328,31 +332,71 @@ def render_bar(done: int, total: int, width: int = 24) -> str:
     return "[" + ("#" * filled) + ("-" * (width - filled)) + f"] {done}/{total}"
 
 
-def write_manifest(rows: list[PlanRow]) -> tuple[int, int, int]:
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write text to path atomically via a temp file in the same directory."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _atomic_write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
+    """Write CSV to path atomically via a temp file in the same directory."""
+    import io
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    _atomic_write_text(path, buf.getvalue())
+
+
+def write_manifest(rows: list[PlanRow], audio_end: int) -> tuple[int, int, int]:
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     existing = {path.name for path in IMAGES_DIR.glob("*.png")}
 
-    with MANIFEST_FILE.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["timestamp", "filename", "scene", "transcript", "status"],
-        )
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(
-                {
-                    "timestamp": row.timestamp,
-                    "filename": row.filename,
-                    "scene": row.scene,
-                    "transcript": row.transcript,
-                    "status": "done" if row.filename in existing else "pending",
-                }
-            )
+    csv_rows = []
+    total_duration = 0
+    for i, row in enumerate(rows):
+        row_start = row.minute * 60 + row.second
+        if i + 1 < len(rows):
+            next_row = rows[i + 1]
+            next_start = next_row.minute * 60 + next_row.second
+        else:
+            next_start = audio_end
+        duration = next_start - row_start
+        if duration <= 0:
+            print(f"  WARN: non-positive duration ({duration}s) for {row.filename} — check transcript timestamps", file=sys.stderr)
+            duration = 1
+        if duration > 8:
+            print(f"  WARN: {row.filename} spans {duration}s (unusually long — possible missing frame)", file=sys.stderr)
+        total_duration += duration
+        csv_rows.append({
+            "timestamp": row.timestamp,
+            "filename": row.filename,
+            "scene": row.scene,
+            "transcript": row.transcript,
+            "status": "done" if row.filename in existing else "pending",
+            "duration": duration,
+        })
+
+    drift = abs(total_duration - audio_end)
+    if drift > 2:
+        print(f"  WARN: frame timeline covers {total_duration}s but audio is {audio_end}s (drift={drift}s)", file=sys.stderr)
+
+    _atomic_write_csv(MANIFEST_FILE, ["timestamp", "filename", "scene", "transcript", "status", "duration"], csv_rows)
 
     total = len(rows)
     done = sum(1 for row in rows if row.filename in existing)
     pending = total - done
-    PROGRESS_FILE.write_text(
+    _atomic_write_text(
+        PROGRESS_FILE,
         json.dumps(
             {
                 "total_frames": total,
@@ -363,7 +407,6 @@ def write_manifest(rows: list[PlanRow]) -> tuple[int, int, int]:
             indent=2,
         )
         + "\n",
-        encoding="utf-8",
     )
     return total, done, pending
 
@@ -379,25 +422,25 @@ def refresh_progress() -> int:
     if MANIFEST_FILE.is_file():
         manifest_rows: list[dict[str, str]] = []
         with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as handle:
-            for row in csv.DictReader(handle):
+            reader = csv.DictReader(handle)
+            has_duration = "duration" in (reader.fieldnames or [])
+            for row in reader:
                 row["status"] = "done" if row["filename"] in existing else "pending"
                 manifest_rows.append(row)
 
-        with MANIFEST_FILE.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(
-                handle,
-                fieldnames=["timestamp", "filename", "scene", "transcript", "status"],
-            )
-            writer.writeheader()
-            writer.writerows(manifest_rows)
+        fieldnames = ["timestamp", "filename", "scene", "transcript", "status"]
+        if has_duration:
+            fieldnames.append("duration")
+        _atomic_write_csv(MANIFEST_FILE, fieldnames, manifest_rows)
 
         total = len(manifest_rows)
         done = sum(1 for row in manifest_rows if row["status"] == "done")
     else:
-        total, done, _ = write_manifest(rows)
+        total, done, _ = write_manifest(rows, 0)
 
     pending = total - done
-    PROGRESS_FILE.write_text(
+    _atomic_write_text(
+        PROGRESS_FILE,
         json.dumps(
             {
                 "total_frames": total,
@@ -408,7 +451,6 @@ def refresh_progress() -> int:
             indent=2,
         )
         + "\n",
-        encoding="utf-8",
     )
     print(render_bar(done, total))
     print(f"done={done} pending={pending}")
@@ -446,7 +488,7 @@ def build_all() -> int:
 
     avg = sum(durations) / len(durations) if durations else 0
     plan_rows = parse_plan_file()
-    total, done, pending = write_manifest(plan_rows)
+    total, done, pending = write_manifest(plan_rows, audio_end)
     print(f"Wrote {PLAN_FILE} — {len(frames)} frames from {source} transcript")
     print(f"Wrote {MANIFEST_FILE} — {total} rows ({done} done, {pending} pending)")
     print(f"Audio ~{audio_end}s · avg frame duration {avg:.1f}s (target {TARGET_SECONDS}s, max {MAX_SECONDS}s)")

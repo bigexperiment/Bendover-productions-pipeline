@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 import subprocess
 import sys
@@ -11,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 from lib.audio_paths import find_narration_audio  # noqa: E402
-from lib.folders import DIR_IMAGES as IMAGES_DIR, FINAL_MP4  # noqa: E402
+from lib.folders import DIR_IMAGES as IMAGES_DIR, FINAL_MP4, MANIFEST_FILE  # noqa: E402
 
 DEFAULT_OUTPUT = FINAL_MP4
 
@@ -19,6 +20,24 @@ DEFAULT_OUTPUT = FINAL_MP4
 def timestamp_from_stem(stem: str) -> int:
     minutes, seconds = stem.split("_", 1)
     return int(minutes) * 60 + int(seconds)
+
+
+def load_manifest_durations() -> dict[str, int]:
+    """Load {filename: duration} from manifest CSV if it has a duration column."""
+    if not MANIFEST_FILE.is_file():
+        return {}
+    try:
+        with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as fh:
+            reader = csv.DictReader(fh)
+            if "duration" not in (reader.fieldnames or []):
+                return {}
+            return {
+                row["filename"]: int(row["duration"])
+                for row in reader
+                if row.get("duration", "").strip().isdigit()
+            }
+    except (OSError, ValueError):
+        return {}
 
 
 def ordered_images() -> list[Path]:
@@ -59,21 +78,30 @@ def build_segments(
 
     selected = files if limit is None else files[:limit]
     total_duration = audio_duration_seconds(audio_file)
+    manifest_durations = load_manifest_durations()
+    using_manifest = bool(manifest_durations)
     timeline: list[tuple[Path, int]] = []
 
     for index, image in enumerate(selected):
-        start = timestamp_from_stem(image.stem)
-        if index + 1 < len(selected):
-            end = timestamp_from_stem(selected[index + 1].stem)
-        elif limit is None:
-            end = math.ceil(total_duration)
+        if using_manifest and image.name in manifest_durations:
+            duration = manifest_durations[image.name]
         else:
-            end = timestamp_from_stem(files[limit].stem)
-        duration = end - start
+            # fallback: derive from next frame's filename timestamp
+            start = timestamp_from_stem(image.stem)
+            if index + 1 < len(selected):
+                end = timestamp_from_stem(selected[index + 1].stem)
+            elif limit is None:
+                end = math.ceil(total_duration)
+            else:
+                end = timestamp_from_stem(files[limit].stem)
+            duration = end - start
+
         if duration <= 0:
             raise ValueError(f"Non-positive duration detected for {image.name}")
         timeline.append((image, duration))
 
+    source = "manifest" if using_manifest else "filename timestamps (no manifest)"
+    print(f"Timing source: {source} ({len(timeline)} frames, {sum(d for _, d in timeline)}s covered)")
     return timeline, total_duration
 
 
