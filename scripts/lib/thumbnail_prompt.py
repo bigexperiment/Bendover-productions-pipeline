@@ -5,20 +5,28 @@ from pathlib import Path
 
 from lib.image_prompt import image_style
 
-VARIANT_SCENES = {
-    1: (
-        "Pain hook: stickman clutching swollen red jaw, agony stars, sweat — dominant left side. "
-        "Second stickman small on right offering a green leaf. Cave interior, simple background."
-    ),
-    2: (
-        "Choice hook: two stickmen center-frame — one holds leafy green twig, other holds purple "
-        "berries with tiny skull icon. Worried vs hopeful expressions. Sandy cave floor."
-    ),
-    3: (
-        "Animal-learned hook: chimp or ape eating bitter leaf on left, prehistoric human watching "
-        "and copying on right. Jungle-cave edge, bright sky through opening."
-    ),
-}
+
+def _variant_scene(project: dict, variant: int) -> str:
+    brief = (project.get("video_brief") or "").strip()
+    ctx = f" Context: {brief[:200]}" if brief else ""
+    if variant == 2:
+        return (
+            "Choice hook: two stickmen face a decision — left path looks bad (dark, red X symbol), "
+            "right path looks good (bright, green checkmark). Character caught between both options, "
+            f"worried expression.{ctx}"
+        )
+    if variant == 3:
+        return (
+            "Breakthrough hook: single stickman with a big AHA lightbulb moment — eyes wide open, "
+            "huge smile, bright energy burst radiating outward. Discovery energy, upbeat and dynamic "
+            f"composition.{ctx}"
+        )
+    # Variant 1 default
+    return (
+        "Pain/problem hook: main stickman character visibly struggling with the central problem — "
+        "exaggerated distress, sweat drops, question marks floating around head, stressed expression. "
+        f"Simple single-character composition, character dominant in frame.{ctx}"
+    )
 
 
 def build_thumbnail_scene(project: dict, headline: str, variant: int = 1) -> str:
@@ -28,7 +36,7 @@ def build_thumbnail_scene(project: dict, headline: str, variant: int = 1) -> str
         brief = f'Educational stickman explainer about: "{title}"'
 
     text = headline.strip().upper()
-    scene_angle = VARIANT_SCENES.get(variant, VARIANT_SCENES[1])
+    scene_angle = _variant_scene(project, variant)
 
     return f"""YouTube thumbnail — draw the scene AND the headline text in one image.
 

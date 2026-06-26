@@ -58,6 +58,7 @@ tracker/overnight.pid
 tracker/queue.log
 tracker/queue.pid
 tracker/bulk_prompt.txt
+tracker/thumbnail_options.json
 
 # --- Python / OS ---
 .env

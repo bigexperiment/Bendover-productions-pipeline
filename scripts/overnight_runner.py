@@ -33,6 +33,7 @@ BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
 GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
 RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
 THUMBNAIL = SCRIPTS_ROOT / "scripts" / "05_publish" / "generate_thumbnail.py"
+SUGGEST_TEXT = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_thumbnail_text.py"
 UPLOAD = SCRIPTS_ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
 START_STUDIO = SCRIPTS_ROOT / "scripts" / "start_studio.sh"
 STATUS_STUDIO = SCRIPTS_ROOT / "scripts" / "status_studio.sh"
@@ -130,13 +131,43 @@ def main() -> int:
         send_ntfy(f"Pipeline: render failed for {name}")
         return 1
 
-    # Thumbnail
-    if project.get("thumbnail_text"):
-        thumb_result = run(["python3", str(THUMBNAIL)], "generate thumbnail", check=False)
-        if thumb_result.returncode != 0:
-            log("WARNING: thumbnail generation failed — continuing without thumbnail")
-    else:
-        log("SKIP thumbnail: set thumbnail_text in project.json to enable")
+    # Thumbnail — auto-generate headline if not set, then produce 3 variants
+    thumbnail_text = project.get("thumbnail_text") or ""
+    if not thumbnail_text:
+        log("Auto-generating thumbnail headline options...")
+        suggest_result = run(["python3", str(SUGGEST_TEXT)], "suggest thumbnail text", check=False)
+        options_file = ROOT / "tracker" / "thumbnail_options.json"
+        if suggest_result.returncode == 0 and options_file.is_file():
+            try:
+                import json as _json
+                options = _json.loads(options_file.read_text(encoding="utf-8")).get("options") or []
+                thumbnail_text = options[0].strip() if options else ""
+                log(f"Thumbnail headline options: {options}")
+                log(f"Using: {thumbnail_text!r}")
+            except Exception as exc:
+                log(f"WARNING: could not read thumbnail options: {exc}")
+        if not thumbnail_text:
+            log("WARNING: no thumbnail text — skipping thumbnail generation")
+
+    if thumbnail_text:
+        thumb_ok = False
+        for variant in (1, 2, 3):
+            out = ROOT / "07-upload" / f"thumbnail_v{variant}.png"
+            r = run(
+                ["python3", str(THUMBNAIL), f"--variant={variant}", f"--output={out}"],
+                f"thumbnail v{variant}",
+                check=False,
+            )
+            if r.returncode == 0 and out.is_file():
+                thumb_ok = True
+                if variant == 1:
+                    import shutil as _shutil
+                    _shutil.copy2(out, YOUTUBE_THUMBNAIL)
+                    log(f"Copied thumbnail_v1.png → {YOUTUBE_THUMBNAIL.name}")
+            else:
+                log(f"WARNING: thumbnail variant {variant} failed")
+        if not thumb_ok:
+            log("WARNING: all thumbnail variants failed")
 
     # YouTube upload
     if project.get("auto_upload"):
@@ -156,13 +187,19 @@ def main() -> int:
             upload_result = run(upload_args, "upload to YouTube", check=False)
             if upload_result.returncode == 0:
                 log("Upload complete.")
-                send_ntfy(f"DONE! {name} uploaded to YouTube.")
+                send_ntfy(
+                    f"DONE! {name} uploaded to YouTube with thumbnail v1. "
+                    "Check 07-upload/thumbnail_v1/v2/v3.png — swap if you prefer another."
+                )
             else:
                 log("WARNING: YouTube upload failed — video is ready locally.")
                 send_ntfy(f"DONE! {name} ({size_mb:.0f} MB) — upload failed, check logs.")
     else:
         log("SKIP upload: set auto_upload: true in project.json to enable")
-        send_ntfy(f"DONE! {name} — final.mp4 ready ({size_mb:.0f} MB). Review + upload when ready.")
+        send_ntfy(
+            f"DONE! {name} — final.mp4 ready ({size_mb:.0f} MB). "
+            "3 thumbnail variants in 07-upload/ — review before uploading."
+        )
 
     log("=" * 60)
     log("PIPELINE RUNNER — finished")
