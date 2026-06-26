@@ -22,12 +22,6 @@ SCRIPTS_ROOT = Path(__file__).resolve().parents[2]  # repo root — where script
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
 sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 from lib.folders import DIR_IMAGES, DIR_UPLOAD, MANIFEST_FILE, YOUTUBE_THUMBNAIL  # noqa: E402
-
-try:
-    from PIL import Image
-except ImportError as exc:
-    raise SystemExit("Pillow required for --frame crop: pip install pillow") from exc
-
 from lib.thumbnail_prompt import build_thumbnail_prompt  # noqa: E402
 
 PROJECT_FILE = ROOT / "project.json"
@@ -83,6 +77,10 @@ def resolve_frame(project: dict, frame_arg: str | None) -> Path | None:
 
 
 def crop_frame_to_thumbnail(frame_path: Path, out_path: Path) -> None:
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise SystemExit("Pillow required for --frame crop: pip install pillow") from exc
     tw, th = THUMB_SIZE
     src = Image.open(frame_path).convert("RGB")
     src_ratio = src.width / src.height
