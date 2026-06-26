@@ -24,7 +24,7 @@ SCRIPTS_ROOT = Path(__file__).resolve().parents[1]  # repo root — where script
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
 sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 
-from lib.folders import FINAL_MP4, MANIFEST_FILE, PROJECT_FILE  # noqa: E402
+from lib.folders import FINAL_MP4, MANIFEST_FILE, PROJECT_FILE, YOUTUBE_THUMBNAIL, YOUTUBE_TOKEN  # noqa: E402
 from lib.notify import send_ntfy  # noqa: E402
 
 LOG_FILE = ROOT / "tracker" / "overnight.log"
@@ -32,6 +32,8 @@ PREFLIGHT = SCRIPTS_ROOT / "scripts" / "preflight.py"
 BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
 GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
 RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
+THUMBNAIL = SCRIPTS_ROOT / "scripts" / "05_publish" / "generate_thumbnail.py"
+UPLOAD = SCRIPTS_ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
 START_STUDIO = SCRIPTS_ROOT / "scripts" / "start_studio.sh"
 STATUS_STUDIO = SCRIPTS_ROOT / "scripts" / "status_studio.sh"
 
@@ -123,11 +125,44 @@ def main() -> int:
     if FINAL_MP4.is_file():
         size_mb = FINAL_MP4.stat().st_size / (1024 * 1024)
         log(f"Render complete: {FINAL_MP4.name} ({size_mb:.1f} MB)")
-        send_ntfy(f"DONE! {name} — final.mp4 ready ({size_mb:.0f} MB). Review + upload when ready.")
     else:
         log("ERROR: render did not produce final.mp4")
         send_ntfy(f"Pipeline: render failed for {name}")
         return 1
+
+    # Thumbnail
+    if project.get("thumbnail_text"):
+        thumb_result = run(["python3", str(THUMBNAIL)], "generate thumbnail", check=False)
+        if thumb_result.returncode != 0:
+            log("WARNING: thumbnail generation failed — continuing without thumbnail")
+    else:
+        log("SKIP thumbnail: set thumbnail_text in project.json to enable")
+
+    # YouTube upload
+    if project.get("auto_upload"):
+        client_secrets = sorted((ROOT / "07-upload").glob("client_secret*.json"))
+        if not YOUTUBE_TOKEN.is_file():
+            log("SKIP upload: no youtube_token.json — run upload_to_youtube.py --auth-only first")
+            send_ntfy(f"DONE! {name} ({size_mb:.0f} MB) — upload skipped, no auth token.")
+        elif not client_secrets:
+            log("SKIP upload: no client_secret*.json in 07-upload/")
+            send_ntfy(f"DONE! {name} ({size_mb:.0f} MB) — upload skipped, no client secrets.")
+        else:
+            upload_args = ["python3", str(UPLOAD)]
+            if YOUTUBE_THUMBNAIL.is_file():
+                upload_args += ["--thumbnail", str(YOUTUBE_THUMBNAIL)]
+            else:
+                upload_args += ["--no-thumbnail"]
+            upload_result = run(upload_args, "upload to YouTube", check=False)
+            if upload_result.returncode == 0:
+                log("Upload complete.")
+                send_ntfy(f"DONE! {name} uploaded to YouTube.")
+            else:
+                log("WARNING: YouTube upload failed — video is ready locally.")
+                send_ntfy(f"DONE! {name} ({size_mb:.0f} MB) — upload failed, check logs.")
+    else:
+        log("SKIP upload: set auto_upload: true in project.json to enable")
+        send_ntfy(f"DONE! {name} — final.mp4 ready ({size_mb:.0f} MB). Review + upload when ready.")
 
     log("=" * 60)
     log("PIPELINE RUNNER — finished")

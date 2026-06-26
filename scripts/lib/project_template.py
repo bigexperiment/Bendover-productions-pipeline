@@ -58,6 +58,7 @@ def reset_project_dict(current: dict | None = None) -> dict:
         "tags": [],
         "video_brief": "",
         "style_approved": False,
+        "auto_upload": False,
         "youtube_video_id": None,
         "style_preset_id": "",
         "style_preset_label": "",

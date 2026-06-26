@@ -18,8 +18,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
+SCRIPTS_ROOT = Path(__file__).resolve().parents[2]  # repo root — where scripts/ lives
+ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
+sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 from lib.folders import DIR_IMAGES, DIR_UPLOAD, MANIFEST_FILE, YOUTUBE_THUMBNAIL  # noqa: E402
 
 try:
