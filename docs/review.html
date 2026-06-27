@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bendover Productions — Review</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       background: #0a0a0a; color: #e5e5e5; min-height: 100vh; }
+
+header { background: #111; border-bottom: 1px solid #2a2a2a;
+         padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 17px; font-weight: 700; color: #fff; flex: 1; }
+.refresh-btn { background: #1f1f1f; border: 1px solid #333; color: #aaa;
+               font-size: 12px; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.refresh-btn:hover { background: #2a2a2a; }
+
+.container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+
+.status-bar { background: #111; border: 1px solid #222; border-radius: 8px;
+              padding: 10px 16px; margin-bottom: 20px; font-size: 12px; color: #666; }
+
+/* Project cards */
+.project-card { background: #111; border: 1px solid #222; border-radius: 12px;
+                margin-bottom: 16px; overflow: hidden; }
+.card-header { padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+               cursor: pointer; }
+.card-header:hover { background: #161616; }
+.card-title { font-size: 15px; font-weight: 600; flex: 1; }
+.chevron { color: #444; transition: transform 0.2s; font-size: 12px; }
+.chevron.open { transform: rotate(90deg); }
+
+.pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; letter-spacing: 0.3px; }
+.pill-done   { background: #052e16; color: #4ade80; }
+.pill-thumbs { background: #0c1a3a; color: #60a5fa; }
+.pill-run    { background: #2d1a00; color: #fbbf24; }
+.pill-queue  { background: #1a1a1a; color: #6b7280; }
+.pill-script { background: #1a0a2e; color: #c084fc; }
+
+.progress-bar { height: 3px; background: #222; border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.progress-fill { height: 100%; background: #fbbf24; border-radius: 2px; }
+.meta { font-size: 11px; color: #555; margin-top: 3px; }
+
+.card-body { display: none; border-top: 1px solid #1a1a1a; padding: 18px; }
+.card-body.open { display: block; }
+
+/* Video */
+.video-wrap { border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 18px; }
+.yt-iframe { width: 100%; aspect-ratio: 16/9; border: 0; display: block; }
+.no-video { padding: 28px; text-align: center; color: #444; font-size: 13px;
+            background: #0d0d0d; border-radius: 8px; margin-bottom: 18px; }
+
+/* Thumbnails */
+.section-label { font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase;
+                 letter-spacing: 0.8px; margin-bottom: 10px; }
+.thumbs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+@media (max-width: 540px) { .thumbs-grid { grid-template-columns: 1fr; } }
+
+.thumb-item { position: relative; cursor: pointer; border-radius: 7px; overflow: hidden;
+              border: 2px solid transparent; transition: border-color 0.15s; }
+.thumb-item.selected { border-color: #22c55e; }
+.thumb-item:not(.selected):hover { border-color: #444; }
+.thumb-item img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; }
+.thumb-badge { position: absolute; bottom: 0; left: 0; right: 0;
+               background: rgba(0,0,0,0.75); font-size: 10px; font-weight: 700;
+               text-align: center; padding: 4px; }
+.thumb-item.selected .thumb-badge { background: rgba(34,197,94,0.85); color: #000; }
+
+/* Description */
+.desc-box { background: #0d0d0d; border: 1px solid #222; border-radius: 7px;
+            padding: 12px; font-size: 12px; line-height: 1.65; color: #999;
+            white-space: pre-wrap; max-height: 160px; overflow-y: auto; margin-bottom: 14px; }
+
+/* Actions */
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer;
+       font-size: 13px; font-weight: 600; transition: opacity 0.15s; white-space: nowrap; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-green  { background: #16a34a; color: #fff; }
+.btn-blue   { background: #2563eb; color: #fff; }
+.btn-red    { background: #dc2626; color: #fff; }
+.btn-gray   { background: #222; color: #aaa; border: 1px solid #333; }
+.btn:hover:not(:disabled) { opacity: 0.82; }
+
+.yt-public-link { display: inline-flex; align-items: center; gap: 6px;
+                  padding: 8px 14px; background: #dc2626; color: #fff;
+                  border-radius: 7px; font-size: 13px; font-weight: 600;
+                  text-decoration: none; }
+.yt-public-link:hover { opacity: 0.85; }
+
+/* Toast */
+.toast { position: fixed; bottom: 20px; right: 16px; background: #111;
+         border: 1px solid #333; border-radius: 9px; padding: 11px 16px;
+         font-size: 13px; color: #e5e5e5; z-index: 999; display: none; max-width: 300px; }
+.toast.show { display: block; }
+.toast.success { border-color: #16a34a; }
+.toast.error   { border-color: #dc2626; }
+
+.empty { text-align: center; padding: 60px 20px; color: #444; }
+.divider { border: none; border-top: 1px solid #1a1a1a; margin: 14px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:22px">🎬</span>
+  <h1>Bendover Productions</h1>
+  <button class="refresh-btn" onclick="loadProjects()">↻ Refresh</button>
+</header>
+
+<div class="container">
+  <div class="status-bar" id="status-bar">Connecting…</div>
+  <div id="projects-list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG (injected by serve.py) ─────────────────────────────────────────────
+const SUPABASE_URL = "https://djpmpzvhbpflithpjojm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqcG1wenZoYnBmbGl0aHBqb2ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1ODIzNDYsImV4cCI6MjA5ODE1ODM0Nn0.-8SkeObks0kRmLMMHWg6LP_7AMX1VnqhCb67mA5wQeM";
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let projects = [];
+let openId = null;
+let pendingVariant = {};   // projectId -> chosen variant (before approve)
+
+// ── STATUS ────────────────────────────────────────────────────────────────────
+const STATUS = {
+  script:     ["📝 Script",     "pill-script"],
+  upload:     ["📤 Upload",     "pill-queue"],
+  style:      ["🎨 Style",      "pill-queue"],
+  queued:     ["⏳ Queued",     "pill-queue"],
+  running:    ["⚙️ Generating", "pill-run"],
+  thumbnails: ["🖼️ Review",     "pill-thumbs"],
+  done:       ["✅ Done",       "pill-done"],
+};
+
+function pill(status) {
+  const [label, cls] = STATUS[status] || [status, "pill-queue"];
+  return `<span class="pill ${cls}">${label}</span>`;
+}
+
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── LOAD ──────────────────────────────────────────────────────────────────────
+async function loadProjects() {
+  document.getElementById("status-bar").textContent = "Loading…";
+  const { data, error } = await db
+    .from("projects")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    document.getElementById("status-bar").textContent = "❌ " + error.message;
+    return;
+  }
+  projects = data || [];
+  document.getElementById("status-bar").textContent =
+    `${projects.length} project${projects.length !== 1 ? "s" : ""} · ${new Date().toLocaleTimeString()}`;
+  renderList();
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderList() {
+  const el = document.getElementById("projects-list");
+  if (!projects.length) {
+    el.innerHTML = `<div class="empty"><p>No projects yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = projects.map(renderCard).join("");
+  if (openId) {
+    document.getElementById(`body-${openId}`)?.classList.add("open");
+    document.getElementById(`chev-${openId}`)?.classList.add("open");
+  }
+}
+
+function renderCard(p) {
+  const frames = p.total_frames > 0
+    ? `<div class="progress-bar"><div class="progress-fill" style="width:${Math.round(p.done_frames/p.total_frames*100)}%"></div></div>`
+    : "";
+  return `
+<div class="project-card">
+  <div class="card-header" onclick="toggle('${p.id}')">
+    <div style="flex:1">
+      <div class="card-title">${esc(p.title || p.id)}</div>
+      ${frames}
+      <div class="meta">Updated ${ago(p.updated_at)}</div>
+    </div>
+    ${pill(p.queue_status)}
+    <span class="chevron" id="chev-${p.id}">▶</span>
+  </div>
+  <div class="card-body" id="body-${p.id}">
+    ${renderBody(p)}
+  </div>
+</div>`;
+}
+
+function renderBody(p) {
+  let html = "";
+
+  // ── Video preview ──────────────────────────────────────────────────────────
+  const previewId = p.unlisted_video_id || p.youtube_video_id;
+  if (previewId) {
+    html += `<div class="video-wrap">
+      <iframe class="yt-iframe"
+        src="https://www.youtube.com/embed/${previewId}?rel=0&modestbranding=1"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen></iframe>
+    </div>`;
+  } else {
+    html += `<div class="no-video">🎞️ No video preview yet — pipeline still running</div>`;
+  }
+
+  // ── Thumbnails ─────────────────────────────────────────────────────────────
+  const urls = p.thumbnail_urls || {};
+  const hasThumb = urls.v1 || urls.v2 || urls.v3;
+  const chosen = pendingVariant[p.id] ?? (p.selected_thumbnail_variant || 1);
+
+  if (hasThumb) {
+    html += `<div class="section-label">Thumbnail — pick one</div>
+    <div class="thumbs-grid">`;
+    for (let v = 1; v <= 3; v++) {
+      if (!urls[`v${v}`]) continue;
+      const sel = chosen === v;
+      html += `<div class="thumb-item ${sel ? "selected" : ""}" id="ti-${p.id}-${v}"
+                   onclick="pickThumb('${p.id}', ${v})">
+        <img src="${urls[`v${v}`]}" loading="lazy" alt="Variant ${v}">
+        <div class="thumb-badge">${sel ? "✓ Selected" : `Variant ${v}`}</div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Description ────────────────────────────────────────────────────────────
+  if (p.description) {
+    html += `<div class="section-label" style="margin-top:14px">Description</div>
+    <div class="desc-box">${esc(p.description)}</div>`;
+  }
+
+  // ── Action buttons ─────────────────────────────────────────────────────────
+  html += `<hr class="divider"><div class="actions">`;
+
+  if (p.queue_status === "done" && p.youtube_video_id) {
+    html += `<a class="yt-public-link" href="https://youtu.be/${p.youtube_video_id}" target="_blank">
+      ▶ Watch on YouTube
+    </a>`;
+  } else if (hasThumb) {
+    // Has thumbnails to approve
+    html += `<button class="btn btn-green" onclick="approveThumbnail('${p.id}')">
+      ✓ Approve thumbnail & publish
+    </button>`;
+    html += `<button class="btn btn-red" onclick="regenerate('${p.id}')">
+      ↻ Regenerate thumbnails
+    </button>`;
+  }
+
+  if (!hasThumb && previewId) {
+    // Video uploaded but no thumbnails yet
+    html += `<span style="color:#555;font-size:12px">Thumbnails generating…</span>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ── INTERACTIONS ──────────────────────────────────────────────────────────────
+function toggle(id) {
+  document.querySelectorAll(".card-body.open").forEach(b => b.classList.remove("open"));
+  document.querySelectorAll(".chevron.open").forEach(c => c.classList.remove("open"));
+  if (openId === id) { openId = null; return; }
+  openId = id;
+  document.getElementById(`body-${id}`)?.classList.add("open");
+  document.getElementById(`chev-${id}`)?.classList.add("open");
+}
+
+function pickThumb(projectId, variant) {
+  pendingVariant[projectId] = variant;
+  // Update UI locally
+  for (let v = 1; v <= 3; v++) {
+    const el = document.getElementById(`ti-${projectId}-${v}`);
+    if (!el) continue;
+    el.classList.toggle("selected", v === variant);
+    el.querySelector(".thumb-badge").textContent = v === variant ? "✓ Selected" : `Variant ${v}`;
+  }
+}
+
+async function approveThumbnail(projectId) {
+  const variant = pendingVariant[projectId] ??
+    (projects.find(p => p.id === projectId)?.selected_thumbnail_variant || 1);
+
+  const { error } = await db.from("approvals").insert({
+    project_id: projectId,
+    action: "select_thumbnail",
+    data: { variant },
+  });
+  if (error) { toast("Error: " + error.message, "error"); return; }
+
+  // Also queue publish action
+  const { error: e2 } = await db.from("approvals").insert({
+    project_id: projectId,
+    action: "publish",
+    data: { variant },
+  });
+  if (e2) { toast("Thumbnail saved but publish failed: " + e2.message, "error"); return; }
+
+  toast(`✓ Variant ${variant} approved — Mac will publish shortly`, "success");
+}
+
+async function regenerate(projectId) {
+  if (!confirm("Regenerate all 3 thumbnail variants at different timestamps?")) return;
+  const { error } = await db.from("approvals").insert({
+    project_id: projectId,
+    action: "regenerate_thumbnails",
+    data: {},
+  });
+  if (error) { toast("Error: " + error.message, "error"); return; }
+  toast("↻ Regeneration queued — Mac picks it up within 30s", "success");
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg, type = "success") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove("show"), 4000);
+}
+
+// ── REALTIME ──────────────────────────────────────────────────────────────────
+function setupRealtime() {
+  db.channel("projects-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, payload => {
+      // Update the single project in our local list
+      const updated = payload.new;
+      const idx = projects.findIndex(p => p.id === updated.id);
+      if (idx >= 0) projects[idx] = updated; else projects.unshift(updated);
+      renderList();
+    })
+    .subscribe();
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+if (SUPABASE_URL === "https://djpmpzvhbpflithpjojm.supabase.co") {
+  document.getElementById("status-bar").innerHTML =
+    "⚠️ Not configured — open Studio UI and click 'Set up Supabase'";
+} else {
+  loadProjects();
+  setupRealtime();
+  setInterval(loadProjects, 60000);
+}
+</script>
+</body>
+</html>
