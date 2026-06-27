@@ -122,16 +122,43 @@ def _upload_bytes(cfg: dict, bucket: str, path: str, data: bytes, content_type: 
         return None
 
 
-def upload_review_page(cfg: dict) -> str | None:
-    """Inject Supabase credentials into review.html and upload to Storage."""
+def publish_review_page(cfg: dict) -> str | None:
+    """Inject credentials into review.html, write to docs/, and git push."""
     review_src = SCRIPTS_ROOT / "tracker" / "review.html"
+    docs_dest = SCRIPTS_ROOT / "docs" / "review.html"
     if not review_src.is_file():
         return None
+
     html = review_src.read_text(encoding="utf-8")
     html = html.replace('"REPLACE_WITH_SUPABASE_URL"', json.dumps(cfg["url"]))
     html = html.replace('"REPLACE_WITH_SUPABASE_ANON_KEY"', json.dumps(cfg["anon_key"]))
-    url = _upload_bytes(cfg, "thumbnails", "review.html", html.encode(), "text/html")
-    return url
+    docs_dest.parent.mkdir(exist_ok=True)
+    docs_dest.write_text(html, encoding="utf-8")
+
+    try:
+        subprocess.run(
+            ["git", "add", "docs/review.html"],
+            cwd=SCRIPTS_ROOT, check=True, capture_output=True,
+        )
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=SCRIPTS_ROOT, capture_output=True,
+        )
+        if result.returncode != 0:  # there are staged changes
+            subprocess.run(
+                ["git", "commit", "-m", "Update public review page"],
+                cwd=SCRIPTS_ROOT, check=True, capture_output=True,
+            )
+            subprocess.run(
+                ["git", "push"],
+                cwd=SCRIPTS_ROOT, check=True, capture_output=True,
+            )
+    except Exception as exc:
+        log(f"  WARNING: git push for review page failed: {exc}")
+
+    ref = cfg["url"].split("//")[1].split(".")[0]
+    pages_url = "https://bigexperiment.github.io/Bendover-productions-pipeline/review.html"
+    return pages_url
 
 
 def upload_thumbnail(cfg: dict, project_id: str, variant: int, file_path: Path) -> str | None:
@@ -205,9 +232,9 @@ def cmd_sync() -> int:
     log(f"  Upserting row (status={row['queue_status']})…")
     upsert_project(cfg, row)
 
-    # Upload review page with credentials baked in (so it's publicly accessible)
-    log("  Uploading review page…")
-    review_url = upload_review_page(cfg)
+    # Regenerate docs/review.html with credentials baked in and push to GitHub Pages
+    log("  Publishing review page to GitHub Pages…")
+    review_url = publish_review_page(cfg)
     if review_url:
         log(f"  → {review_url}")
     log("  Done.")
