@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Start the overnight runner — detached so it survives terminal/Cursor exit.
 #
-# Prerequisites (do these BEFORE running):
-#   1. project.json → name set, style_approved: true
-#   2. 01-script/Script.txt filled
-#   3. 02-audio/ has narration MP3
-#   4. 03-transcript/transcript.txt pasted from TurboScribe
+# Prefer using begin.py as the entry point:
+#   python3 scripts/begin.py
+#
+# That script checks files, asks for title/brief, writes project.json,
+# then calls this. Only call start_overnight.sh directly if project.json
+# is already fully configured.
 #
 # Usage:
 #   bash scripts/start_overnight.sh
