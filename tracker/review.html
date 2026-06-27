@@ -8,98 +8,91 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-       background: #0a0a0a; color: #e5e5e5; min-height: 100vh; }
+       background: #f5f5f5; color: #111; min-height: 100vh; }
 
-header { background: #111; border-bottom: 1px solid #2a2a2a;
-         padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
-header h1 { font-size: 17px; font-weight: 700; color: #fff; flex: 1; }
-.refresh-btn { background: #1f1f1f; border: 1px solid #333; color: #aaa;
+header { background: #fff; border-bottom: 1px solid #e0e0e0;
+         padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+header h1 { font-size: 17px; font-weight: 700; flex: 1; }
+.refresh-btn { background: #f0f0f0; border: 1px solid #ddd; color: #555;
                font-size: 12px; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
-.refresh-btn:hover { background: #2a2a2a; }
+.refresh-btn:hover { background: #e5e5e5; }
 
 .container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
 
-.status-bar { background: #111; border: 1px solid #222; border-radius: 8px;
-              padding: 10px 16px; margin-bottom: 20px; font-size: 12px; color: #666; }
+.status-bar { font-size: 12px; color: #888; margin-bottom: 16px; }
 
-/* Project cards */
-.project-card { background: #111; border: 1px solid #222; border-radius: 12px;
+.project-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px;
                 margin-bottom: 16px; overflow: hidden; }
 .card-header { padding: 14px 18px; display: flex; align-items: center; gap: 10px;
                cursor: pointer; }
-.card-header:hover { background: #161616; }
+.card-header:hover { background: #fafafa; }
 .card-title { font-size: 15px; font-weight: 600; flex: 1; }
-.chevron { color: #444; transition: transform 0.2s; font-size: 12px; }
+.chevron { color: #bbb; transition: transform 0.2s; font-size: 12px; }
 .chevron.open { transform: rotate(90deg); }
 
-.pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; letter-spacing: 0.3px; }
-.pill-done   { background: #052e16; color: #4ade80; }
-.pill-thumbs { background: #0c1a3a; color: #60a5fa; }
-.pill-run    { background: #2d1a00; color: #fbbf24; }
-.pill-queue  { background: #1a1a1a; color: #6b7280; }
-.pill-script { background: #1a0a2e; color: #c084fc; }
+.pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+.pill-done   { background: #dcfce7; color: #166534; }
+.pill-thumbs { background: #dbeafe; color: #1d4ed8; }
+.pill-run    { background: #fef9c3; color: #854d0e; }
+.pill-queue  { background: #f3f4f6; color: #6b7280; }
+.pill-script { background: #f3e8ff; color: #7e22ce; }
 
-.progress-bar { height: 3px; background: #222; border-radius: 2px; margin-top: 5px; overflow: hidden; }
-.progress-fill { height: 100%; background: #fbbf24; border-radius: 2px; }
-.meta { font-size: 11px; color: #555; margin-top: 3px; }
+.progress-bar { height: 3px; background: #e5e5e5; border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.progress-fill { height: 100%; background: #f59e0b; border-radius: 2px; }
+.meta { font-size: 11px; color: #aaa; margin-top: 3px; }
 
-.card-body { display: none; border-top: 1px solid #1a1a1a; padding: 18px; }
+.card-body { display: none; border-top: 1px solid #f0f0f0; padding: 18px; }
 .card-body.open { display: block; }
 
-/* Video */
 .video-wrap { border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 18px; }
 .yt-iframe { width: 100%; aspect-ratio: 16/9; border: 0; display: block; }
-.no-video { padding: 28px; text-align: center; color: #444; font-size: 13px;
-            background: #0d0d0d; border-radius: 8px; margin-bottom: 18px; }
+.no-video { padding: 28px; text-align: center; color: #bbb; font-size: 13px;
+            background: #fafafa; border-radius: 8px; margin-bottom: 18px;
+            border: 1px solid #eee; }
 
-/* Thumbnails */
-.section-label { font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase;
+.section-label { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase;
                  letter-spacing: 0.8px; margin-bottom: 10px; }
 .thumbs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 @media (max-width: 540px) { .thumbs-grid { grid-template-columns: 1fr; } }
 
 .thumb-item { position: relative; cursor: pointer; border-radius: 7px; overflow: hidden;
               border: 2px solid transparent; transition: border-color 0.15s; }
-.thumb-item.selected { border-color: #22c55e; }
-.thumb-item:not(.selected):hover { border-color: #444; }
+.thumb-item.selected { border-color: #16a34a; }
+.thumb-item:not(.selected):hover { border-color: #ccc; }
 .thumb-item img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; }
 .thumb-badge { position: absolute; bottom: 0; left: 0; right: 0;
-               background: rgba(0,0,0,0.75); font-size: 10px; font-weight: 700;
+               background: rgba(0,0,0,0.5); color: #fff; font-size: 10px; font-weight: 700;
                text-align: center; padding: 4px; }
-.thumb-item.selected .thumb-badge { background: rgba(34,197,94,0.85); color: #000; }
+.thumb-item.selected .thumb-badge { background: rgba(22,163,74,0.9); }
 
-/* Description */
-.desc-box { background: #0d0d0d; border: 1px solid #222; border-radius: 7px;
-            padding: 12px; font-size: 12px; line-height: 1.65; color: #999;
+.desc-box { background: #fafafa; border: 1px solid #eee; border-radius: 7px;
+            padding: 12px; font-size: 12px; line-height: 1.65; color: #555;
             white-space: pre-wrap; max-height: 160px; overflow-y: auto; margin-bottom: 14px; }
 
-/* Actions */
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.btn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer;
-       font-size: 13px; font-weight: 600; transition: opacity 0.15s; white-space: nowrap; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 14px;
+           border-top: 1px solid #f0f0f0; }
+.btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer;
+       font-size: 13px; font-weight: 600; transition: opacity 0.15s; }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.btn-green  { background: #16a34a; color: #fff; }
-.btn-blue   { background: #2563eb; color: #fff; }
-.btn-red    { background: #dc2626; color: #fff; }
-.btn-gray   { background: #222; color: #aaa; border: 1px solid #333; }
+.btn-green { background: #16a34a; color: #fff; }
+.btn-red   { background: #ef4444; color: #fff; }
 .btn:hover:not(:disabled) { opacity: 0.82; }
 
 .yt-public-link { display: inline-flex; align-items: center; gap: 6px;
-                  padding: 8px 14px; background: #dc2626; color: #fff;
-                  border-radius: 7px; font-size: 13px; font-weight: 600;
+                  padding: 9px 18px; background: #ef4444; color: #fff;
+                  border-radius: 8px; font-size: 13px; font-weight: 600;
                   text-decoration: none; }
 .yt-public-link:hover { opacity: 0.85; }
 
-/* Toast */
-.toast { position: fixed; bottom: 20px; right: 16px; background: #111;
-         border: 1px solid #333; border-radius: 9px; padding: 11px 16px;
-         font-size: 13px; color: #e5e5e5; z-index: 999; display: none; max-width: 300px; }
+.toast { position: fixed; bottom: 20px; right: 16px; background: #fff;
+         border: 1px solid #ddd; border-radius: 9px; padding: 11px 16px;
+         font-size: 13px; color: #111; z-index: 999; display: none;
+         max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .toast.show { display: block; }
 .toast.success { border-color: #16a34a; }
-.toast.error   { border-color: #dc2626; }
+.toast.error   { border-color: #ef4444; }
 
-.empty { text-align: center; padding: 60px 20px; color: #444; }
-.divider { border: none; border-top: 1px solid #1a1a1a; margin: 14px 0; }
+.empty { text-align: center; padding: 60px 20px; color: #bbb; }
 </style>
 </head>
 <body>
@@ -118,19 +111,16 @@ header h1 { font-size: 17px; font-weight: 700; color: #fff; flex: 1; }
 <div class="toast" id="toast"></div>
 
 <script>
-// ── CONFIG (injected by serve.py) ─────────────────────────────────────────────
 const SUPABASE_URL = "REPLACE_WITH_SUPABASE_URL";
 const SUPABASE_ANON_KEY = "REPLACE_WITH_SUPABASE_ANON_KEY";
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let projects = [];
 let openId = null;
-let pendingVariant = {};   // projectId -> chosen variant (before approve)
+let pendingVariant = {};
 
-// ── STATUS ────────────────────────────────────────────────────────────────────
 const STATUS = {
   script:     ["📝 Script",     "pill-script"],
   upload:     ["📤 Upload",     "pill-queue"],
@@ -159,7 +149,6 @@ function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-// ── LOAD ──────────────────────────────────────────────────────────────────────
 async function loadProjects() {
   document.getElementById("status-bar").textContent = "Loading…";
   const { data, error } = await db
@@ -168,7 +157,7 @@ async function loadProjects() {
     .order("updated_at", { ascending: false });
 
   if (error) {
-    document.getElementById("status-bar").textContent = "❌ " + error.message;
+    document.getElementById("status-bar").textContent = "Error: " + error.message;
     return;
   }
   projects = data || [];
@@ -177,7 +166,6 @@ async function loadProjects() {
   renderList();
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
 function renderList() {
   const el = document.getElementById("projects-list");
   if (!projects.length) {
@@ -215,7 +203,6 @@ function renderCard(p) {
 function renderBody(p) {
   let html = "";
 
-  // ── Video preview ──────────────────────────────────────────────────────────
   const previewId = p.unlisted_video_id || p.youtube_video_id;
   if (previewId) {
     html += `<div class="video-wrap">
@@ -225,16 +212,15 @@ function renderBody(p) {
         allowfullscreen></iframe>
     </div>`;
   } else {
-    html += `<div class="no-video">🎞️ No video preview yet — pipeline still running</div>`;
+    html += `<div class="no-video">No video preview yet — pipeline still running</div>`;
   }
 
-  // ── Thumbnails ─────────────────────────────────────────────────────────────
   const urls = p.thumbnail_urls || {};
   const hasThumb = urls.v1 || urls.v2 || urls.v3;
   const chosen = pendingVariant[p.id] ?? (p.selected_thumbnail_variant || 1);
 
   if (hasThumb) {
-    html += `<div class="section-label">Thumbnail — pick one</div>
+    html += `<div class="section-label">Pick a thumbnail</div>
     <div class="thumbs-grid">`;
     for (let v = 1; v <= 3; v++) {
       if (!urls[`v${v}`]) continue;
@@ -242,45 +228,40 @@ function renderBody(p) {
       html += `<div class="thumb-item ${sel ? "selected" : ""}" id="ti-${p.id}-${v}"
                    onclick="pickThumb('${p.id}', ${v})">
         <img src="${urls[`v${v}`]}" loading="lazy" alt="Variant ${v}">
-        <div class="thumb-badge">${sel ? "✓ Selected" : `Variant ${v}`}</div>
+        <div class="thumb-badge">${sel ? "✓ Selected" : `Option ${v}`}</div>
       </div>`;
     }
     html += `</div>`;
   }
 
-  // ── Description ────────────────────────────────────────────────────────────
   if (p.description) {
     html += `<div class="section-label" style="margin-top:14px">Description</div>
     <div class="desc-box">${esc(p.description)}</div>`;
   }
 
-  // ── Action buttons ─────────────────────────────────────────────────────────
-  html += `<hr class="divider"><div class="actions">`;
+  html += `<div class="actions">`;
 
   if (p.queue_status === "done" && p.youtube_video_id) {
     html += `<a class="yt-public-link" href="https://youtu.be/${p.youtube_video_id}" target="_blank">
       ▶ Watch on YouTube
     </a>`;
   } else if (hasThumb) {
-    // Has thumbnails to approve
     html += `<button class="btn btn-green" onclick="approveThumbnail('${p.id}')">
-      ✓ Approve thumbnail & publish
+      Approve & publish
     </button>`;
     html += `<button class="btn btn-red" onclick="regenerate('${p.id}')">
-      ↻ Regenerate thumbnails
+      Regenerate thumbnails
     </button>`;
   }
 
   if (!hasThumb && previewId) {
-    // Video uploaded but no thumbnails yet
-    html += `<span style="color:#555;font-size:12px">Thumbnails generating…</span>`;
+    html += `<span style="color:#bbb;font-size:12px">Thumbnails generating…</span>`;
   }
 
   html += `</div>`;
   return html;
 }
 
-// ── INTERACTIONS ──────────────────────────────────────────────────────────────
 function toggle(id) {
   document.querySelectorAll(".card-body.open").forEach(b => b.classList.remove("open"));
   document.querySelectorAll(".chevron.open").forEach(c => c.classList.remove("open"));
@@ -292,12 +273,11 @@ function toggle(id) {
 
 function pickThumb(projectId, variant) {
   pendingVariant[projectId] = variant;
-  // Update UI locally
   for (let v = 1; v <= 3; v++) {
     const el = document.getElementById(`ti-${projectId}-${v}`);
     if (!el) continue;
     el.classList.toggle("selected", v === variant);
-    el.querySelector(".thumb-badge").textContent = v === variant ? "✓ Selected" : `Variant ${v}`;
+    el.querySelector(".thumb-badge").textContent = v === variant ? "✓ Selected" : `Option ${v}`;
   }
 }
 
@@ -306,35 +286,27 @@ async function approveThumbnail(projectId) {
     (projects.find(p => p.id === projectId)?.selected_thumbnail_variant || 1);
 
   const { error } = await db.from("approvals").insert({
-    project_id: projectId,
-    action: "select_thumbnail",
-    data: { variant },
+    project_id: projectId, action: "select_thumbnail", data: { variant },
   });
   if (error) { toast("Error: " + error.message, "error"); return; }
 
-  // Also queue publish action
   const { error: e2 } = await db.from("approvals").insert({
-    project_id: projectId,
-    action: "publish",
-    data: { variant },
+    project_id: projectId, action: "publish", data: { variant },
   });
-  if (e2) { toast("Thumbnail saved but publish failed: " + e2.message, "error"); return; }
+  if (e2) { toast("Saved but publish failed: " + e2.message, "error"); return; }
 
-  toast(`✓ Variant ${variant} approved — Mac will publish shortly`, "success");
+  toast(`Variant ${variant} approved — publishing shortly`, "success");
 }
 
 async function regenerate(projectId) {
-  if (!confirm("Regenerate all 3 thumbnail variants at different timestamps?")) return;
+  if (!confirm("Regenerate all 3 thumbnail variants?")) return;
   const { error } = await db.from("approvals").insert({
-    project_id: projectId,
-    action: "regenerate_thumbnails",
-    data: {},
+    project_id: projectId, action: "regenerate_thumbnails", data: {},
   });
   if (error) { toast("Error: " + error.message, "error"); return; }
-  toast("↻ Regeneration queued — Mac picks it up within 30s", "success");
+  toast("Regeneration queued", "success");
 }
 
-// ── TOAST ─────────────────────────────────────────────────────────────────────
 let _tt;
 function toast(msg, type = "success") {
   const el = document.getElementById("toast");
@@ -344,11 +316,9 @@ function toast(msg, type = "success") {
   _tt = setTimeout(() => el.classList.remove("show"), 4000);
 }
 
-// ── REALTIME ──────────────────────────────────────────────────────────────────
 function setupRealtime() {
   db.channel("projects-live")
     .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, payload => {
-      // Update the single project in our local list
       const updated = payload.new;
       const idx = projects.findIndex(p => p.id === updated.id);
       if (idx >= 0) projects[idx] = updated; else projects.unshift(updated);
@@ -357,10 +327,8 @@ function setupRealtime() {
     .subscribe();
 }
 
-// ── BOOT ──────────────────────────────────────────────────────────────────────
 if (SUPABASE_URL === "REPLACE_WITH_SUPABASE_URL") {
-  document.getElementById("status-bar").innerHTML =
-    "⚠️ Not configured — open Studio UI and click 'Set up Supabase'";
+  document.getElementById("status-bar").innerHTML = "Not configured — open Studio UI and set up Supabase";
 } else {
   loadProjects();
   setupRealtime();
