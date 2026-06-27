@@ -64,9 +64,12 @@ def main() -> int:
         n = clear_dir(path, keep)
         print(f"  {path.name}/  — {n} file(s) removed")
 
-    # Clear tracker runtime files (logs, status, usage)
+    # Clear tracker runtime files (logs, status, usage) — keep source files
     tracker = ROOT / "tracker"
-    tracker_keep = {"studio.pid"}
+    tracker_keep = {
+        "studio.pid", "serve.py", "index.html", "favicon.svg",
+        "studio_supervisor.py",
+    }
     if tracker.exists():
         n = clear_dir(tracker, tracker_keep)
         print(f"  tracker/  — {n} file(s) removed")

@@ -708,6 +708,120 @@
       .panel { grid-template-columns: 1fr; }
       .viewer { aspect-ratio: 16/9; }
     }
+
+    /* ── Setup card ── */
+    #setup-card .card-label { margin-bottom: 12px; }
+    .upload-zones { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .upload-zone {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border: 1.5px dashed var(--line);
+      border-radius: 4px;
+      cursor: pointer;
+      background: var(--card);
+      transition: border-color .2s, background .2s;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .upload-zone:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .upload-zone.ready { border-color: #16a34a; background: rgba(22, 163, 74, .07); color: #15803d; }
+    .upload-zone .uz-icon {
+      width: 22px; height: 22px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+    .upload-zone .uz-label { flex: 1; min-width: 0; font-weight: 500; }
+    .upload-zone .uz-status { font-size: 0.78rem; white-space: nowrap; }
+    .setup-inputs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .setup-input {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1.5px solid var(--line);
+      background: var(--card-raised);
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      color: var(--ink);
+    }
+    .setup-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+    .setup-input::placeholder { color: var(--muted); opacity: .7; }
+    .setup-launch-btn {
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .02em;
+      transition: background .2s, transform .15s;
+    }
+    .setup-launch-btn:hover:not(:disabled) { background: var(--accent-deep); }
+    .setup-launch-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Publish card ── */
+    #publish-card .card-label { margin-bottom: 10px; }
+    .thumb-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+      margin-bottom: 12px;
+    }
+    .thumb-item {
+      display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+    }
+    .thumb-img-wrap {
+      aspect-ratio: 16/9;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 2px solid var(--line);
+      background: #1a1418;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .2s;
+      position: relative;
+    }
+    .thumb-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb-img-wrap.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .thumb-placeholder {
+      color: var(--muted); font-size: 0.7rem; text-align: center; padding: 6px;
+    }
+    .thumb-label {
+      font-size: 0.72rem; font-weight: 600; text-align: center;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+    }
+    .thumb-item.selected .thumb-label { color: var(--accent-deep); }
+    .publish-status {
+      font-size: 0.82rem; color: var(--muted); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .publish-status .dot { flex-shrink: 0; }
+    .upload-yt-btn {
+      width: 100%;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .upload-yt-btn:hover:not(:disabled) { background: var(--accent-deep); }
+    .upload-yt-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .upload-yt-btn.done { background: #16a34a; }
+    .yt-link {
+      display: block; margin-top: 8px; text-align: center;
+      font-size: 0.82rem; color: var(--accent-deep); font-weight: 600;
+      text-decoration: none;
+    }
+    .yt-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -783,6 +897,66 @@
           <p class="style-active hidden" id="style-active"></p>
           <button class="style-save-btn" id="style-save-btn" type="button" disabled>Use this style</button>
         </section>
+        <!-- SETUP CARD — shown during setup phase -->
+        <section class="stat-card hidden" id="setup-card">
+          <div class="card-label">New video setup</div>
+          <div class="upload-zones">
+            <div class="upload-zone" id="uz-script" title="Upload script .txt">
+              <span class="uz-icon">📄</span>
+              <span class="uz-label">Script (.txt)</span>
+              <span class="uz-status" id="uz-script-status">Drop or click</span>
+            </div>
+            <div class="upload-zone" id="uz-audio" title="Upload narration audio">
+              <span class="uz-icon">🎙️</span>
+              <span class="uz-label">Audio (.mp3 / .wav / .m4a)</span>
+              <span class="uz-status" id="uz-audio-status">Drop or click</span>
+            </div>
+            <div class="upload-zone" id="uz-transcript" title="Upload transcript .txt">
+              <span class="uz-icon">📝</span>
+              <span class="uz-label">Transcript (.txt)</span>
+              <span class="uz-status" id="uz-transcript-status">Drop or click</span>
+            </div>
+          </div>
+          <input type="file" id="file-script" accept=".txt" class="hidden">
+          <input type="file" id="file-audio" accept=".mp3,.wav,.m4a" class="hidden">
+          <input type="file" id="file-transcript" accept=".txt" class="hidden">
+          <div class="setup-inputs">
+            <input type="text" id="setup-title" class="setup-input" placeholder="Video title…" maxlength="120">
+            <input type="text" id="setup-brief" class="setup-input" placeholder="One-line brief…" maxlength="240">
+          </div>
+          <button class="setup-launch-btn" id="setup-launch-btn" type="button" disabled>
+            Approve style &amp; roll!
+          </button>
+        </section>
+
+        <!-- PUBLISH CARD — shown at publish phase -->
+        <section class="stat-card hidden" id="publish-card">
+          <div class="card-label">Publish</div>
+          <div class="thumb-row" id="thumb-row">
+            <div class="thumb-item" data-variant="1" id="thumb-item-1">
+              <div class="thumb-img-wrap" id="thumb-wrap-1">
+                <span class="thumb-placeholder">Generating…</span>
+              </div>
+              <div class="thumb-label">V1</div>
+            </div>
+            <div class="thumb-item" data-variant="2" id="thumb-item-2">
+              <div class="thumb-img-wrap" id="thumb-wrap-2">
+                <span class="thumb-placeholder">Generating…</span>
+              </div>
+              <div class="thumb-label">V2</div>
+            </div>
+            <div class="thumb-item" data-variant="3" id="thumb-item-3">
+              <div class="thumb-img-wrap" id="thumb-wrap-3">
+                <span class="thumb-placeholder">Generating…</span>
+              </div>
+              <div class="thumb-label">V3</div>
+            </div>
+          </div>
+          <div class="publish-status" id="publish-status"></div>
+          <button class="upload-yt-btn" id="upload-yt-btn" type="button">Upload to YouTube</button>
+          <a class="yt-link hidden" id="yt-link" href="#" target="_blank" rel="noopener">View on YouTube ↗</a>
+        </section>
+
         <section class="stat-card limits-card">
           <div class="card-label">Production budget</div>
           <div class="limits" id="limits-body">
@@ -1635,10 +1809,19 @@
     document.getElementById("refresh-btn").addEventListener("click", () => refreshCredits(false));
 
     async function load() {
-      let d;
+      let d, setupStatus;
       try {
-        const res = await fetch("/api/status?t=" + Date.now());
-        d = await res.json();
+        const step = (document._lastStep || "setup");
+        const isPublish = step === "publish";
+        const fetchPairs = [
+          fetch("/api/status?t=" + Date.now()),
+          fetch("/api/setup-status"),
+        ];
+        if (isPublish) fetchPairs.push(fetch("/api/thumbnails"));
+        const results = await Promise.all(fetchPairs);
+        d = await results[0].json();
+        setupStatus = await results[1].json();
+        var thumbnailData = isPublish ? await results[2].json() : null;
       } catch {
         document.getElementById("status-text").textContent = "Offline";
         return;
@@ -1652,6 +1835,7 @@
       const explore = d.style_explore || {};
       const exploreActive = run.mode === "style_explore" || (d.recent?.mode === "style_explore" && explore.total > 0);
       const phase = run.phase || "idle";
+      document._lastStep = p.step || "setup";
 
       document.getElementById("title").textContent = exploreActive
         ? "Style explore · finding the look"
@@ -1693,6 +1877,27 @@
       if (wasExplore !== exploreModeActive) loadFrameTiming(exploreModeActive);
       if (names.length) showFrame(names[0]);
       else if (loaded) showFrame(null);
+
+      // Setup card
+      renderSetupCard(setupStatus, p);
+      bindSetupCard();
+
+      // Publish card — fetch thumbnails when on publish step
+      const currentStep = p.step || "setup";
+      if (currentStep === "publish" || p.youtube_video_id) {
+        if (!thumbnailData) {
+          try {
+            const tr = await fetch("/api/thumbnails");
+            thumbnailData = await tr.json();
+          } catch { thumbnailData = null; }
+        }
+        renderPublishCard(p, thumbnailData, setupStatus?.pipeline_running || false);
+        bindPublishCard();
+      } else {
+        const publishCard = document.getElementById("publish-card");
+        if (publishCard) publishCard.classList.add("hidden");
+      }
+
       loaded = true;
     }
 
@@ -1908,6 +2113,290 @@
       document.getElementById("style-picker-toggle")?.classList.add("hidden");
       picker?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
+
+    // ── Setup card ──────────────────────────────────────────────────────────
+    let setupState = { script: false, audio: false, transcript: false };
+
+    function renderSetupCard(setup, project) {
+      const card = document.getElementById("setup-card");
+      if (!card) return;
+
+      const step = project?.step || "setup";
+      const earlySteps = ["setup", "audio", "manifest"];
+      const pipelineRunning = setup?.pipeline_running || false;
+      const styleApproved = setup?.style_approved || false;
+
+      // Show if: pipeline not running AND (files missing OR not yet started)
+      // Hide if: pipeline running OR step is images/render/publish
+      const isPastImages = !earlySteps.includes(step);
+      const show = !pipelineRunning && !isPastImages;
+      card.classList.toggle("hidden", !show);
+      if (!show) return;
+
+      // Update file zones
+      setupState.script = setup?.script || false;
+      setupState.audio = setup?.audio || false;
+      setupState.transcript = setup?.transcript || false;
+
+      updateUploadZone("script", setupState.script);
+      updateUploadZone("audio", setupState.audio);
+      updateUploadZone("transcript", setupState.transcript);
+
+      // Pre-fill title/brief if set
+      const titleEl = document.getElementById("setup-title");
+      const briefEl = document.getElementById("setup-brief");
+      if (titleEl && !titleEl.value && setup?.title) titleEl.value = setup.title;
+      if (briefEl && !briefEl.value && setup?.brief) briefEl.value = setup.brief;
+
+      updateSetupLaunchBtn();
+    }
+
+    function updateUploadZone(kind, ready) {
+      const zone = document.getElementById(`uz-${kind}`);
+      const status = document.getElementById(`uz-${kind}-status`);
+      if (!zone || !status) return;
+      zone.classList.toggle("ready", ready);
+      status.textContent = ready ? "✓ Ready" : "Drop or click";
+    }
+
+    function updateSetupLaunchBtn() {
+      const btn = document.getElementById("setup-launch-btn");
+      if (!btn) return;
+      const titleEl = document.getElementById("setup-title");
+      const briefEl = document.getElementById("setup-brief");
+      const titleOk = titleEl?.value.trim().length > 0;
+      const briefOk = briefEl?.value.trim().length > 0;
+      const allFiles = setupState.script && setupState.audio && setupState.transcript;
+      btn.disabled = !(allFiles && titleOk && briefOk);
+    }
+
+    async function uploadFile(kind, file) {
+      const zone = document.getElementById(`uz-${kind}`);
+      const status = document.getElementById(`uz-${kind}-status`);
+      if (status) status.textContent = "Uploading…";
+      const fd = new FormData();
+      fd.append("kind", kind);
+      fd.append("file", file, file.name);
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (data.ok) {
+          setupState[kind] = true;
+          updateUploadZone(kind, true);
+          showToast(`${kind.charAt(0).toUpperCase() + kind.slice(1)} uploaded ✓`);
+        } else {
+          showToast(`Upload failed: ${data.error || "unknown"}`);
+          if (status) status.textContent = "Drop or click";
+        }
+      } catch (err) {
+        showToast(`Upload error: ${err.message}`);
+        if (status) status.textContent = "Drop or click";
+      }
+      updateSetupLaunchBtn();
+    }
+
+    function bindSetupCard() {
+      const kinds = ["script", "audio", "transcript"];
+      for (const kind of kinds) {
+        const zone = document.getElementById(`uz-${kind}`);
+        const fileInput = document.getElementById(`file-${kind}`);
+        if (!zone || !fileInput) continue;
+        if (zone.dataset.bound) continue;
+        zone.dataset.bound = "1";
+
+        zone.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", () => {
+          const file = fileInput.files?.[0];
+          if (file) uploadFile(kind, file);
+          fileInput.value = "";
+        });
+        zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("ready"); });
+        zone.addEventListener("dragleave", () => {
+          if (!setupState[kind]) zone.classList.remove("ready");
+        });
+        zone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          if (!setupState[kind]) zone.classList.remove("ready");
+          const file = e.dataTransfer?.files?.[0];
+          if (file) uploadFile(kind, file);
+        });
+      }
+
+      const titleEl = document.getElementById("setup-title");
+      const briefEl = document.getElementById("setup-brief");
+      if (titleEl && !titleEl.dataset.bound) {
+        titleEl.dataset.bound = "1";
+        titleEl.addEventListener("input", updateSetupLaunchBtn);
+      }
+      if (briefEl && !briefEl.dataset.bound) {
+        briefEl.dataset.bound = "1";
+        briefEl.addEventListener("input", updateSetupLaunchBtn);
+      }
+
+      const launchBtn = document.getElementById("setup-launch-btn");
+      if (launchBtn && !launchBtn.dataset.bound) {
+        launchBtn.dataset.bound = "1";
+        launchBtn.addEventListener("click", async () => {
+          const title = document.getElementById("setup-title")?.value.trim();
+          const brief = document.getElementById("setup-brief")?.value.trim();
+          if (!title || !brief) return;
+          launchBtn.disabled = true;
+          launchBtn.textContent = "Launching…";
+          try {
+            const res = await fetch("/api/pipeline/begin", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title, brief }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+              showToast("Pipeline launched! 🎬");
+              await load();
+            } else {
+              showToast(`Launch failed: ${data.error || "unknown"}`);
+              launchBtn.disabled = false;
+              launchBtn.textContent = "Approve style & roll!";
+            }
+          } catch (err) {
+            showToast(`Error: ${err.message}`);
+            launchBtn.disabled = false;
+            launchBtn.textContent = "Approve style & roll!";
+          }
+        });
+      }
+    }
+
+    // ── Publish card ─────────────────────────────────────────────────────────
+    let selectedThumbVariant = null;
+
+    function renderPublishCard(project, thumbnails, pipelineRunning) {
+      const card = document.getElementById("publish-card");
+      if (!card) return;
+
+      const step = project?.step || "setup";
+      const show = step === "publish" || !!(project?.youtube_video_id);
+      card.classList.toggle("hidden", !show);
+      if (!show) return;
+
+      // Render thumbnail variants
+      for (const v of (thumbnails?.variants || [])) {
+        const wrap = document.getElementById(`thumb-wrap-${v.n}`);
+        const item = document.getElementById(`thumb-item-${v.n}`);
+        if (!wrap) continue;
+        if (v.exists) {
+          const url = `/${v.url}?t=${Date.now()}`;
+          if (!wrap.querySelector("img")) {
+            wrap.innerHTML = `<img src="${url}" alt="Thumbnail V${v.n}" loading="lazy">`;
+          } else {
+            const img = wrap.querySelector("img");
+            if (!img.dataset.loaded) {
+              img.src = url;
+              img.dataset.loaded = "1";
+            }
+          }
+        }
+        const isSelected = thumbnails?.selected &&
+          thumbnails.selected === v.url;
+        wrap.classList.toggle("selected", isSelected);
+        if (item) item.classList.toggle("selected", isSelected);
+        if (isSelected) selectedThumbVariant = v.n;
+      }
+
+      // Pipeline running status
+      const statusEl = document.getElementById("publish-status");
+      if (statusEl) {
+        if (pipelineRunning) {
+          statusEl.innerHTML = `<span class="dot live"></span> Pipeline still running — thumbnails generating…`;
+        } else {
+          statusEl.innerHTML = "";
+        }
+      }
+
+      // YouTube upload button state
+      const ytBtn = document.getElementById("upload-yt-btn");
+      const ytLink = document.getElementById("yt-link");
+      const videoId = project?.youtube_video_id;
+      if (ytBtn) {
+        if (videoId) {
+          ytBtn.textContent = "Uploaded ✓";
+          ytBtn.disabled = true;
+          ytBtn.classList.add("done");
+        } else {
+          ytBtn.textContent = "Upload to YouTube";
+          ytBtn.disabled = false;
+          ytBtn.classList.remove("done");
+        }
+      }
+      if (ytLink) {
+        if (videoId) {
+          ytLink.href = `https://www.youtube.com/watch?v=${videoId}`;
+          ytLink.classList.remove("hidden");
+        } else {
+          ytLink.classList.add("hidden");
+        }
+      }
+    }
+
+    function bindPublishCard() {
+      // Thumbnail click to select
+      for (const n of [1, 2, 3]) {
+        const item = document.getElementById(`thumb-item-${n}`);
+        if (!item || item.dataset.bound) continue;
+        item.dataset.bound = "1";
+        item.addEventListener("click", async () => {
+          const wrap = document.getElementById(`thumb-wrap-${n}`);
+          if (!wrap?.querySelector("img")) return; // not generated yet
+          try {
+            const res = await fetch("/api/thumbnail/select", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ variant: n }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+              selectedThumbVariant = n;
+              showToast(`Thumbnail V${n} selected`);
+              // Update selection visuals immediately
+              for (const m of [1, 2, 3]) {
+                const w = document.getElementById(`thumb-wrap-${m}`);
+                const it = document.getElementById(`thumb-item-${m}`);
+                w?.classList.toggle("selected", m === n);
+                it?.classList.toggle("selected", m === n);
+              }
+            } else {
+              showToast(`Error: ${data.error}`);
+            }
+          } catch (err) {
+            showToast(`Error: ${err.message}`);
+          }
+        });
+      }
+
+      // YouTube upload button
+      const ytBtn = document.getElementById("upload-yt-btn");
+      if (ytBtn && !ytBtn.dataset.bound) {
+        ytBtn.dataset.bound = "1";
+        ytBtn.addEventListener("click", async () => {
+          ytBtn.disabled = true;
+          ytBtn.textContent = "Uploading…";
+          try {
+            const res = await fetch("/api/youtube/upload", { method: "POST" });
+            const data = await res.json();
+            if (data.ok) {
+              showToast("Uploading to YouTube…");
+            } else {
+              showToast(`Error: ${data.error || "unknown"}`);
+              ytBtn.disabled = false;
+              ytBtn.textContent = "Upload to YouTube";
+            }
+          } catch (err) {
+            showToast(`Error: ${err.message}`);
+            ytBtn.disabled = false;
+            ytBtn.textContent = "Upload to YouTube";
+          }
+        });
+      }
+    }
 
     async function boot() {
       initFunTicker();

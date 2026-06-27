@@ -6,6 +6,7 @@ import csv
 import json
 import mimetypes
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -29,6 +30,8 @@ from lib.folders import (  # noqa: E402
     DIR_OUTPUT,
     DIR_SCRIPT,
     DIR_STYLE_SAMPLES,
+    DIR_TRANSCRIPT,
+    DIR_UPLOAD,
     FINAL_MP4,
     MANIFEST_FILE,
     PREVIEW_MP4,
@@ -38,6 +41,7 @@ from lib.folders import (  # noqa: E402
     STYLE_EXPLORE_RUN,
     STYLE_SAMPLES_MANIFEST,
     TRANSCRIPT_FILE,
+    YOUTUBE_THUMBNAIL,
 )
 from lib.style_presets import apply_style_preset, load_style_presets  # noqa: E402
 
@@ -365,6 +369,92 @@ def build_status() -> dict:
     }
 
 
+def pipeline_running() -> bool:
+    pid_file = TRACKER / "overnight.pid"
+    if not pid_file.is_file():
+        return False
+    try:
+        pid = int(pid_file.read_text(encoding="utf-8").strip())
+        import os
+        os.kill(pid, 0)
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def build_setup_status() -> dict:
+    project = load_project()
+    script_exists = SCRIPT_FILE.is_file() and bool(SCRIPT_FILE.read_text(encoding="utf-8").strip())
+    audio = audio_status()
+    transcript_exists = TRANSCRIPT_FILE.is_file() and bool(TRANSCRIPT_FILE.read_text(encoding="utf-8").strip())
+    return {
+        "script": script_exists,
+        "audio": audio["ready"],
+        "transcript": transcript_exists,
+        "style_approved": bool(project.get("style_approved")),
+        "pipeline_running": pipeline_running(),
+        "title": project.get("title", ""),
+        "brief": project.get("video_brief", ""),
+    }
+
+
+def begin_pipeline(title: str, brief: str) -> dict:
+    try:
+        project = load_project()
+        name = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "my-video"
+        project["name"] = name
+        project["title"] = title
+        project["video_brief"] = brief
+        project["style_approved"] = True
+        project["step"] = "images"
+        save_project(project)
+        subprocess.Popen(
+            ["bash", "scripts/start_overnight.sh"],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def get_pipeline_log(lines: int = 30) -> dict:
+    log_file = TRACKER / "overnight.log"
+    if not log_file.is_file():
+        return {"lines": []}
+    try:
+        text = log_file.read_text(encoding="utf-8", errors="replace")
+        all_lines = text.splitlines()
+        return {"lines": all_lines[-lines:]}
+    except OSError:
+        return {"lines": []}
+
+
+def get_thumbnails() -> dict:
+    variants = []
+    for n in (1, 2, 3):
+        rel = f"07-upload/thumbnail_v{n}.png"
+        path = ROOT / rel
+        variants.append({"n": n, "url": rel, "exists": path.is_file()})
+    selected = None
+    if YOUTUBE_THUMBNAIL.is_file():
+        selected = f"07-upload/{YOUTUBE_THUMBNAIL.name}"
+    return {"variants": variants, "selected": selected}
+
+
+def select_thumbnail(variant: int) -> dict:
+    src = DIR_UPLOAD / f"thumbnail_v{variant}.png"
+    if not src.is_file():
+        return {"ok": False, "error": f"thumbnail_v{variant}.png not found"}
+    try:
+        shutil.copy2(src, YOUTUBE_THUMBNAIL)
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def run_command(label: str, args: list[str]) -> None:
     global ACTIVE_JOB
     with RUN_LOCK:
@@ -523,6 +613,15 @@ class Handler(BaseHTTPRequestHandler):
             mode = (query.get("mode") or ["production"])[0]
             self._send_json(paginate_frames(status_filter=status_filter, offset=offset, limit=limit, mode=mode))
             return
+        if path == "/api/setup-status":
+            self._send_json(build_setup_status())
+            return
+        if path == "/api/pipeline/log":
+            self._send_json(get_pipeline_log())
+            return
+        if path == "/api/thumbnails":
+            self._send_json(get_thumbnails())
+            return
 
         file_path = resolve_file(self.path)
         if file_path:
@@ -549,6 +648,30 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/upload":
             self._handle_upload()
+            return
+        if path == "/api/pipeline/begin":
+            body = self._read_json()
+            result = begin_pipeline(
+                title=str(body.get("title", "")).strip(),
+                brief=str(body.get("brief", "")).strip(),
+            )
+            self._send_json(result, 200 if result.get("ok") else 400)
+            return
+        if path == "/api/thumbnail/select":
+            body = self._read_json()
+            variant = int(body.get("variant", 0))
+            if variant not in (1, 2, 3):
+                self._send_json({"ok": False, "error": "variant must be 1, 2, or 3"}, 400)
+                return
+            result = select_thumbnail(variant)
+            self._send_json(result, 200 if result.get("ok") else 400)
+            return
+        if path == "/api/youtube/upload":
+            result = start_job(
+                "upload to YouTube",
+                ["/Users/ganesh/miniconda3/bin/python3", "scripts/05_publish/upload_to_youtube.py"],
+            )
+            self._send_json(result, 200 if result.get("ok") else 400)
             return
 
         self.send_error(404)
@@ -590,6 +713,12 @@ class Handler(BaseHTTPRequestHandler):
             dest = DIR_AUDIO / filename
             dest.write_bytes(file_data)
             self._send_json({"ok": True, "path": f"02-audio/{dest.name}"})
+            return
+
+        if kind == "transcript":
+            DIR_TRANSCRIPT.mkdir(exist_ok=True)
+            TRANSCRIPT_FILE.write_bytes(file_data)
+            self._send_json({"ok": True, "path": f"03-transcript/{TRANSCRIPT_FILE.name}"})
             return
 
         self._send_json({"ok": False, "error": f"Unknown kind: {kind}"}, 400)
