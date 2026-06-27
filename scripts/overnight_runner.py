@@ -34,6 +34,7 @@ GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
 RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
 THUMBNAIL = SCRIPTS_ROOT / "scripts" / "05_publish" / "generate_thumbnail.py"
 SUGGEST_TEXT = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_thumbnail_text.py"
+SUGGEST_DESC = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_description.py"
 UPLOAD = SCRIPTS_ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
 START_STUDIO = SCRIPTS_ROOT / "scripts" / "start_studio.sh"
 STATUS_STUDIO = SCRIPTS_ROOT / "scripts" / "status_studio.sh"
@@ -168,6 +169,14 @@ def main() -> int:
                 log(f"WARNING: thumbnail variant {variant} failed")
         if not thumb_ok:
             log("WARNING: all thumbnail variants failed")
+
+    # Description
+    if not project.get("description"):
+        desc_result = run(["python3", str(SUGGEST_DESC)], "generate description", check=False)
+        if desc_result.returncode != 0:
+            log("WARNING: description generation failed — uploading without description")
+        else:
+            project = json.loads(PROJECT_FILE.read_text(encoding="utf-8"))
 
     # YouTube upload
     if project.get("auto_upload"):
