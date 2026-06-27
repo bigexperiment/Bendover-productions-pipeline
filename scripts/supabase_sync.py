@@ -102,28 +102,44 @@ def mark_approval_processed(cfg: dict, approval_id: int) -> None:
 
 # ── Storage helpers ───────────────────────────────────────────────────────────
 
-def upload_thumbnail(cfg: dict, project_id: str, variant: int, file_path: Path) -> str | None:
-    """Upload a thumbnail PNG to Supabase Storage. Returns public URL."""
-    if not file_path.is_file():
-        return None
+def _upload_bytes(cfg: dict, bucket: str, path: str, data: bytes, content_type: str) -> str | None:
+    """Upload raw bytes to Supabase Storage. Returns public URL or None."""
     base = cfg["url"].rstrip("/")
-    storage_path = f"{project_id}/v{variant}.png"
-    url = f"{base}/storage/v1/object/thumbnails/{storage_path}"
+    url = f"{base}/storage/v1/object/{bucket}/{path}"
     headers = _storage_headers(cfg)
-    headers["Content-Type"] = "image/png"
+    headers["Content-Type"] = content_type
     headers["x-upsert"] = "true"
-    data = file_path.read_bytes()
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             resp.read()
-        return f"{base}/storage/v1/object/public/thumbnails/{storage_path}"
+        return f"{base}/storage/v1/object/public/{bucket}/{path}"
     except urllib.error.HTTPError as e:
         raw = e.read().decode()
         if e.code == 409 or "already exists" in raw.lower():
-            return f"{base}/storage/v1/object/public/thumbnails/{storage_path}"
-        print(f"  Storage upload v{variant} failed: {e.code} {raw[:100]}", file=sys.stderr)
+            return f"{base}/storage/v1/object/public/{bucket}/{path}"
+        print(f"  Storage upload failed {bucket}/{path}: {e.code} {raw[:100]}", file=sys.stderr)
         return None
+
+
+def upload_review_page(cfg: dict) -> str | None:
+    """Inject Supabase credentials into review.html and upload to Storage."""
+    review_src = SCRIPTS_ROOT / "tracker" / "review.html"
+    if not review_src.is_file():
+        return None
+    html = review_src.read_text(encoding="utf-8")
+    html = html.replace('"REPLACE_WITH_SUPABASE_URL"', json.dumps(cfg["url"]))
+    html = html.replace('"REPLACE_WITH_SUPABASE_ANON_KEY"', json.dumps(cfg["anon_key"]))
+    url = _upload_bytes(cfg, "thumbnails", "review.html", html.encode(), "text/html")
+    return url
+
+
+def upload_thumbnail(cfg: dict, project_id: str, variant: int, file_path: Path) -> str | None:
+    """Upload a thumbnail PNG to Supabase Storage. Returns public URL."""
+    if not file_path.is_file():
+        return None
+    return _upload_bytes(cfg, "thumbnails", f"{project_id}/v{variant}.png",
+                         file_path.read_bytes(), "image/png")
 
 
 # ── Project state ─────────────────────────────────────────────────────────────
@@ -188,6 +204,12 @@ def cmd_sync() -> int:
     row = build_row(project, thumb_urls)
     log(f"  Upserting row (status={row['queue_status']})…")
     upsert_project(cfg, row)
+
+    # Upload review page with credentials baked in (so it's publicly accessible)
+    log("  Uploading review page…")
+    review_url = upload_review_page(cfg)
+    if review_url:
+        log(f"  → {review_url}")
     log("  Done.")
     return 0
 
