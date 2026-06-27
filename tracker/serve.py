@@ -1446,14 +1446,42 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/supabase/save-config":
             body = self._read_json()
-            url = (body.get("url") or "").strip()
-            key = (body.get("anon_key") or "").strip()
-            if not url or not key:
-                self._send_json({"ok": False, "error": "url and anon_key required"}, 400)
+            pat = (body.get("pat") or "").strip()
+            if not pat:
+                self._send_json({"ok": False, "error": "pat required"}, 400)
                 return
-            cfg_file = ROOT / "tracker" / "supabase_config.json"
-            cfg_file.write_text(json.dumps({"url": url, "anon_key": key}, indent=2) + "\n")
-            self._send_json({"ok": True})
+            # Auto-fetch project URL + anon key from Supabase Management API
+            import urllib.request as _ur, urllib.error as _ue
+            def _mgmt(endpoint):
+                req = _ur.Request(
+                    f"https://api.supabase.com/v1{endpoint}",
+                    headers={"Authorization": f"Bearer {pat}", "User-Agent": "curl/7.88.1"},
+                )
+                with _ur.urlopen(req, timeout=15) as r:
+                    return json.loads(r.read())
+            try:
+                projects = _mgmt("/projects")
+                proj = next((p for p in projects if "bendover" in p.get("name","").lower()), None)
+                if not proj:
+                    self._send_json({"ok": False, "error": f"No bendover-productions project found. Projects: {[p['name'] for p in projects]}"}, 400)
+                    return
+                ref = proj["id"]
+                keys = _mgmt(f"/projects/{ref}/api-keys")
+                anon_key = next(k["api_key"] for k in keys if k["name"] == "anon")
+                service_key = next(k["api_key"] for k in keys if k["name"] == "service_role")
+                cfg = {
+                    "url": f"https://{ref}.supabase.co",
+                    "anon_key": anon_key,
+                    "service_key": service_key,
+                    "pat": pat,
+                }
+                cfg_file = ROOT / "tracker" / "supabase_config.json"
+                cfg_file.write_text(json.dumps(cfg, indent=2) + "\n")
+                self._send_json({"ok": True, "url": cfg["url"], "project": proj["name"]})
+            except _ue.HTTPError as exc:
+                self._send_json({"ok": False, "error": f"API error {exc.code}: {exc.read().decode()[:200]}"}, 400)
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 500)
             return
 
         self.send_error(404)

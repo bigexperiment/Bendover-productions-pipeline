@@ -1247,49 +1247,42 @@ function toast(msg, type = 'ok', ms = 3000) {
 function showSupabaseSetup() {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
-  overlay.innerHTML = `<div class="modal" style="max-width:480px">
-    <h2 style="margin-bottom:16px;font-size:16px">☁️ Connect Supabase</h2>
+  overlay.innerHTML = `<div class="modal" style="max-width:460px">
+    <h2 style="margin-bottom:10px;font-size:16px">☁️ Connect Supabase</h2>
     <p style="color:#6b7280;font-size:13px;margin-bottom:16px">
-      Get these from your <a href="https://supabase.com/dashboard" target="_blank" style="color:#6b7280">Supabase project</a> →
-      Settings → API.
+      Paste your <strong>Personal Access Token</strong> from
+      <a href="https://supabase.com/dashboard/account/tokens" target="_blank" style="color:#4b7cf6">supabase.com/dashboard/account/tokens</a>.
+      Everything else is fetched automatically.
     </p>
-    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Project URL</label>
-    <input id="sb-url" type="text" placeholder="https://xxx.supabase.co"
-      style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px">
-    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Anon/Public Key</label>
-    <input id="sb-key" type="text" placeholder="eyJh..."
-      style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:16px">
-    <p style="color:#9ca3af;font-size:12px;margin-bottom:16px">
-      Also run the setup SQL in your Supabase SQL editor:<br>
-      <code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;font-size:11px">python3 scripts/supabase_sync.py setup-sql</code>
-    </p>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Personal Access Token (sbp_…)</label>
+    <input id="sb-pat" type="password" placeholder="sbp_…"
+      style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:16px;font-family:monospace">
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button id="sb-cancel" style="background:#f3f4f6;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px">Cancel</button>
-      <button id="sb-save" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">Save & connect</button>
+      <button id="sb-save" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">Connect →</button>
     </div>
   </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.getElementById('sb-cancel').addEventListener('click', () => overlay.remove());
   document.getElementById('sb-save').addEventListener('click', async () => {
-    const url = document.getElementById('sb-url').value.trim();
-    const key = document.getElementById('sb-key').value.trim();
-    if (!url || !key) { toast('Both fields required', 'err'); return; }
+    const pat = document.getElementById('sb-pat').value.trim();
+    if (!pat) { toast('Paste your access token', 'err'); return; }
     const btn = document.getElementById('sb-save');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Connecting…';
     const r = await api('/api/supabase/save-config', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ url, anon_key: key }),
+      body: JSON.stringify({ pat }),
     });
     if (r.ok) {
       overlay.remove();
-      APP.supabase = { configured: true, url };
-      toast('✅ Supabase connected!', 'ok', 4000);
+      APP.supabase = { configured: true, url: r.url };
+      toast('✅ Supabase connected — ' + (r.project || ''), 'ok', 5000);
       render();
     } else {
-      toast('Error: ' + (r.error || 'unknown'), 'err');
-      btn.disabled = false; btn.textContent = 'Save & connect';
+      toast('Error: ' + (r.error || 'unknown'), 'err', 6000);
+      btn.disabled = false; btn.textContent = 'Connect →';
     }
   });
 }
