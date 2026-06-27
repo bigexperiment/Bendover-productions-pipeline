@@ -1150,6 +1150,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, 500)
             return
 
+        if path == "/api/supabase/config":
+            cfg_file = ROOT / "tracker" / "supabase_config.json"
+            if cfg_file.is_file():
+                try:
+                    cfg = json.loads(cfg_file.read_text())
+                    self._send_json({"ok": True, "url": cfg.get("url", ""), "configured": True})
+                except Exception:
+                    self._send_json({"ok": False, "configured": False})
+            else:
+                self._send_json({"ok": False, "configured": False})
+            return
+
         file_path = resolve_file(self.path)
         if file_path:
             self._send_file(file_path)
@@ -1430,18 +1442,6 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/supabase/sync":
             result = start_job("supabase sync", ["python3", "scripts/supabase_sync.py", "sync"])
             self._send_json(result, 200 if result.get("ok") else 400)
-            return
-
-        if path == "/api/supabase/config":
-            cfg_file = ROOT / "tracker" / "supabase_config.json"
-            if cfg_file.is_file():
-                try:
-                    cfg = json.loads(cfg_file.read_text())
-                    self._send_json({"ok": True, "url": cfg.get("url", ""), "configured": True})
-                except Exception:
-                    self._send_json({"ok": False, "configured": False})
-            else:
-                self._send_json({"ok": False, "configured": False})
             return
 
         if path == "/api/supabase/save-config":
