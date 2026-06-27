@@ -3,2418 +3,1304 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BENDOVER PRODUCTIONS · LIVE ON SET</title>
-  <meta name="description" content="Bendover Productions — live frame generation on the sound stage.">
-  <meta name="theme-color" content="#faf4ee">
-  <link rel="icon" href="/tracker/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/tracker/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+  <title>Bendover Productions</title>
   <style>
-    :root {
-      --bg: #faf4ee;
-      --card: #fffaf6;
-      --card-raised: #ffffff;
-      --ink: #2a1a20;
-      --muted: #6f5a62;
-      --line: #e8d4cc;
-      --accent: #d62839;
-      --accent-deep: #9d1730;
-      --accent-soft: rgba(214, 40, 57, .1);
-      --week: #a67c00;
-      --week-soft: rgba(166, 124, 0, .1);
-      --gold: #b8860b;
-      --velvet: #8b2942;
-      --spot: rgba(255, 200, 120, .35);
-      --bad: #dc2626;
-      --warn: #d97706;
-      --ticker-speed: 110s;
-      --font-display: "Bebas Neue", Impact, sans-serif;
-      --font-body: "IBM Plex Sans", system-ui, sans-serif;
-      --font-slate: "Special Elite", "Courier New", monospace;
-      --font-tag: "Cormorant Garamond", Georgia, serif;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; overflow: hidden; }
-    body {
-      font-family: var(--font-body);
-      font-size: 15px;
-      background:
-        radial-gradient(ellipse 60% 50% at 12% 0%, var(--spot), transparent 55%),
-        radial-gradient(ellipse 50% 45% at 92% 6%, rgba(214, 40, 57, .08), transparent 50%),
-        radial-gradient(ellipse 70% 50% at 50% 100%, rgba(184, 134, 11, .1), transparent),
-        repeating-linear-gradient(90deg, transparent, transparent 78px, rgba(42, 26, 32, .025) 78px, rgba(42, 26, 32, .025) 80px),
-        var(--bg);
-      color: var(--ink);
-      -webkit-font-smoothing: antialiased;
-    }
-    body::before {
-      content: "";
-      position: fixed; inset: 0; pointer-events: none; z-index: 0;
-      opacity: .025;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    }
-    .shell { position: relative; z-index: 1; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,sans-serif;background:#f3f4f6;color:#111;min-height:100vh}
+    .wrap{max-width:620px;margin:0 auto;padding:28px 18px 80px}
 
-    @keyframes shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
-    @keyframes count-pop {
-      0% { transform: scale(1); }
-      45% { transform: scale(1.14); }
-      100% { transform: scale(1); }
-    }
-    @keyframes shine-once {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(200%); }
-    }
-    @keyframes frame-in {
-      from { opacity: 0; transform: scale(.985); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes cd-tick {
-      0% { transform: scale(.5); opacity: 0; filter: blur(6px); }
-      55% { transform: scale(1.12); opacity: 1; filter: blur(0); }
-      100% { transform: scale(1); opacity: 1; }
-    }
-    @keyframes cd-ring-pulse {
-      0% { box-shadow: 0 0 0 0 rgba(230, 57, 70, .4); }
-      70% { box-shadow: 0 0 0 12px rgba(230, 57, 70, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0); }
-    }
-    @keyframes refill-burst {
-      0% { transform: scale(.5); opacity: 0; }
-      20% { transform: scale(1.05); opacity: 1; }
-      80% { transform: scale(1); opacity: 1; }
-      100% { transform: scale(1.02); opacity: 0; }
-    }
-    @keyframes card-in {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0) rotate(0); }
-      20% { transform: translateX(-4px) rotate(-.6deg); }
-      40% { transform: translateX(4px) rotate(.6deg); }
-      60% { transform: translateX(-3px) rotate(-.4deg); }
-      80% { transform: translateX(3px) rotate(.4deg); }
-    }
-    @keyframes wobble {
-      0%, 100% { transform: rotate(0deg) scale(1); }
-      25% { transform: rotate(-1.2deg) scale(1.01); }
-      75% { transform: rotate(1.2deg) scale(1.01); }
-    }
-    @keyframes float-up {
-      0% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
-      100% { opacity: 0; transform: translateY(-42px) scale(1.35) rotate(12deg); }
-    }
-    @keyframes sim-bg-shift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-    @keyframes sim-pop-in {
-      0% { opacity: 0; transform: scale(.88) rotate(-4deg); filter: blur(4px); }
-      60% { opacity: 1; transform: scale(1.04) rotate(2deg); filter: blur(0); }
-      100% { opacity: 1; transform: scale(1) rotate(0); }
-    }
-    @keyframes sim-scan {
-      0% { top: -20%; opacity: 0; }
-      15% { opacity: .55; }
-      100% { top: 120%; opacity: 0; }
-    }
-    @keyframes milestone-burst {
-      0% { transform: scale(.6); opacity: 0; }
-      25% { transform: scale(1.08); opacity: 1; }
-      100% { transform: scale(1.15); opacity: 0; }
-    }
-    @keyframes dot-hop {
-      0% { transform: scale(1); }
-      45% { transform: scale(1.85); }
-      100% { transform: scale(1.55); }
-    }
-    @keyframes logo-wiggle {
-      0%, 100% { transform: rotate(0deg) scale(1); }
-      25% { transform: rotate(-8deg) scale(1.08); }
-      75% { transform: rotate(8deg) scale(1.08); }
-    }
-    @keyframes ticker-scroll {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
-    @keyframes toast-in {
-      from { opacity: 0; transform: translateX(12px) scale(.95); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes toast-out {
-      to { opacity: 0; transform: translateY(-6px); }
-    }
-    .skel {
-      background: linear-gradient(90deg, #f0e4dc 25%, #faf4ee 50%, #f0e4dc 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s ease infinite;
-      border-radius: 8px;
-    }
+    /* Header */
+    .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+    .hdr h1{font-size:19px;font-weight:800}
+    .hdr .sub{font-size:13px;color:#6b7280;margin-top:2px}
+    .btn-new{background:#111;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer}
+    .btn-new:hover{background:#333}
 
-    .shell {
-      height: 100%; max-width: 1140px; margin: 0 auto;
-      padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
-    }
+    /* Queue status bar */
+    .yt-auth-bar{display:flex;align-items:center;gap:10px;border-radius:10px;padding:11px 16px;margin-bottom:12px;font-size:13px;font-weight:600}
+    .yt-auth-bar.ok{background:#f0fdf4;border:1px solid #86efac;color:#166534}
+    .yt-auth-bar.err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b}
+    .yt-auth-bar.warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+    .yt-connect,.yt-reconnect{color:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
+    .queue-bar{display:flex;align-items:center;gap:10px;background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .queue-dot{width:9px;height:9px;border-radius:50%;background:#9ca3af;flex-shrink:0}
+    .queue-dot.running{background:#16a34a;animation:pulse 1.4s ease infinite}
+    .queue-dot.idle{background:#9ca3af}
+    .queue-text{font-size:14px;font-weight:600;flex:1}
+    .btn-queue{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-queue:hover{background:#15803d}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
-    header {
-      display: flex; align-items: center; gap: 12px;
-      flex-shrink: 0; min-height: 52px;
-      padding: 10px 14px;
-      background: linear-gradient(180deg, #fff 0%, #fff6f0 100%);
-      border: 2px solid var(--line);
-      border-radius: 6px;
-      box-shadow: 0 4px 18px rgba(42, 26, 32, .08), inset 0 1px 0 #fff;
-      position: relative;
-    }
-    header::after {
-      content: "";
-      position: absolute; top: 0; left: 0; right: 0; height: 6px;
-      background: repeating-linear-gradient(90deg, #2a1a20 0 14px, #fff 14px 28px);
-      border-radius: 4px 4px 0 0;
-    }
-    .brand-lockup {
-      display: flex; align-items: center; gap: 8px;
-      min-width: 0; max-width: 42%;
-    }
-    .brand-logo {
-      width: 40px; height: 40px; flex-shrink: 0; cursor: pointer;
-      filter: drop-shadow(0 2px 8px rgba(230, 57, 70, .35));
-      transition: transform .2s ease;
-    }
-    .brand-logo:hover { transform: scale(1.08) rotate(-3deg); }
-    .brand-logo.wiggle { animation: logo-wiggle .5s ease; }
-    .brand-text { min-width: 0; padding-top: 2px; }
-    .brand-co {
-      font-family: var(--font-display);
-      font-size: 1.45rem; font-weight: 400;
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--gold);
-      line-height: 1.05;
-    }
-    .brand-tag {
-      font-family: var(--font-tag);
-      font-size: 0.95rem; color: var(--muted); font-style: italic;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      transition: opacity .3s ease;
-    }
-    .fun-ticker {
-      flex-shrink: 0; overflow: hidden; border-radius: 6px;
-      background: linear-gradient(180deg, #fff8f2, #fff0e6);
-      border: 1px solid var(--line);
-      padding: 10px 0;
-      box-shadow: inset 0 1px 0 #fff, 0 2px 10px rgba(42, 26, 32, .06);
-    }
-    .fun-ticker-track {
-      display: flex; width: max-content;
-      animation: ticker-scroll var(--ticker-speed) linear infinite;
-    }
-    .fun-ticker-track span {
-      padding: 0 48px;
-      font-family: var(--font-slate);
-      font-size: 0.92rem; font-weight: 400;
-      color: var(--accent-deep); white-space: nowrap;
-      text-transform: uppercase; letter-spacing: .05em;
-    }
-    .fun-ticker-track span::before { content: "★ "; opacity: .65; color: var(--accent); }
-    h1 {
-      margin: 0;
-      font-family: var(--font-slate);
-      font-size: 0.88rem; font-weight: 400;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      color: var(--accent-deep);
-    }
-    .status {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 0.88rem; color: var(--muted); flex: 1; min-width: 0;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
-    .dot.live {
-      background: var(--accent);
-      box-shadow: 0 0 8px var(--accent), 0 0 16px rgba(230, 57, 70, .4);
-      animation: pulse-dot 1.5s ease infinite;
-    }
-    .dot.stop { background: var(--bad); }
-    .acct {
-      display: flex; align-items: center; gap: 5px;
-      font-size: 0.85rem; color: var(--muted); max-width: 26%; min-width: 0;
-    }
-    .acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .link-btn {
-      background: var(--accent-soft); border: 1px solid rgba(230, 57, 70, .35);
-      color: var(--accent-deep);
-      font-family: var(--font-slate);
-      font-size: 0.82rem; cursor: pointer; padding: 6px 12px; font-weight: 400;
-      border-radius: 3px; text-transform: uppercase; letter-spacing: .04em;
-    }
-    .link-btn:hover { filter: brightness(1.15); background: rgba(230, 57, 70, .22); }
-    .link-btn:disabled { opacity: .5; }
-    .link-btn.muted { color: var(--muted); background: #fff; border-color: var(--line); }
+    /* Project cards */
+    .proj-list{display:flex;flex-direction:column;gap:10px}
+    .proj-card{background:#fff;border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;transition:box-shadow .15s}
+    .proj-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.12)}
+    .proj-card-inner{display:flex;align-items:center;gap:12px}
+    .proj-status-icon{font-size:20px;flex-shrink:0}
+    .proj-info{flex:1;min-width:0}
+    .proj-title{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .proj-subtitle{font-size:13px;color:#6b7280;margin-top:2px}
+    .proj-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;flex-shrink:0}
+    .badge-script{background:#ede9fe;color:#6d28d9}
+    .badge-upload{background:#fff7ed;color:#c2410c}
+    .badge-style{background:#fef9c3;color:#854d0e}
+    .badge-queued{background:#f0fdf4;color:#166534}
+    .badge-running{background:#dbeafe;color:#1d4ed8}
+    .badge-thumbnails{background:#fce7f3;color:#9d174d}
+    .badge-done{background:#f0fdf4;color:#166534}
+    .badge-failed{background:#fef2f2;color:#991b1b}
+    .empty-state{text-align:center;padding:48px 20px;color:#9ca3af}
+    .empty-state .big{font-size:40px;margin-bottom:12px}
+    .empty-state p{font-size:15px}
 
-    .style-toggle {
-      display: inline-flex; align-items: center; gap: 6px;
-      max-width: min(220px, 32vw);
-      padding: 5px 10px 5px 8px;
-      border-radius: 4px;
-      border: 1px solid var(--line);
-      background: var(--card-raised);
-      cursor: pointer;
-      font-family: var(--font-body);
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .style-toggle:hover {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent-soft);
-    }
-    .style-toggle-label {
-      flex-shrink: 0;
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
-    }
-    .style-toggle-value {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--accent-deep);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .style-toggle.unset .style-toggle-value {
-      color: var(--accent);
-      font-style: italic;
-      font-weight: 500;
-    }
+    /* Detail view */
+    .detail-hdr{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+    .btn-back{background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;padding:2px 6px;border-radius:6px}
+    .btn-back:hover{background:#e5e7eb;color:#111}
+    .detail-title{font-size:19px;font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    .panel {
-      flex: 1; min-height: 0;
-      display: grid; grid-template-columns: 1fr 272px; gap: 12px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 8px; padding: 12px; overflow: hidden;
-      box-shadow: 0 6px 24px rgba(42, 26, 32, .08), inset 0 1px 0 #fff;
-    }
+    /* Steps */
+    .step-bar{display:flex;align-items:center;margin-bottom:24px}
+    .snode{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0}
+    .scircle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:#e5e7eb;color:#9ca3af}
+    .scircle.act{background:#2563eb;color:#fff}
+    .scircle.done{background:#16a34a;color:#fff}
+    .slabel{font-size:10px;font-weight:600;color:#9ca3af;white-space:nowrap}
+    .slabel.act{color:#2563eb}
+    .slabel.done{color:#16a34a}
+    .sline{flex:1;height:2px;background:#e5e7eb;margin-bottom:14px}
+    .sline.done{background:#16a34a}
 
-    .viewer {
-      min-height: 0; background: #050405; border-radius: 4px;
-      overflow: hidden; display: flex; align-items: center; justify-content: center;
-      position: relative;
-      border: 3px solid #1a1418;
-      box-shadow: inset 0 0 60px rgba(0,0,0,.8), 0 0 0 1px rgba(233, 196, 106, .15);
-    }
-    .viewer::before,
-    .viewer::after {
-      content: "";
-      position: absolute; top: 0; bottom: 0; width: 14px; z-index: 3;
-      pointer-events: none;
-      background: repeating-linear-gradient(180deg, #0c090a 0 8px, #1a1418 8px 16px);
-      opacity: .85;
-    }
-    .viewer::before { left: 0; border-right: 1px solid #2a2226; }
-    .viewer::after { right: 0; border-left: 1px solid #2a2226; }
-    .viewer-watermark {
-      position: absolute; top: 10px; left: 20px; z-index: 4;
-      font-family: var(--font-slate);
-      font-size: 0.62rem; font-weight: 400; letter-spacing: .14em;
-      color: rgba(230, 57, 70, .85); text-transform: uppercase;
-      pointer-events: none;
-      padding: 3px 8px;
-      background: rgba(0,0,0,.55);
-      border: 1px solid rgba(230, 57, 70, .4);
-      border-radius: 2px;
-    }
-    .viewer-watermark::before {
-      content: "● "; animation: pulse-dot 1.2s ease infinite;
-    }
-    .viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    .viewer img.enter { animation: frame-in .5s cubic-bezier(.22, 1, .36, 1); }
-    .viewer-empty { color: #c4b5bc; font-size: 1rem; font-style: italic; }
-    .viewer-stage {
-      width: 100%; height: 100%; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; min-height: 0;
-    }
-    .viewer-stage .img-wrap {
-      flex: 1; min-height: 0; width: 100%;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .viewer-caption {
-      flex-shrink: 0; width: 100%; padding: 10px 14px;
-      font-size: 0.92rem; line-height: 1.4; color: #e5e7eb;
-      background: linear-gradient(180deg, transparent, rgba(0,0,0,.75));
-      text-align: center;
-    }
+    /* Cards */
+    .card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:14px}
+    .card-title{font-size:17px;font-weight:700;margin-bottom:5px}
+    .card-sub{font-size:13px;color:#6b7280;margin-bottom:20px}
 
-    .side {
-      display: flex; flex-direction: column; gap: 10px;
-      min-height: 0; overflow-y: auto;
-    }
+    /* AI chat section */
+    .ai-chat{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:14px}
+    .ai-msgs{min-height:80px;max-height:360px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#fafafa}
+    .msg{max-width:88%;padding:10px 13px;border-radius:10px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+    .msg.user{background:#2563eb;color:#fff;align-self:flex-end;border-radius:10px 10px 2px 10px}
+    .msg.ai{background:#fff;color:#111;align-self:flex-start;border:1px solid #e5e7eb;border-radius:10px 10px 10px 2px}
+    .msg.thinking{color:#9ca3af;font-style:italic;background:transparent;border:none;padding:4px 0;font-size:13px}
+    .ai-input-row{display:flex;border-top:1px solid #e5e7eb}
+    .ai-input-row textarea{flex:1;padding:12px 14px;font-family:inherit;font-size:14px;border:none;outline:none;resize:none;height:56px}
+    .ai-send-btn{background:#2563eb;color:#fff;border:none;padding:0 18px;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0}
+    .ai-send-btn:hover{background:#1d4ed8}
+    .ai-send-btn:disabled{opacity:.4;cursor:not-allowed}
 
-    .stat-card {
-      background: var(--card-raised);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 14px 14px 12px;
-      animation: card-in .4s ease both;
-      box-shadow: 0 2px 10px rgba(42, 26, 32, .05);
-    }
-    .stat-card.limits-card { animation-delay: .06s; }
+    /* Script editor */
+    .script-area{width:100%;padding:12px;font-family:ui-monospace,monospace;font-size:13px;border:1px solid #e5e7eb;border-radius:8px;min-height:200px;resize:vertical;outline:none;transition:border-color .15s}
+    .script-area:focus{border-color:#2563eb}
+    .script-meta{font-size:12px;color:#9ca3af;margin-top:6px}
 
-    .card-label {
-      font-family: var(--font-slate);
-      font-size: 0.78rem; font-weight: 400;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--gold); margin-bottom: 10px;
-    }
+    /* File blocks */
+    .file-block{border:2px solid #e5e7eb;border-radius:10px;margin-bottom:10px;overflow:hidden}
+    .file-block.ready{border-color:#16a34a}
+    .fb-head{display:flex;align-items:center;gap:12px;padding:13px 15px}
+    .fb-icon{font-size:20px;flex-shrink:0}
+    .fb-info{flex:1;min-width:0}
+    .fb-name{font-weight:700;font-size:14px}
+    .fb-hint{font-size:12px;color:#9ca3af;margin-top:2px}
+    .file-block.ready .fb-hint{color:#16a34a}
+    .fb-acts{display:flex;gap:6px;flex-shrink:0}
+    .zone{display:flex;align-items:center;gap:10px;border-top:1px dashed #e5e7eb;padding:12px 15px;cursor:pointer;background:#fafafa}
+    .zone:hover{background:#eff6ff}
+    .zone-text{font-size:13px;color:#6b7280}
+    .fb-paste-btn{display:block;margin:0 15px 12px;padding:9px;text-align:center;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:#374151;background:#fff}
+    .fb-paste-btn:hover{background:#f9fafb}
+    .fb-ta-wrap{border-top:1px solid #e5e7eb;padding:12px 14px;background:#fafafa}
+    .fb-ta-wrap textarea{width:100%;padding:9px 11px;font-family:ui-monospace,monospace;font-size:12px;border:1px solid #e5e7eb;border-radius:6px;min-height:140px;resize:vertical;outline:none}
+    .fb-ta-wrap textarea:focus{border-color:#2563eb}
+    .ta-btns{display:flex;gap:8px;margin-top:8px;justify-content:flex-end}
 
-    /* Frame dot progress rail */
-    .frame-rail {
-      flex-shrink: 0;
-      padding: 10px 12px 8px;
-      background: linear-gradient(180deg, var(--card-raised), var(--card));
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
-      box-shadow: 0 3px 14px rgba(42, 26, 32, .07);
-    }
-    .frame-rail::before {
-      content: "SLATE";
-      position: absolute; top: 6px; right: 10px;
-      font-family: var(--font-slate);
-      font-size: 0.65rem; letter-spacing: .2em;
-      color: rgba(42, 26, 32, .07); pointer-events: none;
-    }
-    .frame-rail-head {
-      display: flex; justify-content: space-between; align-items: baseline;
-      gap: 8px; margin-bottom: 8px;
-    }
-    .frame-rail-head .card-label { margin-bottom: 0; }
-    .frame-count {
-      font-size: 1.05rem; font-weight: 800;
-      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-    }
-    .frame-count.pop { animation: count-pop .5s cubic-bezier(.34, 1.2, .64, 1); }
-    .frame-dots {
-      display: flex; flex-wrap: wrap;
-      gap: var(--dot-gap, 3px); align-items: center;
-    }
-    .frame-dot {
-      width: var(--dot-size, 6px); height: var(--dot-size, 6px);
-      border-radius: 50%; background: #e0cfc8; flex-shrink: 0;
-      transition: background .35s ease, transform .35s cubic-bezier(.34, 1.2, .64, 1),
-                  box-shadow .35s ease;
-    }
-    .frame-dot.done { background: var(--accent); }
-    .frame-dot.current {
-      background: var(--accent);
-      transform: scale(1.55);
-      box-shadow: 0 0 0 2px var(--accent-soft), 0 0 10px rgba(230, 57, 70, .5);
-      position: relative; z-index: 1;
-    }
-    .frame-dot.current.tick { animation: dot-hop .45s cubic-bezier(.34, 1.3, .64, 1); }
-    .frame-dot.all-done { background: var(--accent); }
-    .frame-meta {
-      font-size: 0.88rem; color: var(--muted); margin-top: 8px; line-height: 1.4;
-    }
-    .frame-meta strong { color: var(--ink); font-weight: 600; }
-    .frame-rail.bump { animation: shake .45s ease; }
-    .frame-rail .milestone {
-      position: absolute; inset: 0; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.05rem; font-weight: 800; letter-spacing: .04em;
-      color: #fff; pointer-events: none; z-index: 3;
-      background: linear-gradient(135deg, rgba(230,57,70,.94), rgba(201,162,39,.88));
-      animation: milestone-burst 1.1s ease forwards;
-    }
+    /* Style grid */
+    .style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;max-height:320px;overflow-y:auto}
+    .style-card{border:2px solid #e5e7eb;border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+    .style-card:hover{border-color:#93c5fd}
+    .style-card.sel{border-color:#2563eb}
+    .style-card.sel .sname{color:#2563eb}
+    .style-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#e5e7eb}
+    .style-card .sname{font-size:11px;font-weight:600;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+    .style-no-img{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-size:12px;color:#9ca3af}
+    .sel-note{margin-top:10px;font-size:13px;color:#6b7280}
+    .sel-note strong{color:#2563eb}
 
-    /* Codex limits */
-    .limits { display: flex; flex-direction: column; gap: 10px; }
-    .limits.stale { opacity: .85; }
+    /* Progress monitor */
+    .prog-bar{background:#e5e7eb;border-radius:99px;height:13px;overflow:hidden;margin-bottom:6px}
+    .prog-fill{background:#2563eb;height:100%;border-radius:99px;transition:width .5s}
+    .prog-text{font-size:13px;color:#6b7280;margin-bottom:16px}
+    .credits{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+    .cbox{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px}
+    .cbox .clbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:5px}
+    .cbox .cval{font-size:20px;font-weight:800}
+    .cbox .creset{font-size:11px;color:#9ca3af;margin-top:2px}
+    .cbox.warn .cval{color:#d97706}
+    .cbox.empty .cval{color:#dc2626}
+    .log-box{background:#111;color:#86efac;font-family:ui-monospace,monospace;font-size:12px;padding:12px;border-radius:8px;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
 
-    .limit-card {
-      position: relative;
-      padding: 14px;
-      border-radius: 6px;
-      background: #fff;
-      border: 1px solid var(--line);
-    }
-    .limit-card.five-card {
-      background: linear-gradient(160deg, #fff5f6 0%, #fff 55%);
-      border-color: rgba(214, 40, 57, .25);
-    }
-    .limit-card.week-card {
-      background: linear-gradient(160deg, #fffbf0 0%, #fff 55%);
-      border-color: rgba(166, 124, 0, .25);
-    }
-    .limit-card.countdown { animation: cd-ring-pulse 1.2s ease infinite; }
-    .limit-card.flash { background-color: rgba(230, 57, 70, .15); transition: background .3s; }
-    .limit-card.drain-hit { animation: shake .42s ease; }
-    .limit-card.critical { animation: wobble .9s ease infinite; }
+    /* Thumbnails */
+    .thumb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+    .thumb-item{border:3px solid #e5e7eb;border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+    .thumb-item:hover{border-color:#93c5fd}
+    .thumb-item.sel{border-color:#2563eb}
+    .thumb-item.sel .thumb-lbl{color:#2563eb}
+    .thumb-item img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+    .thumb-ph{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-size:12px;color:#9ca3af;text-align:center;padding:6px}
+    .thumb-lbl{text-align:center;padding:6px;font-size:12px;font-weight:700;color:#9ca3af}
 
-    .limit-head {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      margin-bottom: 8px; gap: 8px;
-    }
-    .limit-title { font-size: 0.95rem; font-weight: 700; line-height: 1.2; }
-    .limit-card.five-card .limit-title { color: var(--accent-deep); }
-    .limit-card.week-card .limit-title { color: var(--gold); }
-    .limit-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; font-weight: 500; }
+    /* Buttons */
+    button{font-family:inherit;cursor:pointer;transition:background .15s,opacity .15s}
+    .btn-primary{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;width:100%}
+    .btn-primary:hover:not(:disabled){background:#1d4ed8}
+    .btn-primary:disabled{opacity:.4;cursor:not-allowed}
+    .btn-green{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;width:100%}
+    .btn-green:hover:not(:disabled){background:#15803d}
+    .btn-green:disabled{opacity:.4;cursor:not-allowed}
+    .btn-red{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;width:100%}
+    .btn-red:hover:not(:disabled){background:#b91c1c}
+    .btn-red:disabled{opacity:.4;cursor:not-allowed}
+    .btn-sm{padding:6px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-weight:600;background:#fff;color:#374151}
+    .btn-sm:hover{background:#f9fafb}
+    .btn-sm.danger{color:#dc2626;border-color:#fca5a5}
+    .btn-sm.danger:hover{background:#fef2f2}
+    .btn-row{display:flex;gap:10px;margin-top:18px}
+    .btn-row .btn-primary,.btn-row .btn-green{flex:1}
+    .btn-secondary{background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:600}
+    .btn-secondary:hover{background:#e5e7eb}
 
-    .limit-pct {
-      font-size: 1.45rem; font-weight: 800;
-      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-      line-height: 1;
-    }
-    .limit-pct.pop { animation: count-pop .45s cubic-bezier(.34, 1.2, .64, 1); }
-    .limit-pct.warn { color: var(--warn); }
-    .limit-pct.bad { color: var(--bad); }
+    /* Alerts */
+    .alert{border-radius:8px;padding:11px 13px;font-size:13px;margin-bottom:14px}
+    .alert.info{background:#eff6ff;border:1px solid #93c5fd}
+    .alert.ok{background:#f0fdf4;border:1px solid #86efac;color:#166534}
+    .alert.warn{background:#fef3c7;border:1px solid #fbbf24}
 
-    .limit-track {
-      position: relative;
-      height: 12px; background: #f0e4dc; border-radius: 99px;
-      overflow: hidden;
-    }
-    .limit-track.skel { animation: shimmer 1.4s ease infinite; background-size: 200% 100%; }
-    .limit-fill {
-      height: 100%; width: 0%; border-radius: 99px;
-      transition: width .8s cubic-bezier(.34, 1.15, .64, 1);
-      position: relative; overflow: hidden;
-    }
-    .limit-fill.five {
-      background: linear-gradient(90deg, #ff6b6b, #e63946);
-      box-shadow: 0 0 14px rgba(230, 57, 70, .45);
-    }
-    .limit-fill.week {
-      background: linear-gradient(90deg, #e9c46a, #c9a227);
-      box-shadow: 0 0 12px rgba(201, 162, 39, .35);
-    }
-    .limit-fill.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b) !important; }
-    .limit-fill.bad { background: linear-gradient(90deg, #f87171, #dc2626) !important; box-shadow: 0 0 10px rgba(220,38,38,.2) !important; }
-    .limit-fill::after {
-      content: ""; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
-      transform: translateX(-100%); opacity: 0;
-    }
-    .limit-fill.shine::after { opacity: 1; animation: shine-once .7s ease; }
+    /* Inputs */
+    .field{margin-bottom:16px}
+    .field label{display:block;font-weight:600;font-size:13px;margin-bottom:5px}
+    .field input,.field textarea{width:100%;padding:10px 12px;font-family:inherit;font-size:14px;border:2px solid #e5e7eb;border-radius:8px;outline:none;transition:border-color .15s}
+    .field input:focus,.field textarea:focus{border-color:#2563eb}
+    .field textarea{resize:vertical;min-height:64px}
+    .field .hint{font-size:12px;color:#9ca3af;margin-top:4px}
 
-    .limit-reset {
-      font-size: 0.85rem; color: var(--muted); font-weight: 500;
-      display: flex; align-items: center; gap: 5px;
-    }
-    .limit-reset::before {
-      content: "↻"; font-size: 0.85rem; opacity: .7;
-    }
-    .limit-reset.cd-mode {
-      justify-content: center; gap: 8px; margin-top: 4px;
-      font-size: inherit;
-    }
-    .limit-reset.cd-mode::before { display: none; }
-    .cd-num {
-      font-size: 2rem; font-weight: 800;
-      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-      color: var(--accent);
-    }
-    .limit-card.week-card .cd-num { color: var(--week); }
-    .cd-num.tick { animation: cd-tick .5s cubic-bezier(.22, 1.2, .36, 1); }
-    .cd-num.cd-zero { color: var(--warn); font-size: 1.5rem; }
-    .cd-hint {
-      font-size: 0.8rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
-    }
+    /* Done screen */
+    .done-box{text-align:center;padding:16px 0}
+    .done-box .big{font-size:48px;margin-bottom:12px}
+    .done-box h2{font-size:21px;margin-bottom:8px}
+    .done-box p{color:#6b7280;margin-bottom:20px;font-size:14px}
+    .done-links{display:flex;flex-direction:column;gap:9px}
+    .done-links a{display:block;padding:12px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;text-align:center}
+    .link-yt{background:#dc2626;color:#fff}
+    .link-studio{background:#f3f4f6;color:#374151}
 
-    .limit-card .burst {
-      position: absolute; inset: 0; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.85rem; font-weight: 800; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #fff;
-      background: linear-gradient(135deg, #e63946, #c9a227);
-      pointer-events: none; z-index: 2;
-      animation: refill-burst 1.4s cubic-bezier(.22, 1, .36, 1) forwards;
+    /* Toast */
+    .toast{
+      position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
+      background:#111;color:#fff;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:600;
+      opacity:0;transition:opacity .2s,transform .2s;z-index:999;pointer-events:none;white-space:nowrap;
     }
-    .limit-card .burst.zany {
-      font-size: 0.78rem;
-      background: linear-gradient(135deg, #f59e0b, #ec4899, #6366f1);
-      background-size: 200% 200%;
-      animation: refill-burst 1.4s cubic-bezier(.22, 1, .36, 1) forwards,
-                 sim-bg-shift 1.2s ease infinite;
-    }
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .toast.ok{background:#16a34a}
+    .toast.err{background:#dc2626}
 
-    .viewer-sim {
-      width: 100%; height: 100%; position: relative; overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, hsl(var(--hue) 55% 22%), hsl(calc(var(--hue) + 40) 60% 12%));
-      background-size: 200% 200%;
-      animation: sim-bg-shift 6s ease infinite;
-    }
-    .viewer-sim .sim-emoji {
-      font-size: clamp(3rem, 18vw, 5.5rem);
-      animation: sim-pop-in .55s cubic-bezier(.22, 1.2, .36, 1) both;
-      filter: drop-shadow(0 8px 24px rgba(0,0,0,.35));
-    }
-    .viewer-sim .sim-scanline {
-      position: absolute; left: 0; right: 0; height: 28%;
-      background: linear-gradient(180deg, transparent, rgba(255,255,255,.12), transparent);
-      animation: sim-scan 1.8s linear infinite;
-      pointer-events: none;
-    }
-    .viewer-sim .sim-frame-tag {
-      position: absolute; left: 10px; bottom: 10px;
-      font-size: 0.68rem; font-family: ui-monospace, Menlo, monospace;
-      color: rgba(255,255,255,.75); background: rgba(0,0,0,.35);
-      padding: 4px 8px; border-radius: 6px;
-    }
-    .viewer-sim .sim-caption {
-      position: absolute; top: 10px; left: 10px; right: 10px;
-      font-size: 0.72rem; font-weight: 700; color: rgba(255,255,255,.9);
-      text-shadow: 0 1px 8px rgba(0,0,0,.4);
-    }
+    /* Queue log panel */
+    .queue-log-panel{background:#fff;border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .queue-log-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .queue-log-hdr span{font-size:13px;font-weight:700;color:#374151}
+    .queue-log-hdr button{background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;text-decoration:underline}
 
-    .limits-note {
-      font-size: 0.85rem; color: var(--muted); text-align: center;
-      padding: 8px; line-height: 1.4;
-    }
-
-    .sim-banner {
-      flex-shrink: 0;
-      padding: 8px 12px;
-      border-radius: 4px;
-      background: linear-gradient(90deg, rgba(230,57,70,.12), rgba(201,162,39,.1));
-      border: 1px solid rgba(230, 57, 70, .25);
-      font-size: 0.88rem;
-      line-height: 1.4;
-    }
-    .sim-banner strong { color: var(--accent); }
-    .sim-log {
-      margin-top: 6px;
-      padding: 8px 10px;
-      border-radius: 4px;
-      background: #fff;
-      border: 1px dashed var(--line);
-      font-size: 0.68rem;
-      font-family: var(--font-slate);
-      color: var(--gold);
-      line-height: 1.45;
-    }
-    .sim-log .rule { color: var(--muted); font-family: inherit; display: block; margin-top: 4px; }
-
-    .toast-stack {
-      position: fixed; bottom: 16px; right: 16px; z-index: 99;
-      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
-      max-width: min(280px, 90vw);
-    }
-    .toast {
-      padding: 10px 14px; border-radius: 4px;
-      background: var(--card-raised); border: 1.5px solid var(--accent);
-      box-shadow: 0 8px 24px rgba(0,0,0,.5);
-      font-family: var(--font-tag);
-      font-size: 0.95rem; font-weight: 500; font-style: italic; color: var(--ink);
-      animation: toast-in .35s cubic-bezier(.22, 1.2, .36, 1) both;
-    }
-    .toast.leave { animation: toast-out .3s ease forwards; }
-
-    .hidden { display: none !important; }
-
-    /* Style preset picker */
-    .style-card { margin-bottom: 12px; }
-    .style-card .card-label { margin-bottom: 8px; }
-    .style-select {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 4px;
-      border: 1.5px solid var(--line);
-      background: var(--card-raised);
-      font-family: var(--font-body);
-      font-size: 0.88rem;
-      color: var(--ink);
-      cursor: pointer;
-    }
-    .style-select:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent-soft);
-    }
-    .style-preview-wrap {
-      margin-top: 10px;
-      border-radius: 6px;
-      overflow: hidden;
-      border: 1.5px solid var(--line);
-      background: #1a1418;
-      aspect-ratio: 16/9;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .style-preview-wrap img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    .style-preview-empty {
-      color: var(--muted);
-      font-size: 0.82rem;
-      text-align: center;
-      padding: 12px;
-      line-height: 1.4;
-    }
-    .style-caption {
-      margin: 8px 0 0;
-      font-size: 0.78rem;
-      color: var(--muted);
-      line-height: 1.35;
-    }
-    .style-active {
-      margin-top: 6px;
-      font-size: 0.82rem;
-      color: var(--accent-deep);
-      font-weight: 600;
-    }
-    .style-save-btn {
-      margin-top: 10px;
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      border-radius: 4px;
-      background: var(--accent);
-      color: #fff;
-      font-family: var(--font-body);
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .2s, transform .15s;
-    }
-    .style-save-btn:hover:not(:disabled) { background: var(--accent-deep); }
-    .style-save-btn:disabled { opacity: .5; cursor: not-allowed; }
-    .style-save-btn.saved { background: var(--gold); }
-    .style-card.highlight {
-      box-shadow: 0 0 0 2px var(--accent-soft);
-      border-color: var(--accent);
-    }
-
-    @media (max-width: 700px) {
-      html, body { overflow: auto; height: auto; }
-      .shell { height: auto; min-height: 100%; }
-      .panel { grid-template-columns: 1fr; }
-      .viewer { aspect-ratio: 16/9; }
-    }
-
-    /* ── Setup card ── */
-    #setup-card .card-label { margin-bottom: 12px; }
-    .upload-zones { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-    .upload-zone {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px;
-      border: 1.5px dashed var(--line);
-      border-radius: 4px;
-      cursor: pointer;
-      background: var(--card);
-      transition: border-color .2s, background .2s;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-    .upload-zone:hover { border-color: var(--accent); background: var(--accent-soft); }
-    .upload-zone.ready { border-color: #16a34a; background: rgba(22, 163, 74, .07); color: #15803d; }
-    .upload-zone .uz-icon {
-      width: 22px; height: 22px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1rem;
-    }
-    .upload-zone .uz-label { flex: 1; min-width: 0; font-weight: 500; }
-    .upload-zone .uz-status { font-size: 0.78rem; white-space: nowrap; }
-    .setup-inputs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-    .setup-input {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 4px;
-      border: 1.5px solid var(--line);
-      background: var(--card-raised);
-      font-family: var(--font-body);
-      font-size: 0.88rem;
-      color: var(--ink);
-    }
-    .setup-input:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent-soft);
-    }
-    .setup-input::placeholder { color: var(--muted); opacity: .7; }
-    .setup-launch-btn {
-      width: 100%;
-      padding: 10px 14px;
-      border: none;
-      border-radius: 4px;
-      background: var(--accent);
-      color: #fff;
-      font-family: var(--font-body);
-      font-size: 0.92rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: .02em;
-      transition: background .2s, transform .15s;
-    }
-    .setup-launch-btn:hover:not(:disabled) { background: var(--accent-deep); }
-    .setup-launch-btn:disabled { opacity: .45; cursor: not-allowed; }
-
-    /* ── Publish card ── */
-    #publish-card .card-label { margin-bottom: 10px; }
-    .thumb-row {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
-      margin-bottom: 12px;
-    }
-    .thumb-item {
-      display: flex; flex-direction: column; gap: 4px; cursor: pointer;
-    }
-    .thumb-img-wrap {
-      aspect-ratio: 16/9;
-      border-radius: 4px;
-      overflow: hidden;
-      border: 2px solid var(--line);
-      background: #1a1418;
-      display: flex; align-items: center; justify-content: center;
-      transition: border-color .2s;
-      position: relative;
-    }
-    .thumb-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .thumb-img-wrap.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-    .thumb-placeholder {
-      color: var(--muted); font-size: 0.7rem; text-align: center; padding: 6px;
-    }
-    .thumb-label {
-      font-size: 0.72rem; font-weight: 600; text-align: center;
-      color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
-    }
-    .thumb-item.selected .thumb-label { color: var(--accent-deep); }
-    .publish-status {
-      font-size: 0.82rem; color: var(--muted); margin-bottom: 10px;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .publish-status .dot { flex-shrink: 0; }
-    .upload-yt-btn {
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      border-radius: 4px;
-      background: var(--accent);
-      color: #fff;
-      font-family: var(--font-body);
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .2s;
-    }
-    .upload-yt-btn:hover:not(:disabled) { background: var(--accent-deep); }
-    .upload-yt-btn:disabled { opacity: .45; cursor: not-allowed; }
-    .upload-yt-btn.done { background: #16a34a; }
-    .yt-link {
-      display: block; margin-top: 8px; text-align: center;
-      font-size: 0.82rem; color: var(--accent-deep); font-weight: 600;
-      text-decoration: none;
-    }
-    .yt-link:hover { text-decoration: underline; }
+    /* Misc */
+    input[type=file]{display:none}
+    .sep{height:1px;background:#e5e7eb;margin:16px 0}
   </style>
 </head>
 <body>
-  <div class="shell">
-    <header>
-      <div class="brand-lockup" id="brand-lockup">
-        <svg class="brand-logo" id="brand-logo" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" title="Clap the board. You know you want to.">
-          <rect x="3" y="14" width="30" height="18" rx="2" fill="#1a1418" stroke="#e9c46a" stroke-width="1.2"/>
-          <path d="M3 14 L33 14 L30 6 L6 6 Z" fill="#f4e8dc" stroke="#0c090a" stroke-width="1"/>
-          <path d="M8 6 L11 14 M14 6 L17 14 M20 6 L23 14 M26 6 L29 14" stroke="#0c090a" stroke-width="1.2"/>
-          <text x="18" y="12" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="4.5" font-weight="900" fill="#0c090a">BP</text>
-          <circle cx="27" cy="22" r="4" fill="#e63946" opacity=".9"/>
-          <text x="27" y="23.5" text-anchor="middle" font-size="3.5" fill="#fff">●</text>
-        </svg>
-        <div class="brand-text">
-          <div class="brand-co">Bendover Productions</div>
-          <h1 id="title">On Set · Sound Stage B</h1>
-          <div class="brand-tag" id="brand-tag">We bend the rules. And the frames.</div>
+<div class="wrap" id="app">Loading…</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="fi-script"     accept=".txt">
+<input type="file" id="fi-audio"      accept=".mp3,.wav,.m4a">
+<input type="file" id="fi-transcript" accept=".txt">
+
+<script>
+// ── App state ──────────────────────────────────────────────────────
+const APP = {
+  screen: 'list',     // list | detail
+  projects: [],
+  queueRunning: false,
+  queueLog: [],
+  showQueueLog: false,
+  ytAuth: null,   // {has_secrets, has_token}
+  supabase: null, // {configured, url}
+  // detail
+  activeId: null,
+  detail: null,
+  detailStep: 1,      // 1=script 2=upload 3=style 4=running/thumb/done
+  presets: [],
+  pickedStyleId: '', pickedStyleLabel: '', pickedImageStyle: '',
+  selectedThumb: null,
+  progress: null,      // live progress for running project
+  // per-file ui mode
+  scriptMode: 'idle',   // idle | paste | edit
+  transMode: 'idle',
+  scriptContent: null, transContent: null,
+  // chat
+  chatMsgs: [],
+};
+
+// ── API ────────────────────────────────────────────────────────────
+const api = (path, opts) => fetch(path, opts).then(r => r.json());
+
+async function uploadFile(kind, file, projectId) {
+  const fd = new FormData();
+  fd.append('kind', kind);
+  fd.append('file', file, file.name);
+  const url = projectId ? `/api/projects/${projectId}/upload` : '/api/upload';
+  return fetch(url, { method: 'POST', body: fd }).then(r => r.json());
+}
+
+// ── Poll ───────────────────────────────────────────────────────────
+let pollTimer = null;
+async function poll() {
+  try {
+    const r = await api('/api/projects');
+    APP.projects = r.projects || [];
+    APP.queueRunning = !!r.queue_running;
+
+    if (!APP.presets.length) {
+      const ps = await api('/api/style-presets');
+      APP.presets = ps.presets || [];
+    }
+
+    // Check YouTube auth status periodically
+    if (!APP.ytAuth || Math.random() < 0.1) {
+      APP.ytAuth = await api('/api/youtube/auth/status');
+    }
+
+    // Check Supabase config status periodically
+    if (!APP.supabase || Math.random() < 0.05) {
+      APP.supabase = await api('/api/supabase/config').catch(() => ({ configured: false }));
+    }
+
+    if (APP.queueRunning || APP.showQueueLog) {
+      const ql = await api('/api/queue/log');
+      APP.queueLog = ql.lines || [];
+      if (!ql.running && APP.queueRunning) {
+        // just stopped
+        toast('Queue finished', 'ok', 4000);
+      }
+      APP.queueRunning = ql.running;
+    }
+
+    if (APP.screen === 'detail' && APP.activeId) {
+      const d = await api(`/api/projects/${APP.activeId}`);
+      APP.detail = d;
+      const st = d.status;
+      if (st === 'script')     APP.detailStep = 1;
+      else if (st === 'upload') APP.detailStep = 2;
+      else if (st === 'style')  APP.detailStep = 3;
+      else if (['queued','running','thumbnails','done','failed'].includes(st)) APP.detailStep = 4;
+
+      // Fetch live progress if running or thumbnails stage
+      if (['running','thumbnails'].includes(st) || APP.progress) {
+        APP.progress = await api(`/api/projects/${APP.activeId}/progress`);
+        // Auto-detect thumbnail-ready → switch status
+        if (APP.progress.thumbnails?.some(t => t.exists) && st === 'running') {
+          d.status = 'thumbnails';
+          update_project_queue_status_local(APP.activeId, 'thumbnails');
+        }
+        // Auto-detect done
+        if (APP.progress.youtube_video_id && st !== 'done') {
+          d.status = 'done';
+        }
+      }
+    }
+
+    renderIfChanged();
+  } catch(e) { console.error('poll', e); }
+  pollTimer = setTimeout(poll, 4000);
+}
+
+// ── Render ─────────────────────────────────────────────────────────
+let _lastRenderKey = '';
+function renderIfChanged() {
+  // Never interrupt user while they're typing or a modal is open
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+  if (document.querySelector('.modal-overlay')) return;
+  // Skip full re-render if nothing meaningful changed
+  const key = JSON.stringify({
+    screen: APP.screen,
+    projects: APP.projects.map(p => p.status + p.id),
+    queueRunning: APP.queueRunning,
+    queueLog: APP.queueLog.length,
+    activeId: APP.activeId,
+    detailStatus: APP.detail?.status,
+    detailStep: APP.detailStep,
+    progress: APP.progress ? `${APP.progress.stage}:${APP.progress.done_frames}` : null,
+    thumbs: APP.progress?.thumbnails?.map(t => t.exists).join(''),
+    ytAuth: APP.ytAuth?.has_token,
+    showLog: APP.showQueueLog,
+  });
+  if (key === _lastRenderKey) return;
+  _lastRenderKey = key;
+  render();
+}
+
+function render() {
+  document.getElementById('app').innerHTML =
+    APP.screen === 'list'   ? renderList() :
+    APP.screen === 'detail' ? renderDetail() : '';
+  bindEvents();
+}
+
+// ── PROJECT LIST ───────────────────────────────────────────────────
+const STATUS_ICON = {
+  script:'📝', upload:'📁', style:'🎨', queued:'⏳',
+  running:'▶️', thumbnails:'🖼', done:'✅', failed:'❌', unknown:'❓'
+};
+const STATUS_LABEL = {
+  script:'Write script', upload:'Upload files', style:'Pick style',
+  queued:'In queue', running:'Running…', thumbnails:'Pick thumbnail',
+  done:'Done', failed:'Failed', unknown:'Unknown'
+};
+const STATUS_BADGE = {
+  script:'badge-script', upload:'badge-upload', style:'badge-style',
+  queued:'badge-queued', running:'badge-running', thumbnails:'badge-thumbnails',
+  done:'badge-done', failed:'badge-failed', unknown:''
+};
+
+function renderList() {
+  const qRunning = APP.queueRunning;
+  const qPending = APP.projects.filter(p => p.status === 'queued').length;
+
+  const cards = APP.projects.length
+    ? APP.projects.map(p => {
+        const st = p.status || 'unknown';
+        const isActive = p.id === APP.activeId;
+        const pr2 = isActive ? APP.progress : null;
+        let subtitle = STATUS_LABEL[st] || st;
+        if (st === 'running' && pr2) {
+          const stageLabels = {
+            images:`🎨 Frames ${pr2.done_frames||0}/${pr2.total_frames||'?'}${pr2.img_phase==='waiting_credits'?' — credits paused':''}`,
+            render_pending:'✂️ Starting render…', rendering:'✂️ Rendering…',
+            render_done:'🖼 Generating thumbnails…', thumbnails:'🖼 Thumbnails ready',
+            uploading:'📤 Uploading…', done:'✅ Done'
+          };
+          subtitle = stageLabels[pr2.stage] || 'Running…';
+        }
+        return `<div class="proj-card" data-pid="${esc(p.id)}">
+          <div class="proj-card-inner">
+            <span class="proj-status-icon">${STATUS_ICON[st]||'❓'}</span>
+            <div class="proj-info">
+              <div class="proj-title">${esc(p.title||p.id)}</div>
+              <div class="proj-subtitle">${subtitle}</div>
+            </div>
+            <span class="proj-badge ${STATUS_BADGE[st]||''}">${st}</span>
+          </div>
+        </div>`;
+      }).join('')
+    : `<div class="empty-state"><div class="big">🎬</div><p>No videos yet.<br>Hit "New video" to start.</p></div>`;
+
+  const logPanel = APP.showQueueLog ? `
+    <div class="queue-log-panel">
+      <div class="queue-log-hdr">
+        <span>Queue log</span>
+        <button id="btn-hide-log">hide</button>
+      </div>
+      <div class="log-box">${esc(APP.queueLog.slice(-30).join('\n') || 'No output yet…')}</div>
+    </div>` : '';
+
+  const queueBar = `${logPanel}<div class="queue-bar">
+    <span class="queue-dot ${qRunning?'running':'idle'}"></span>
+    <span class="queue-text">${qRunning ? 'Pipeline running…' : qPending ? `${qPending} video${qPending>1?'s':''} queued` : 'Pipeline idle'}</span>
+    ${!qRunning && qPending ? `<button class="btn-queue" id="btn-start-queue">▶ Start queue</button>` : ''}
+    ${qRunning ? `<button class="btn-queue" style="background:#dc2626;margin-left:4px" id="btn-stop-queue">⏹ Stop</button>` : ''}
+    ${(qRunning || qPending || APP.showQueueLog) ? `<button class="btn-queue" style="background:#374151;margin-left:4px" id="btn-show-log">${APP.showQueueLog?'Hide log':'View log'}</button>` : ''}
+  </div>`;
+
+  const yt = APP.ytAuth;
+  const ytCard = yt ? (() => {
+    if (!yt.has_secrets) return `<div class="yt-auth-bar warn">
+      ⚠️ No YouTube client secret found in <code>07-upload/</code> — upload will not work.
+    </div>`;
+    if (yt.has_token) return `<div class="yt-auth-bar ok">
+      ✅ YouTube connected
+      <a href="/api/youtube/auth/start" class="yt-reconnect">Reconnect</a>
+    </div>`;
+    return `<div class="yt-auth-bar err">
+      ❌ YouTube not connected —
+      <a href="/api/youtube/auth/start" class="yt-connect">Sign in with Google →</a>
+    </div>`;
+  })() : '';
+
+  const sb = APP.supabase;
+  const supabaseCard = (() => {
+    if (!sb) return '';
+    if (sb.configured) return `<div class="yt-auth-bar ok" style="display:flex;align-items:center;gap:10px">
+      ☁️ Supabase connected — <a href="#" id="sb-sync-btn" style="color:inherit;text-decoration:underline;font-weight:600">Sync now</a>
+      &nbsp;|&nbsp; <a href="/review" target="_blank" style="color:inherit;text-decoration:underline;font-weight:600">Open review page →</a>
+    </div>`;
+    return `<div class="yt-auth-bar warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      ☁️ Supabase not configured —
+      <button onclick="showSupabaseSetup()" style="background:#374151;color:#fff;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:12px">Set up →</button>
+    </div>`;
+  })();
+
+  return `<div class="hdr">
+    <div><h1>Bendover Productions</h1><div class="sub">Video pipeline</div></div>
+    <button class="btn-new" id="btn-new-video">+ New video</button>
+  </div>
+  ${ytCard}
+  ${supabaseCard}
+  ${queueBar}
+  <div class="proj-list">${cards}</div>`;
+}
+
+// ── PROJECT DETAIL ─────────────────────────────────────────────────
+function renderDetail() {
+  const d = APP.detail;
+  if (!d) return `<div style="color:#9ca3af;padding:40px;text-align:center">Loading…</div>`;
+
+  const st = d.status || 'script';
+  const title = d.title || d.id || 'Untitled';
+
+  const hdr = `<div class="detail-hdr">
+    <button class="btn-back" id="btn-back">←</button>
+    <div class="detail-title">${esc(title)}</div>
+  </div>`;
+
+  // Step bar
+  const steps = ['Script','Upload','Style','Launch'];
+  const cs = APP.detailStep;
+  const nodes = steps.map((lbl,i) => {
+    const n = i+1;
+    const isDone = n < cs;
+    const isAct  = n === cs;
+    const c = isDone?'done':isAct?'act':'';
+    return `<div class="snode">
+      <div class="scircle ${c}">${isDone?'✓':n}</div>
+      <div class="slabel ${c}">${lbl}</div>
+    </div>`;
+  });
+  const lines = [0,1,2].map(i => `<div class="sline ${cs>i+1?'done':''}"></div>`);
+  const stepBar = `<div class="step-bar">${nodes[0]}${lines[0]}${nodes[1]}${lines[1]}${nodes[2]}${lines[2]}${nodes[3]}</div>`;
+
+  let body = '';
+  if (cs === 1) body = renderDetailScript(d);
+  else if (cs === 2) body = renderDetailUpload(d);
+  else if (cs === 3) body = renderDetailStyle(d);
+  else if (cs === 4) body = renderDetailLaunch(d);
+
+  return hdr + stepBar + body;
+}
+
+// Step 1: Script
+function renderDetailScript(d) {
+  const hasScript = d.has_script;
+  const chars = d.script_chars || 0;
+
+  // Chat messages
+  const msgs = APP.chatMsgs.map(m =>
+    `<div class="msg ${m.role}">${esc(m.text)}</div>`
+  ).join('') || `<div class="msg thinking">Ask me to brainstorm a video idea or write the script…</div>`;
+
+  const chatArea = `<div class="ai-chat">
+    <div class="ai-msgs" id="chat-msgs">${msgs}</div>
+    <div class="ai-input-row">
+      <textarea id="chat-inp" placeholder="e.g. 'Write a script about why we procrastinate'" rows="2"></textarea>
+      <button class="ai-send-btn" id="chat-send">Send</button>
+    </div>
+  </div>`;
+
+  // Quick action buttons
+  const quickBtns = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+    <button class="btn-sm" data-quick="ideas">💡 Brainstorm ideas</button>
+    <button class="btn-sm" data-quick="write">📄 Write script for me</button>
+    <button class="btn-sm" data-quick="improve">✏️ Improve current script</button>
+  </div>`;
+
+  // Script editor
+  const mode = APP.scriptMode;
+  let scriptSection = '';
+  if (hasScript && mode === 'idle') {
+    scriptSection = `<div class="file-block ready">
+      <div class="fb-head">
+        <span class="fb-icon">📄</span>
+        <div class="fb-info"><div class="fb-name">Script</div><div class="fb-hint">✓ ${fmtChars(chars)}</div></div>
+        <div class="fb-acts">
+          <button class="btn-sm" data-fa="edit-script">Edit</button>
+          <button class="btn-sm danger" data-fa="del-script">Delete</button>
         </div>
       </div>
-      <div class="status">
-        <span class="dot" id="status-dot"></span>
-        <span id="status-text">Loading…</span>
+    </div>`;
+  } else if (mode === 'edit' || mode === 'paste' || !hasScript) {
+    const val = APP.scriptContent !== null ? esc(APP.scriptContent) : '';
+    const ph = 'Your script goes here — or ask AI above to write it…';
+    scriptSection = `<div class="card" style="padding:16px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">Script ${hasScript?'(editing)':'(empty)'}</div>
+      <textarea class="script-area" id="script-ta" placeholder="${ph}">${val}</textarea>
+      <div class="script-meta" id="script-char-count">${val ? `${val.length} chars` : ''}</div>
+      <div class="ta-btns" style="margin-top:10px">
+        ${hasScript ? `<button class="btn-sm" data-fa="cancel-script">Cancel</button>` : ''}
+        <button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb" data-fa="save-script">Save script</button>
       </div>
-      <div class="acct" id="acct-line" title="">
-        <span class="dot" id="acct-dot"></span>
-        <span id="acct-label">—</span>
-      </div>
-      <button class="link-btn muted" id="narration-btn" type="button" title="Click to hear frame transcript">🔇</button>
-      <button class="style-toggle hidden unset" id="style-picker-toggle" type="button" title="Choose art style for this video">
-        <span class="style-toggle-label">Style</span>
-        <span class="style-toggle-value" id="style-toggle-value">Pick one…</span>
-      </button>
-      <button class="link-btn hidden" id="refresh-btn" type="button">Refresh</button>
-    </header>
+    </div>`;
+  }
 
-    <div class="fun-ticker" id="fun-ticker-wrap" aria-hidden="true">
-      <div class="fun-ticker-track" id="fun-ticker"></div>
-    </div>
-
-    <div class="sim-banner hidden" id="sim-banner">
-      <strong>Simulation mode</strong> — limits start at 100% and drain on a timer (not real Codex).
-      Remove <code>?sim=1</code> from the URL to use live limits.
-      <div class="sim-log" id="sim-log">—</div>
-    </div>
-
-    <div class="frame-rail" id="frame-rail">
-      <div class="frame-rail-head">
-        <span class="card-label">Shooting schedule</span>
-        <span class="frame-count" id="frame-count">0/—</span>
-      </div>
-      <div class="frame-dots" id="frame-dots"></div>
-      <div class="frame-meta" id="frame-meta">Quiet on set — rolling…</div>
-    </div>
-
-    <div class="panel">
-      <div class="viewer" id="viewer">
-        <span class="viewer-watermark">REC · BENDOVER</span>
-        <span class="viewer-empty" id="viewer-empty">Stand by — first positions, then bend.</span>
-      </div>
-
-      <aside class="side">
-        <section class="stat-card style-card" id="style-picker">
-          <div class="card-label">Art style · this video</div>
-          <select class="style-select" id="style-select" aria-label="Choose art style">
-            <option value="">Loading styles…</option>
-          </select>
-          <div class="style-preview-wrap" id="style-preview-wrap">
-            <span class="style-preview-empty" id="style-preview-empty">Pick a style to preview</span>
-            <img id="style-preview" class="hidden" alt="Style preview">
-          </div>
-          <p class="style-caption" id="style-caption"></p>
-          <p class="style-active hidden" id="style-active"></p>
-          <button class="style-save-btn" id="style-save-btn" type="button" disabled>Use this style</button>
-        </section>
-        <!-- SETUP CARD — shown during setup phase -->
-        <section class="stat-card hidden" id="setup-card">
-          <div class="card-label">New video setup</div>
-          <div class="upload-zones">
-            <div class="upload-zone" id="uz-script" title="Upload script .txt">
-              <span class="uz-icon">📄</span>
-              <span class="uz-label">Script (.txt)</span>
-              <span class="uz-status" id="uz-script-status">Drop or click</span>
-            </div>
-            <div class="upload-zone" id="uz-audio" title="Upload narration audio">
-              <span class="uz-icon">🎙️</span>
-              <span class="uz-label">Audio (.mp3 / .wav / .m4a)</span>
-              <span class="uz-status" id="uz-audio-status">Drop or click</span>
-            </div>
-            <div class="upload-zone" id="uz-transcript" title="Upload transcript .txt">
-              <span class="uz-icon">📝</span>
-              <span class="uz-label">Transcript (.txt)</span>
-              <span class="uz-status" id="uz-transcript-status">Drop or click</span>
-            </div>
-          </div>
-          <input type="file" id="file-script" accept=".txt" class="hidden">
-          <input type="file" id="file-audio" accept=".mp3,.wav,.m4a" class="hidden">
-          <input type="file" id="file-transcript" accept=".txt" class="hidden">
-          <div class="setup-inputs">
-            <input type="text" id="setup-title" class="setup-input" placeholder="Video title…" maxlength="120">
-            <input type="text" id="setup-brief" class="setup-input" placeholder="One-line brief…" maxlength="240">
-          </div>
-          <button class="setup-launch-btn" id="setup-launch-btn" type="button" disabled>
-            Approve style &amp; roll!
-          </button>
-        </section>
-
-        <!-- PUBLISH CARD — shown at publish phase -->
-        <section class="stat-card hidden" id="publish-card">
-          <div class="card-label">Publish</div>
-          <div class="thumb-row" id="thumb-row">
-            <div class="thumb-item" data-variant="1" id="thumb-item-1">
-              <div class="thumb-img-wrap" id="thumb-wrap-1">
-                <span class="thumb-placeholder">Generating…</span>
-              </div>
-              <div class="thumb-label">V1</div>
-            </div>
-            <div class="thumb-item" data-variant="2" id="thumb-item-2">
-              <div class="thumb-img-wrap" id="thumb-wrap-2">
-                <span class="thumb-placeholder">Generating…</span>
-              </div>
-              <div class="thumb-label">V2</div>
-            </div>
-            <div class="thumb-item" data-variant="3" id="thumb-item-3">
-              <div class="thumb-img-wrap" id="thumb-wrap-3">
-                <span class="thumb-placeholder">Generating…</span>
-              </div>
-              <div class="thumb-label">V3</div>
-            </div>
-          </div>
-          <div class="publish-status" id="publish-status"></div>
-          <button class="upload-yt-btn" id="upload-yt-btn" type="button">Upload to YouTube</button>
-          <a class="yt-link hidden" id="yt-link" href="#" target="_blank" rel="noopener">View on YouTube ↗</a>
-        </section>
-
-        <section class="stat-card limits-card">
-          <div class="card-label">Production budget</div>
-          <div class="limits" id="limits-body">
-            <div class="limit-card five-card" id="limit-5h">
-              <div class="limit-head">
-                <div>
-                  <div class="limit-title">Hot set window</div>
-                  <div class="limit-sub">5-hour burn rate</div>
-                </div>
-                <div class="limit-pct" id="pct-5h">—</div>
-              </div>
-              <div class="limit-track" id="track-5h">
-                <div class="limit-fill five" id="fill-5h" style="width:0"></div>
-              </div>
-              <div class="limit-reset" id="reset-5h"></div>
-            </div>
-            <div class="limit-card week-card" id="limit-week">
-              <div class="limit-head">
-                <div>
-                  <div class="limit-title">Weekly allotment</div>
-                  <div class="limit-sub">Studio line item</div>
-                </div>
-                <div class="limit-pct" id="pct-week">—</div>
-              </div>
-              <div class="limit-track" id="track-week">
-                <div class="limit-fill week" id="fill-week" style="width:0"></div>
-              </div>
-              <div class="limit-reset" id="reset-week"></div>
-            </div>
-          </div>
-          <div class="limits-note hidden" id="limits-empty"></div>
-        </section>
-      </aside>
-    </div>
+  const canNext = hasScript && mode === 'idle';
+  return `<div class="card">
+    <div class="card-title">Write your script</div>
+    <div class="card-sub">Chat with AI to brainstorm and write the script. Or paste/type it yourself.</div>
+    ${quickBtns}
+    ${chatArea}
   </div>
+  ${scriptSection}
+  <button class="btn-primary" id="btn-script-next" ${canNext?'':'disabled'} style="margin-top:4px">Script ready → Next</button>`;
+}
 
-  <div class="toast-stack" id="toast-stack"></div>
+// Step 2: Upload
+function renderDetailUpload(d) {
+  const {has_audio, has_transcript, transcript_chars} = d;
+  const canNext = has_audio && has_transcript;
 
-  <script>
-    const CD_THRESHOLD = 10;
-    const SIM = new URLSearchParams(location.search).has("sim");
-    const SIM_DRAIN_5H = 12;
-    const SIM_DRAIN_WEEK = 3;
-    const SIM_TICK_MS = 4000;
-    const SIM_FRAME_TICK_MS = 2500;
-    const SIM_RESET_WAIT = 15;
-    const SIM_EMOJIS = ["🎬", "🖼️", "✨", "🎨", "👀", "🔥", "🌈", "🦖", "🚀", "🍿", "🎭", "💫"];
-    const DRAIN_MSGS_5H = [
-      "5h limit −12%",
-      "Quick burn drained",
-      "Rolling window ticked down",
-      "Credits used",
-    ];
-    const DRAIN_MSGS_WEEK = [
-      "Weekly tank is blushing",
-      "Long haul got shorter",
-      "Seven days of regret",
-      "The ceiling's getting lower",
-    ];
-    const REFILL_MSGS = [
-      "METER REFILLED",
-      "Back on set, baby",
-      "Limits bent back up",
-      "Limits restored",
-      "Fresh burn window!",
-    ];
-    const FRAME_MSGS = [
-      "Bending pixels into position…",
-      "One more take — hold that pose…",
-      "Director's cut getting rough…",
-      "Adding that signature Bendover bend…",
-      "On set — hit your marks…",
-      "The camera never blinks…",
-      "Grip team tightening the shot…",
-      "Rolling — don't look at the lens…",
-    ];
-    const MILESTONE_MSGS = {
-      25: "First quarter — keep bending! 🎬",
-      50: "Halfway there, don't stop now 🔥",
-      75: "Almost wrapped — push it 🚀",
-      100: "That's a wrap, productions! 🍿",
+  return `<div class="card">
+    <div class="card-title">Upload audio & transcript</div>
+    <div class="card-sub">Record your narration, get it transcribed (TurboScribe), then upload both here.</div>
+
+    <!-- Audio -->
+    <div class="file-block ${has_audio?'ready':''}">
+      <div class="fb-head">
+        <span class="fb-icon">🎙️</span>
+        <div class="fb-info">
+          <div class="fb-name">Audio</div>
+          <div class="fb-hint">${has_audio ? '✓ Audio uploaded' : '.mp3 / .wav / .m4a'}</div>
+        </div>
+        ${has_audio ? '' : ''}
+      </div>
+      ${has_audio ? '' : `<div class="zone" data-upload="audio"><span>📂</span><span class="zone-text">Click to upload audio file</span></div>`}
+    </div>
+
+    <!-- Transcript -->
+    ${textFileBlockDetail('transcript', '📝', 'Transcript', '.txt from TurboScribe / Whisper', has_transcript, transcript_chars)}
+
+    <button class="btn-primary" id="btn-upload-next" ${canNext?'':'disabled'} style="margin-top:16px">Files ready → Next</button>
+  </div>`;
+}
+
+function textFileBlockDetail(kind, icon, label, hint, ready, chars) {
+  const mode = kind === 'transcript' ? APP.transMode : APP.scriptMode;
+  let inner = `<div class="fb-head">
+    <span class="fb-icon">${icon}</span>
+    <div class="fb-info">
+      <div class="fb-name">${label}</div>
+      <div class="fb-hint">${ready ? `✓ ${fmtChars(chars)}` : hint}</div>
+    </div>
+    ${ready ? `<div class="fb-acts">
+      <button class="btn-sm" data-fa="edit-${kind}">Edit</button>
+      <button class="btn-sm danger" data-fa="del-${kind}">Delete</button>
+    </div>` : ''}
+  </div>`;
+
+  if (mode === 'edit' || mode === 'paste') {
+    const val = (kind === 'transcript' ? APP.transContent : APP.scriptContent) || '';
+    inner += `<div class="fb-ta-wrap">
+      <textarea id="ta-${kind}" placeholder="Paste ${label.toLowerCase()} here…">${esc(val)}</textarea>
+      <div class="ta-btns">
+        <button class="btn-sm" data-fa="cancel-${kind}">Cancel</button>
+        <button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb" data-fa="save-${kind}">Save</button>
+      </div>
+    </div>`;
+  } else if (!ready) {
+    inner += `<div class="zone" data-upload="${kind}"><span>📂</span><span class="zone-text">Click to upload .txt file</span></div>
+    <div style="padding:0 15px;display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="flex:1;height:1px;background:#e5e7eb"></div><span style="font-size:11px;color:#9ca3af;font-weight:600">OR</span><div style="flex:1;height:1px;background:#e5e7eb"></div>
+    </div>
+    <button class="fb-paste-btn" data-fa="paste-${kind}">✏️ Paste text directly</button>`;
+  }
+  return `<div class="file-block ${ready?'ready':''}" id="fb-${kind}">${inner}</div>`;
+}
+
+// Step 3: Style
+function renderDetailStyle(d) {
+  const presets = APP.presets;
+  const picked = APP.pickedStyleId || d.style_preset_id;
+  const pickedPreset = presets.find(p => p.id === picked);
+
+  const grid = presets.map(p => {
+    const sel = p.id === picked ? 'sel' : '';
+    const src = p.preview || `assets/style-samples/explore_${p.id}.png`;
+    return `<div class="style-card ${sel}" data-sid="${p.id}" data-slabel="${esc(p.label)}" data-simg="${esc(p.image_style||'')}">
+      <img src="/${src}" alt="${esc(p.label)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+      <div class="style-no-img" style="display:none">No preview</div>
+      <div class="sname">${esc(p.label)}</div>
+    </div>`;
+  }).join('');
+
+  const canNext = !!picked;
+  return `<div class="card">
+    <div class="card-title">Pick a visual style</div>
+    <div class="card-sub">Sets the look for every frame. You can ask AI above to show you options.</div>
+    <div class="style-grid">${grid}</div>
+    ${pickedPreset ? `<div class="sel-note">Selected: <strong>${esc(pickedPreset.label)}</strong></div>` : ''}
+    <button class="btn-green" id="btn-style-approve" style="margin-top:16px" ${canNext?'':'disabled'}>Approve style &amp; add to queue →</button>
+  </div>`;
+}
+
+// Step 4: Launch / Running / Thumbnails / Done
+function renderDetailLaunch(d) {
+  const st = d.status;
+  const pr = APP.progress;
+
+  if (st === 'queued') {
+    return `<div class="card">
+      <div class="card-title">⏳ Queued</div>
+      <div class="card-sub">Waiting for the pipeline to pick this up.</div>
+      <div class="alert info">Once started: all frames will be generated, video rendered, 3 thumbnails created, and you'll get an ntfy alert to pick one. Credits auto-pause and resume.</div>
+      ${!APP.queueRunning ? `<button class="btn-green" id="btn-start-queue2">▶ Start queue now</button>` : `<p style="font-size:13px;color:#6b7280;margin-top:4px">Queue runner is active — will pick this up automatically.</p>`}
+    </div>`;
+  }
+
+  // Show thumbnail picker if queue status is thumbnails, OR if pipeline stage reached thumbnails
+  const prStage = pr?.stage;
+  const showThumbs = st === 'thumbnails'
+    || (prStage === 'thumbnails' && pr?.thumbnails?.some(t => t.exists));
+  if (showThumbs) return renderThumbnailPicker(d, pr);
+
+  if (st === 'running' || (st !== 'done' && st !== 'failed' && pr)) {
+    return renderRunningDetail(d, pr);
+  }
+
+  if (st === 'done') {
+    const yt = d.youtube_video_id || pr?.youtube_video_id;
+    return `<div class="card"><div class="done-box">
+      <div class="big">🎉</div>
+      <h2>Video is live!</h2>
+      <p>Uploaded to YouTube successfully.</p>
+      <div class="done-links">
+        <a class="link-yt" href="https://youtu.be/${esc(yt)}" target="_blank">Watch on YouTube →</a>
+        <a class="link-studio" href="https://studio.youtube.com/video/${esc(yt)}/edit" target="_blank">Open YouTube Studio</a>
+      </div>
+    </div></div>`;
+  }
+
+  if (st === 'failed') {
+    const lines = (pr?.log_lines || d.log_lines || []).slice(-20).join('\n');
+    return `<div class="card">
+      <div class="card-title">❌ Pipeline failed</div>
+      <div class="alert warn">Check the log below, fix the issue, then re-queue.</div>
+      <div class="log-box">${esc(lines||'No log')}</div>
+      <button class="btn-primary" id="btn-requeue" style="margin-top:14px">Re-add to queue</button>
+    </div>`;
+  }
+
+  return `<div class="card"><p style="color:#9ca3af">Status: ${st}</p></div>`;
+}
+
+const STAGE_INFO = {
+  images:        { icon: '🎨', label: 'Generating frames',         sub: null },
+  render_pending:{ icon: '✂️',  label: 'All frames done — starting render…', sub: null },
+  rendering:     { icon: '✂️',  label: 'Rendering video',          sub: null },
+  render_done:   { icon: '🖼',  label: 'Render done — making thumbnails…', sub: null },
+  thumbnails:    { icon: '🖼',  label: 'Creating thumbnails + description', sub: null },
+  uploading:     { icon: '📤',  label: 'Uploading to YouTube…',    sub: null },
+  done:          { icon: '✅',  label: 'Done!',                    sub: null },
+};
+
+function renderRunningDetail(d, pr) {
+  const stage     = pr?.stage || 'images';
+  const imgPhase  = pr?.img_phase || '';
+  const done      = pr?.done_frames  || 0;
+  const total     = pr?.total_frames || 0;
+  const pct       = total ? Math.round(done / total * 100) : 0;
+  const waiting   = imgPhase === 'waiting_credits';
+  const fh        = pr?.five_hour || {};
+  const wk        = pr?.weekly    || {};
+  const logLines  = pr?.log_lines || d.log_lines || [];
+
+  const info = STAGE_INFO[stage] || STAGE_INFO.images;
+
+  // Stage pipeline visual
+  const stages = ['images','rendering','thumbnails','uploading'];
+  const stageIdx = stages.indexOf(stage.replace('render_pending','rendering').replace('render_done','thumbnails'));
+  const stagePipeline = `<div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
+    ${['🎨 Frames','✂️ Render','🖼 Thumbnails','📤 Upload'].map((lbl,i) => {
+      const done2 = i < stageIdx;
+      const act   = i === stageIdx;
+      const bg    = done2 ? '#f0fdf4' : act ? '#eff6ff' : '#f9fafb';
+      const col   = done2 ? '#16a34a' : act ? '#2563eb' : '#9ca3af';
+      const bdr   = done2 ? '#86efac' : act ? '#93c5fd' : '#e5e7eb';
+      return `<div style="padding:5px 10px;border-radius:6px;border:1px solid ${bdr};background:${bg};color:${col};font-size:12px;font-weight:700">${done2?'✓ ':''}${lbl}</div>`;
+    }).join('')}
+  </div>`;
+
+  // Frame progress (only during images stage)
+  let frameSection = '';
+  if (stage === 'images' || (stage !== 'rendering' && stage !== 'thumbnails' && stage !== 'uploading' && stage !== 'done')) {
+    if (total > 0) {
+      frameSection = `<div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        <div class="prog-text" style="margin-bottom:16px">${done} / ${total} frames &nbsp;·&nbsp; ${pct}%${waiting?' &nbsp;·&nbsp; <strong style="color:#d97706">Credits paused</strong>':''}</div>`;
+    } else {
+      frameSection = `<div class="prog-text" style="margin-bottom:16px;color:#9ca3af">Building frame list…</div>`;
+    }
+  }
+
+  // Credit boxes (only during image stage)
+  let creditSection = '';
+  if (stage === 'images') {
+    const credBox = (lbl, c) => {
+      if (!c || c.pct === null) return `<div class="cbox"><div class="clbl">${lbl}</div><div class="cval">—</div></div>`;
+      const p = Math.round(c.pct);
+      const cls = waiting && p === 0 ? 'empty' : p <= 10 ? 'warn' : '';
+      return `<div class="cbox ${cls}"><div class="clbl">${lbl}</div><div class="cval">${p}%</div>
+        <div class="creset">${p === 0 && waiting ? `Auto-resumes in ${c.reset||'?'}` : `Resets in ${c.reset||'?'}`}</div></div>`;
     };
-    const ZERO_MSGS = ["Limit empty", "Flatlined", "BRB — refilling…", "Waiting on reset"];
-    const GEN_STATUS = [
-      "On set — bending frames…",
-      "Sound stage is hot — generating…",
-      "Production in progress — keep it down…",
-      "Making it look effortless (lying)…",
-      "Another take? The director insists…",
-      "GPU sweating under those lights…",
-      "Rolling — nobody move…",
-      "Bendover unit still shooting…",
-    ];
-    const BRAND_TAGS = [
-      "We bend the rules. And the frames.",
-      "Rated R for reckless rendering.",
-      "Lights. Camera. Bendover. Action.",
-      "Grip department is standing by.",
-      "Hot set. Literally. Ask the GPU.",
-      "We'll fix it in post. We always say that.",
-      "Bendover Productions — very flexible hours.",
-      "One more take? Don't threaten us.",
-      "Where pixels learn to take direction.",
-      "Closed set. Open minds. Loose morals.",
-      "The clapperboard doesn't judge.",
-      "Craft services: coffee and innuendo.",
-    ];
-    const TICKER_LINES = [
-      "QUIET ON SET — the GPU is performing",
-      "Director: harder, faster, more bend",
-      "Bendover Productions presents: another take",
-      "Stand-ins wanted — must be PNG",
-      "This scene sponsored by Codex and bad decisions",
-      "Hair & makeup: none. Dignity: optional.",
-      "That's a wrap — unless you want another round",
-      "Hot lights, hot takes, hot set",
-      "Script supervisor says: more innuendo in frame 47",
-      "Best boy electric is just vibing",
-      "Bendover: we go again until it's bent right",
-      "Martini shot? We're nowhere close.",
-      "Background actors: all stick figures, zero union",
-      "The producer left. We're unsupervised.",
-    ];
-    const FRAME_DONE_TOASTS = [
-      "Frame in the can! 🎬",
-      "That's a keeper (maybe)",
-      "Nailed it. Probably.",
-      "Another one bites the dust",
-      "Director approves* (*not really)",
-      "Pixel perfection. Ish.",
-      "Hot fresh frame, served bent",
-    ];
-    const EMPTY_VIEWER_MSGS = [
-      "Stand by — first positions, then bend.",
-      "Set's empty. Crew's early. Pixels are late.",
-      "Waiting for talent to hit their mark…",
-      "Cue holding music and uncomfortable silence…",
-      "No picture yet — touch grass, then report to set",
-      "Casting call open — must be 16:9 and flexible",
-      "The monitor's cold. The set is not.",
-    ];
-    const DOT_TITLES = [
-      "Money shot — don't cut early",
-      "Currently bending on set",
-      "Hot take — handle with care",
-      "Director's pick (for now)",
-      "Don't blink — we're rolling",
-      "Scene stealah incoming",
-      "This frame does its own stunts",
-    ];
-    const LOGO_EASTER = [
-      "CLAP! Scene 1, take… who knows.",
-      "Bendover Productions™ — bend responsibly",
-      "That's a wrap on the logo click.",
-      "Nice clap. Very union.",
-      "Achievement: Clapperboard enthusiast",
-      "Sound speed. Camera speed. Bendover speed.",
-    ];
-    let startedAt = null, refreshing = false, loaded = false;
-    let isGenerating = false;
-    let prev5h = null, prevWeek = null, prevDone = null, prevTotal = null;
-    let dotsBuilt = 0;
-    let prevCurrentDot = -1;
-    let currentFrame = null;
-    let narrationOn = false;
-    let speechUnlocked = false;
-    let frameTiming = new Map();
-    let narrationBound = false;
-    let speakingFrame = null;
-    let resetAt = { "5h": null, week: null };
-    let resetElapsed = { "5h": false, week: false };
-    let lastCdSec = { "5h": null, week: null };
-    let lastAutoLimitRefresh = 0;
-    let lastMilestoneReal = 0;
+    creditSection = `<div class="credits">${credBox('5-hour credits', fh)}${credBox('Weekly credits', wk)}</div>`;
+  }
 
-    const sim = {
-      pct5h: 100,
-      pctWeek: 100,
-      resetAt5h: null,
-      resetAtWeek: null,
-      tick: 0,
-      frameTick: 0,
-      framesDone: 0,
-      frameTotal: 124,
-      lastMilestone: 0,
-      lastAction: "Both limits start at 100% · frames at 0",
-      generating: true,
+  return `<div class="card">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px">
+      <span class="queue-dot running" style="width:10px;height:10px;flex-shrink:0"></span>
+      <span style="font-size:16px;font-weight:700">${info.icon} ${info.label}</span>
+    </div>
+    ${stagePipeline}
+    ${frameSection}
+    ${creditSection}
+    <div style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:6px">Live log</div>
+    <div class="log-box">${esc(logLines.slice(-20).join('\n') || 'No output yet…')}</div>
+  </div>`;
+}
+
+function renderThumbnailPicker(d, pr) {
+  const thumbs = pr?.thumbnails || d.thumbnails || [];
+  const anyExist = thumbs.some(t => t.exists);
+  const sel = APP.selectedThumb;
+  const selExists = sel && thumbs.find(t => t.n === sel)?.exists;
+  const t = Math.floor(Date.now() / 10000);
+
+  const grid = [1,2,3].map(n => {
+    const tv = thumbs.find(x => x.n === n);
+    const isSel = sel === n ? 'sel' : '';
+    const img = tv?.exists
+      ? `<img src="/projects/${d.id}/tracker/thumbs/thumbnail_v${n}.png?t=${t}" alt="v${n}">`
+      : `<div class="thumb-ph">⏳<br>Generating…</div>`;
+    return `<div class="thumb-item ${isSel}" data-tv="${n}">${img}<div class="thumb-lbl">Option ${n}</div></div>`;
+  }).join('');
+
+  return `<div class="card">
+    <div class="card-title">🖼 Pick a thumbnail</div>
+    <div class="card-sub">Click the one you want — it uploads to YouTube automatically.</div>
+    ${!anyExist ? '<div class="alert warn">Still generating thumbnails… check back in a moment.</div>' : ''}
+    <div class="thumb-grid">${grid}</div>
+    ${sel && selExists
+      ? `<button class="btn-red" id="btn-upload-yt" style="margin-top:12px">✅ Approve Option ${sel} &amp; Upload to YouTube →</button>`
+      : `<p style="text-align:center;color:#9ca3af;font-size:14px;margin-top:12px">← Click a thumbnail to approve it</p>`
+    }
+  </div>`;
+}
+
+// ── Bind events ────────────────────────────────────────────────────
+function bindEvents() {
+  // List screen
+  document.getElementById('btn-new-video')?.addEventListener('click', () => showNewVideoModal());
+  document.getElementById('btn-start-queue')?.addEventListener('click', function() { startQueue(this); });
+  document.getElementById('btn-stop-queue')?.addEventListener('click', async function() {
+    this.disabled = true; this.textContent = 'Stopping…';
+    await api('/api/queue/stop', { method: 'POST' });
+    APP.queueRunning = false;
+    toast('Pipeline stopped', 'ok', 3000);
+    render();
+  });
+  document.getElementById('btn-show-log')?.addEventListener('click', () => { APP.showQueueLog = !APP.showQueueLog; render(); });
+  document.getElementById('btn-hide-log')?.addEventListener('click', () => { APP.showQueueLog = false; render(); });
+  document.querySelectorAll('.proj-card').forEach(el => {
+    el.addEventListener('click', () => openProject(el.dataset.pid));
+  });
+
+  // Supabase sync
+  document.getElementById('sb-sync-btn')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const el = e.target; el.textContent = 'Syncing…';
+    const r = await api('/api/supabase/sync', { method: 'POST' }).catch(() => ({ ok: false }));
+    if (r.ok) {
+      toast('Supabase sync started', 'ok', 3000);
+    } else {
+      toast('Sync failed: ' + (r.error || 'unknown'), 'err', 4000);
+    }
+    el.textContent = 'Sync now';
+  });
+
+  // Detail: back
+  document.getElementById('btn-back')?.addEventListener('click', () => {
+    APP.screen = 'list'; APP.activeId = null; APP.detail = null;
+    APP.chatMsgs = []; APP.scriptMode = 'idle'; APP.transMode = 'idle';
+    APP.scriptContent = null; APP.transContent = null;
+    render();
+  });
+
+  // Detail: step 1 - script
+  bindScriptStep();
+  // Detail: step 2 - upload
+  bindUploadStep();
+  // Detail: step 3 - style
+  bindStyleStep();
+  // Detail: step 4
+  bindLaunchStep();
+}
+
+function bindScriptStep() {
+  // Quick action buttons
+  document.querySelectorAll('[data-quick]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = APP.detail;
+      const inpEl = document.getElementById('chat-inp');
+      if (btn.dataset.quick === 'ideas') {
+        inpEl.value = 'Brainstorm 5 YouTube video ideas for an educational channel';
+        sendChat();
+      } else if (btn.dataset.quick === 'write') {
+        inpEl.value = `Write a complete script for a video about: ${d?.title || '(describe the topic)'}`;
+        sendChat('write_script');
+      } else if (btn.dataset.quick === 'improve') {
+        sendChat('improve_script');
+      }
+    });
+  });
+
+  // Chat send
+  document.getElementById('chat-send')?.addEventListener('click', () => sendChat());
+  document.getElementById('chat-inp')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendChat();
+  });
+
+  // Script file actions
+  document.querySelector('[data-fa="edit-script"]')?.addEventListener('click', async () => {
+    const r = await api(`/api/text-content?kind=script&project=${APP.activeId}`);
+    APP.scriptContent = r.content || '';
+    APP.scriptMode = 'edit';
+    render();
+    setTimeout(() => {
+      const ta = document.getElementById('script-ta');
+      if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    }, 50);
+  });
+  document.querySelector('[data-fa="del-script"]')?.addEventListener('click', async () => {
+    if (!confirm('Delete script?')) return;
+    await api('/api/text-content/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind: 'script', project_id: APP.activeId }) });
+    APP.detail.has_script = false; APP.detail.script_chars = 0;
+    APP.scriptMode = 'idle'; APP.scriptContent = null;
+    render();
+  });
+  document.querySelector('[data-fa="cancel-script"]')?.addEventListener('click', () => {
+    APP.scriptMode = 'idle'; APP.scriptContent = null; render();
+  });
+  document.querySelector('[data-fa="save-script"]')?.addEventListener('click', async () => {
+    const ta = document.getElementById('script-ta');
+    const content = ta?.value || '';
+    const r = await api('/api/text-content', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind: 'script', content, project_id: APP.activeId }) });
+    if (r.ok) {
+      APP.detail.has_script = !!content.trim();
+      APP.detail.script_chars = r.chars || 0;
+      APP.scriptMode = 'idle'; APP.scriptContent = null;
+      render();
+    }
+  });
+
+  // Script textarea char count
+  document.getElementById('script-ta')?.addEventListener('input', e => {
+    const cc = document.getElementById('script-char-count');
+    if (cc) cc.textContent = `${e.target.value.length} chars`;
+  });
+
+  // Next button
+  document.getElementById('btn-script-next')?.addEventListener('click', async () => {
+    await api(`/api/projects/${APP.activeId}/update`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'upload' }),
+    });
+    APP.detailStep = 2;
+    render();
+  });
+}
+
+async function sendChat(forceTask = null) {
+  const inpEl = document.getElementById('chat-inp');
+  const text = inpEl?.value?.trim() || '';
+  const d = APP.detail || {};
+
+  const task = forceTask || (text.toLowerCase().includes('script') && text.toLowerCase().includes('write') ? 'write_script' : 'chat');
+
+  if (!text && task !== 'improve_script') return;
+  if (inpEl) inpEl.value = '';
+
+  if (text) APP.chatMsgs.push({ role: 'user', text });
+  APP.chatMsgs.push({ role: 'thinking', text: 'Codex is thinking…' });
+  render();
+
+  // scroll to bottom
+  setTimeout(() => {
+    const el = document.getElementById('chat-msgs');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+
+  let scriptContent = '';
+  if (task === 'improve_script' && d.has_script) {
+    const sc = await api(`/api/text-content?kind=script&project=${APP.activeId}`);
+    scriptContent = sc.content || '';
+  }
+
+  const res = await api('/api/ai', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      task,
+      prompt: text,
+      project_id: APP.activeId,
+      context: { title: d.title||'', brief: d.brief||'', script: scriptContent },
+    }),
+  });
+
+  // Remove "thinking" placeholder
+  APP.chatMsgs = APP.chatMsgs.filter(m => m.role !== 'thinking');
+
+  if (!res.ok) {
+    APP.chatMsgs.push({ role: 'ai', text: '⚠️ ' + (res.error || 'Error') });
+  } else if (res.saved_to === 'script') {
+    APP.chatMsgs.push({ role: 'ai', text: `✅ Script written (${res.chars} chars). You can review and edit it below.` });
+    if (APP.detail) { APP.detail.has_script = true; APP.detail.script_chars = res.chars; }
+    APP.scriptContent = res.content;
+    APP.scriptMode = 'edit';
+  } else {
+    APP.chatMsgs.push({ role: 'ai', text: res.response || '(no response)' });
+  }
+  render();
+  setTimeout(() => {
+    const el = document.getElementById('chat-msgs');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+}
+
+function bindUploadStep() {
+  // File zone clicks
+  document.querySelectorAll('.zone[data-upload]').forEach(el => {
+    el.addEventListener('click', () => {
+      const kind = el.dataset.upload;
+      document.getElementById(`fi-${kind}`)?.click();
+    });
+  });
+
+  // File inputs
+  ['script','audio','transcript'].forEach(kind => {
+    const inp = document.getElementById(`fi-${kind}`);
+    if (!inp) return;
+    inp.onchange = async e => {
+      const file = e.target.files[0]; if (!file) return;
+      const r = await uploadFile(kind, file, APP.activeId);
+      if (r.ok) {
+        if (kind === 'audio')      { APP.detail.has_audio = true; }
+        if (kind === 'transcript') { APP.detail.has_transcript = true; APP.detail.transcript_chars = r.chars||0; }
+        render();
+      } else alert('Upload failed: ' + (r.error||'error'));
+      inp.value = '';
     };
+  });
 
-    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
-    function showToast(msg, ms = 3200) {
-      const stack = document.getElementById("toast-stack");
-      if (!stack) return;
-      const t = document.createElement("div");
-      t.className = "toast";
-      t.textContent = msg;
-      stack.appendChild(t);
-      while (stack.children.length > 4) stack.firstChild.remove();
-      setTimeout(() => {
-        t.classList.add("leave");
-        setTimeout(() => t.remove(), 300);
-      }, ms);
-    }
-
-    function initFunTicker() {
-      const el = document.getElementById("fun-ticker");
-      if (!el) return;
-      const line = (t) => `<span>${t}</span>`;
-      const html = TICKER_LINES.map(line).join("") + TICKER_LINES.map(line).join("");
-      el.innerHTML = html;
-    }
-
-    function rotateBrandTag() {
-      const el = document.getElementById("brand-tag");
-      if (!el) return;
-      el.style.opacity = "0";
-      setTimeout(() => {
-        el.textContent = pick(BRAND_TAGS);
-        el.style.opacity = "1";
-      }, 280);
-    }
-
-    let emptyViewerIdx = 0;
-    function rotateEmptyViewer() {
-      const el = document.getElementById("viewer-empty");
-      if (!el || currentFrame) return;
-      emptyViewerIdx = (emptyViewerIdx + 1) % EMPTY_VIEWER_MSGS.length;
-      el.textContent = EMPTY_VIEWER_MSGS[emptyViewerIdx];
-    }
-
-    document.getElementById("brand-logo")?.addEventListener("click", () => {
-      const logo = document.getElementById("brand-logo");
-      logo?.classList.remove("wiggle");
-      void logo?.offsetWidth;
-      logo?.classList.add("wiggle");
-      showToast(pick(LOGO_EASTER));
+  // Paste/edit/save for transcript
+  ['transcript'].forEach(kind => {
+    document.querySelector(`[data-fa="paste-${kind}"]`)?.addEventListener('click', () => {
+      if (kind === 'transcript') { APP.transMode = 'paste'; APP.transContent = ''; }
+      render();
+      setTimeout(() => document.getElementById(`ta-${kind}`)?.focus(), 50);
     });
-
-    function flashLimitDrain(kind, before, after) {
-      const row = document.getElementById(`limit-${kind}`);
-      if (!row) return;
-      pulse(row, "drain-hit", 420);
-      row.classList.toggle("critical", after <= 15 && after > 0);
-      if (after === 0) row.classList.remove("critical");
-    }
-
-    function simWindow(pct, resetEpoch) {
-      const now = Math.floor(Date.now() / 1000);
-      const sec = Math.max(0, (resetEpoch || now + 1800) - now);
-      return {
-        remaining_percent: pct,
-        resets_at: resetEpoch || now + 1800,
-        reset_in_seconds: sec,
-        reset_in: fmtDuration(sec),
-      };
-    }
-
-    function simUsage() {
-      const now = Math.floor(Date.now() / 1000);
-      return {
-        credits_fresh: true,
-        five_hour: simWindow(sim.pct5h, sim.resetAt5h || now + 28 * 60),
-        weekly: simWindow(sim.pctWeek, sim.resetAtWeek || now + 90 * 3600),
-      };
-    }
-
-    function updateSimLog() {
-      const el = document.getElementById("sim-log");
-      if (!el) return;
-      const pct = sim.frameTotal ? Math.round((sim.framesDone / sim.frameTotal) * 100) : 0;
-      el.innerHTML =
-        `Limits #${sim.tick} · frames #${sim.frameTick} · ${sim.lastAction}` +
-        `<span class="rule">Limits every ${SIM_TICK_MS / 1000}s (−${SIM_DRAIN_5H}% / −${SIM_DRAIN_WEEK}%) · frames every ${SIM_FRAME_TICK_MS / 1000}s · video ${pct}% · refill after ${SIM_RESET_WAIT}s at 0%</span>`;
-    }
-
-    function simDrainKind(key, pctKey, resetKey, drain, label, msgs) {
-      const now = Math.floor(Date.now() / 1000);
-
-      if (sim[resetKey] && now >= sim[resetKey]) {
-        const before = sim[pctKey];
-        sim[pctKey] = 100;
-        sim[resetKey] = null;
-        if (key === "5h") prev5h = 0;
-        else prevWeek = 0;
-        sim.lastAction = `${label}: ${pick(REFILL_MSGS)} (${before}% → 100%)`;
-        return;
-      }
-
-      if (sim[resetKey] || sim[pctKey] <= 0) return;
-
-      const before = sim[pctKey];
-      sim[pctKey] = Math.max(0, before - drain);
-      flashLimitDrain(key, before, sim[pctKey]);
-      sim.lastAction = pick(msgs);
-      if (sim[pctKey] === 0) {
-        sim[resetKey] = now + SIM_RESET_WAIT;
-        sim.lastAction = `${pick(ZERO_MSGS)} · reset in ${SIM_RESET_WAIT}s`;
-      }
-    }
-
-    function showSimFrame(n) {
-      const v = document.getElementById("viewer");
-      const hue = (n * 47 + 120) % 360;
-      const emoji = SIM_EMOJIS[n % SIM_EMOJIS.length];
-      const pad = String(n).padStart(4, "0");
-      v.innerHTML =
-        `<div class="viewer-sim" style="--hue:${hue}">` +
-        `<div class="sim-caption">${pick(FRAME_MSGS)}</div>` +
-        `<div class="sim-scanline"></div>` +
-        `<span class="sim-emoji">${emoji}</span>` +
-        `<span class="sim-frame-tag">frame_${pad}.png</span></div>`;
-      currentFrame = `sim-${n}`;
-    }
-
-    function celebrateMilestone(pct) {
-      const hit = [25, 50, 75, 100].find(m => pct >= m && sim.lastMilestone < m);
-      if (!hit) return;
-      sim.lastMilestone = hit;
-      const rail = document.getElementById("frame-rail");
-      const burst = document.createElement("div");
-      burst.className = "milestone";
-      burst.textContent = MILESTONE_MSGS[hit];
-      rail?.appendChild(burst);
-      pulse(document.getElementById("frame-count"), "pop", 550);
-      pulse(rail, "bump", 450);
-      setTimeout(() => burst.remove(), 1100);
-    }
-
-    function applySimProgress() {
-      const total = sim.frameTotal || 124;
-      const done = Math.min(sim.framesDone, total);
-      const pending = Math.max(0, total - done);
-      const pct = total ? (done / total) * 100 : 0;
-      setVideoProgress(done, total);
-      celebrateMilestone(Math.round(pct));
-      if (done > 0) showSimFrame(done);
-      document.getElementById("status-dot").className = "dot live";
-      if (pending === 0 && total > 0) {
-        document.getElementById("status-text").textContent = "Simulation wrap — that's a wrap! 🍿";
-        sim.generating = false;
-      } else {
-        document.getElementById("status-text").textContent =
-          `Sim generating · ~${fmtDuration(Math.max(1, Math.round((pending * SIM_FRAME_TICK_MS) / 1000)))} left`;
-      }
-    }
-
-    function simFrameTick() {
-      if (!sim.generating) return;
-      sim.frameTick += 1;
-      const bump = 1 + Math.floor(Math.random() * 2);
-      sim.framesDone = Math.min(sim.framesDone + bump, sim.frameTotal || 124);
-      sim.lastAction = `+${bump} frame${bump > 1 ? "s" : ""} → ${sim.framesDone}/${sim.frameTotal}`;
-      applySimProgress();
-      updateSimLog();
-    }
-
-    function simTick() {
-      sim.tick += 1;
-      simDrainKind("5h", "pct5h", "resetAt5h", SIM_DRAIN_5H, "5h", DRAIN_MSGS_5H);
-      simDrainKind("week", "pctWeek", "resetAtWeek", SIM_DRAIN_WEEK, "Weekly", DRAIN_MSGS_WEEK);
-      updateSimLog();
-      renderLimits(simUsage(), { logged_in: true });
-    }
-
-    function startSimulation() {
-      document.getElementById("sim-banner")?.classList.remove("hidden");
-      document.getElementById("refresh-btn")?.classList.add("hidden");
-      document.getElementById("narration-btn")?.classList.add("hidden");
-      document.getElementById("title").textContent = "🎬 Sim Stage · Bendover";
-      prev5h = prevWeek = prevDone = null;
-      applySimProgress();
-      updateSimLog();
-      renderLimits(simUsage(), { logged_in: true });
-      setInterval(simTick, SIM_TICK_MS);
-      setInterval(simFrameTick, SIM_FRAME_TICK_MS);
-    }
-
-    function pulse(el, cls, ms = 450) {
-      if (!el) return;
-      el.classList.remove(cls);
-      void el.offsetWidth;
-      el.classList.add(cls);
-      setTimeout(() => el.classList.remove(cls), ms);
-    }
-
-    function fmtDuration(sec) {
-      if (sec == null || sec < 0) return "";
-      sec = Math.floor(sec);
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const s = sec % 60;
-      if (h) return `${h}h ${m}m`;
-      if (m) return `${m}m`;
-      if (s) return `${s}s`;
-      return "now";
-    }
-
-    function barClass(pct) {
-      if (pct <= 10) return "bad";
-      if (pct <= 25) return "warn";
-      return "";
-    }
-
-    function celebrateRefill(row, fill, pct) {
-      const width = `${Math.max(0, Math.min(100, pct))}%`;
-      row.querySelectorAll(".burst").forEach(b => b.remove());
-      const burst = document.createElement("div");
-      burst.className = "burst" + (SIM ? " zany" : "");
-      burst.textContent = pick(REFILL_MSGS);
-      if (!SIM) showToast(pick(REFILL_MSGS));
-      row.appendChild(burst);
-      fill.style.width = "0%";
-      requestAnimationFrame(() => {
-        fill.style.width = width;
-        pulse(fill, "shine", 700);
-      });
-      setTimeout(() => burst.remove(), 1400);
-    }
-
-    function updateResetUI(kind) {
-      const el = document.getElementById(`reset-${kind}`);
-      const row = document.getElementById(`limit-${kind}`);
-      if (!el || !row || !resetAt[kind]) return;
-
-      const sec = resetAt[kind] - Math.floor(Date.now() / 1000);
-
-      if (sec > 0 && sec <= CD_THRESHOLD) {
-        row.classList.add("countdown");
-        el.className = "limit-reset cd-mode";
-        if (lastCdSec[kind] !== sec) {
-          el.innerHTML = `<span class="cd-num">${sec}</span><span class="cd-hint">seconds to reset</span>`;
-          pulse(el.querySelector(".cd-num"), "tick", 500);
-          lastCdSec[kind] = sec;
-        }
-        return;
-      }
-
-      if (sec <= 0) {
-        const pct = kind === "5h" ? prev5h : prevWeek;
-        const stale = document.getElementById("limits-body")?.classList.contains("stale");
-        const waiting = resetElapsed[kind] || (pct !== null && pct <= 5);
-        if (waiting) {
-          row.classList.remove("countdown");
-          el.className = "limit-reset";
-          const msg = stale
-            ? "Reset passed — run Codex, then Refresh"
-            : "Waiting for updated limits…";
-          if (el.textContent !== msg) el.textContent = msg;
-          lastCdSec[kind] = null;
-          if (stale && !SIM && Date.now() - lastAutoLimitRefresh > 60000) {
-            lastAutoLimitRefresh = Date.now();
-            refreshCredits(true);
-          }
-          return;
-        }
-        row.classList.add("countdown");
-        el.className = "limit-reset cd-mode";
-        if (lastCdSec[kind] !== 0) {
-          el.innerHTML = `<span class="cd-num cd-zero">✓</span><span class="cd-hint">resetting now</span>`;
-          lastCdSec[kind] = 0;
-        }
-        return;
-      }
-
-      row.classList.remove("countdown");
-      el.className = "limit-reset";
-      lastCdSec[kind] = null;
-      el.textContent = `Resets in ${fmtDuration(sec)}`;
-    }
-
-    function tickResets() {
-      ["5h", "week"].forEach(updateResetUI);
-    }
-
-    function renderFrameDots(done, total) {
-      const container = document.getElementById("frame-dots");
-      if (!container) return;
-
-      if (total !== dotsBuilt) {
-        dotsBuilt = total;
-        const size = total > 160 ? 4 : total > 100 ? 5 : 6;
-        const gap = total > 160 ? 2 : 3;
-        container.style.setProperty("--dot-size", `${size}px`);
-        container.style.setProperty("--dot-gap", `${gap}px`);
-        container.innerHTML = "";
-        prevCurrentDot = -1;
-        for (let i = 0; i < total; i++) {
-          const dot = document.createElement("span");
-          dot.className = "frame-dot";
-          dot.title = `Take ${i + 1}`;
-          container.appendChild(dot);
-        }
-      }
-
-      if (total === 0) return;
-
-      const allDone = done >= total;
-      const currentIdx = allDone ? total - 1 : (done > 0 ? done - 1 : 0);
-      const dots = container.children;
-
-      for (let i = 0; i < dots.length; i++) {
-        const dot = dots[i];
-        const isCurrent = !allDone && i === currentIdx;
-        const isDone = allDone || (done > 0 && i < done - 1);
-        dot.classList.toggle("done", isDone);
-        dot.classList.toggle("all-done", allDone);
-        dot.classList.toggle("current", isCurrent);
-        if (isCurrent) {
-          dot.title = pick(DOT_TITLES) + ` (take ${i + 1})`;
-          if (i !== prevCurrentDot && prevDone !== null) pulse(dot, "tick", 450);
-        }
-      }
-
-      if (currentIdx !== prevCurrentDot) prevCurrentDot = currentIdx;
-    }
-
-    function setVideoProgress(done, total, explore = null) {
-      const pending = Math.max(0, total - done);
-      const label = total ? `${done}/${total}` : "—";
-
-      const countEl = document.getElementById("frame-count");
-      if (countEl.textContent !== label) {
-        const wasDone = prevDone;
-        countEl.textContent = label;
-        if (prevDone !== null) {
-          pulse(countEl, "pop");
-          if (done > wasDone && !SIM && Math.random() < 0.35) {
-            showToast(pick(FRAME_DONE_TOASTS));
-          }
-        }
-      }
-
-      renderFrameDots(done, total);
-
-      const meta = document.getElementById("frame-meta");
-      const creditSummary = explore?.credits?.summary;
-      if (explore?.active && creditSummary?.avg_five_hour_per_image != null) {
-        const fh = creditSummary.avg_five_hour_per_image;
-        const wk = creditSummary.avg_weekly_per_image ?? "—";
-        const p50fh = creditSummary.projected_50_five_hour ?? "—";
-        const p50wk = creditSummary.projected_50_weekly ?? "—";
-        meta.innerHTML =
-          `<strong>Style lab</strong> — ~${fh}% per 5h window / ~${wk}% weekly per image · ` +
-          `50 ≈ ${p50fh}% 5h / ${p50wk}% weekly`;
-      } else if (total === 0) {
-        meta.innerHTML = "No cut list yet";
-      } else if (pending === 0) {
-        meta.innerHTML = "<strong>Wrapped — every frame in the can</strong>";
-      } else if (done === 0) {
-        meta.innerHTML = `<strong>${pending}</strong> takes left to shoot`;
-      } else {
-        meta.innerHTML = `<strong>${pending}</strong> more bends to go`;
-      }
-
-      if (!SIM && total > 0 && prevDone !== null) {
-        const pct = Math.round((done / total) * 100);
-        const hit = [25, 50, 75, 100].find(m => pct >= m && lastMilestoneReal < m);
-        if (hit && done > prevDone) {
-          lastMilestoneReal = hit;
-          const rail = document.getElementById("frame-rail");
-          const burst = document.createElement("div");
-          burst.className = "milestone";
-          burst.textContent = MILESTONE_MSGS[hit];
-          rail?.appendChild(burst);
-          showToast(MILESTONE_MSGS[hit]);
-          pulse(document.getElementById("frame-count"), "pop", 550);
-          pulse(rail, "bump", 450);
-          setTimeout(() => burst.remove(), 1100);
-        }
-      }
-
-      prevDone = done;
-      prevTotal = total;
-    }
-
-    function updateGeneratingUI(phase) {
-      isGenerating = phase === "running";
-    }
-
-    function setLimitBar(kind, pct, window) {
-      const track = document.getElementById(`track-${kind}`);
-      const pctEl = document.getElementById(`pct-${kind}`);
-      const fill = document.getElementById(`fill-${kind}`);
-      const row = document.getElementById(`limit-${kind}`);
-      const prev = kind === "5h" ? prev5h : prevWeek;
-      const rounded = Math.round(pct);
-      const width = `${Math.max(0, Math.min(100, pct))}%`;
-      const widthChanged = fill.style.width !== width && fill.style.width !== "";
-      const refilled = prev !== null && rounded > prev && (rounded - prev >= 12 || (prev <= 8 && rounded >= 40));
-
-      resetAt[kind] = window?.resets_at || null;
-      resetElapsed[kind] = !!window?.reset_elapsed;
-      track.classList.remove("skel");
-      fill.className = `limit-fill ${kind === "5h" ? "five" : "week"} ${barClass(pct)}`;
-
-      if (refilled) {
-        celebrateRefill(row, fill, pct);
-        lastCdSec[kind] = null;
-        row.classList.remove("countdown");
-      } else if (widthChanged) {
-        fill.style.width = width;
-        pulse(fill, "shine", 700);
-        row.classList.add("flash");
-        setTimeout(() => row.classList.remove("flash"), 500);
-      } else {
-        fill.style.width = width;
-      }
-
-      if (rounded !== prev) {
-        pctEl.textContent = `${rounded}%`;
-        pctEl.className = "limit-pct " + barClass(pct);
-        if (prev !== null) pulse(pctEl, "pop");
-        if (kind === "5h") prev5h = rounded;
-        else prevWeek = rounded;
-      }
-
-      if (resetAt[kind]) updateResetUI(kind);
-    }
-
-    function showLimitsSkeleton() {
-      ["5h", "week"].forEach(kind => {
-        document.getElementById(`track-${kind}`).classList.add("skel");
-        const fill = document.getElementById(`fill-${kind}`);
-        if (fill) fill.style.width = "0";
-        document.getElementById(`pct-${kind}`).textContent = "—";
-        const reset = document.getElementById(`reset-${kind}`);
-        reset.textContent = "";
-        reset.className = "limit-reset";
-        document.getElementById(`limit-${kind}`)?.classList.remove("countdown");
-      });
-      prev5h = prevWeek = null;
-      lastCdSec = { "5h": null, week: null };
-    }
-
-    function renderLimits(usage, acct) {
-      const body = document.getElementById("limits-body");
-      const empty = document.getElementById("limits-empty");
-      const refreshBtn = document.getElementById("refresh-btn");
-
-      if (!acct?.logged_in) {
-        body.classList.add("hidden");
-        empty.classList.remove("hidden");
-        empty.textContent = "Sign in with Codex to see limits";
-        refreshBtn.classList.add("hidden");
-        resetAt = { "5h": null, week: null };
-        return;
-      }
-
-      body.classList.remove("hidden");
-      body.classList.toggle("stale", !!(usage?.five_hour && !usage.credits_fresh));
-
-      if (usage?.five_hour && usage?.weekly) {
-        empty.classList.add("hidden");
-        const resetWaiting = !!(usage.five_hour?.reset_elapsed || usage.weekly?.reset_elapsed);
-        refreshBtn.classList.toggle("hidden", !!usage.credits_fresh && !resetWaiting);
-        setLimitBar("5h", usage.five_hour.remaining_percent, usage.five_hour);
-        setLimitBar("week", usage.weekly.remaining_percent, usage.weekly);
-        return;
-      }
-
-      showLimitsSkeleton();
-      resetAt = { "5h": null, week: null };
-      empty.classList.remove("hidden");
-      empty.textContent = "Run Codex once to load limits";
-      refreshBtn.classList.remove("hidden");
-    }
-
-    function pickVoice() {
-      if (!window.speechSynthesis) return null;
-      const voices = speechSynthesis.getVoices();
-      return voices.find(v => v.lang.startsWith("en") && v.localService)
-        || voices.find(v => v.lang.startsWith("en"))
-        || voices[0]
-        || null;
-    }
-
-    function updateSpeechBtn() {
-      const btn = document.getElementById("narration-btn");
-      if (!btn) return;
-      const on = narrationOn && speechUnlocked;
-      btn.classList.toggle("muted", !on);
-      btn.textContent = on ? "🔊" : "🔇";
-      btn.title = on
-        ? "Speech on — click to mute"
-        : "Click to hear frame transcript";
-    }
-
-    async function loadFrameTiming(exploreMode = false) {
-      try {
-        const mode = exploreMode ? "style_explore" : "production";
-        const res = await fetch(`/api/frames?mode=${mode}&limit=200`);
-        const data = await res.json();
-        frameTiming.clear();
-        for (const f of data.frames || []) {
-          frameTiming.set(f.filename, { transcript: f.label || f.transcript || "" });
-        }
-      } catch { /* offline */ }
-    }
-
-    function setupSpeech() {
-      if (!window.speechSynthesis) {
-        const btn = document.getElementById("narration-btn");
-        if (btn) {
-          btn.title = "Speech not supported in this browser";
-          btn.disabled = true;
-        }
-        return;
-      }
-      if (narrationBound) return;
-      narrationBound = true;
-      pickVoice();
-      if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = pickVoice;
-      }
-      const btn = document.getElementById("narration-btn");
-      btn.addEventListener("click", () => {
-        if (!speechUnlocked) {
-          speechUnlocked = true;
-          narrationOn = true;
-          updateSpeechBtn();
-          if (currentFrame && !String(currentFrame).startsWith("sim-")) {
-            playFrameNarration(currentFrame);
-          }
-          return;
-        }
-        narrationOn = !narrationOn;
-        updateSpeechBtn();
-        if (!narrationOn) stopNarration();
-        else if (currentFrame && !String(currentFrame).startsWith("sim-")) {
-          playFrameNarration(currentFrame);
-        }
-      });
-      updateSpeechBtn();
-    }
-
-    function stopNarration() {
-      speakingFrame = null;
-      if (window.speechSynthesis) speechSynthesis.cancel();
-    }
-
-    function playFrameNarration(filename) {
-      if (SIM || !window.speechSynthesis) return;
-      if (!narrationOn || !speechUnlocked) return;
-
-      const text = frameTiming.get(filename)?.transcript?.trim();
-      if (!text) return;
-
-      speakingFrame = filename;
-      speechSynthesis.cancel();
-
-      // Chrome / WebKit: speak after cancel, voices may load async
-      const speakNow = () => {
-        if (speakingFrame !== filename) return;
-        const utter = new SpeechSynthesisUtterance(text);
-        const voice = pickVoice();
-        if (voice) utter.voice = voice;
-        utter.rate = 0.95;
-        utter.pitch = 1;
-        utter.onend = () => {
-          if (speakingFrame === filename) speakingFrame = null;
-        };
-        utter.onerror = (e) => {
-          console.warn("speech error", e);
-          if (speakingFrame === filename) speakingFrame = null;
-        };
-        speechSynthesis.speak(utter);
-        // Chrome stuck-queue workaround
-        if (speechSynthesis.paused) speechSynthesis.resume();
-      };
-
-      setTimeout(speakNow, 80);
-    }
-
-    function showFrame(name) {
-      if (name === currentFrame) return;
-      currentFrame = name;
-      const v = document.getElementById("viewer");
-      if (!name) {
-        v.innerHTML =
-          `<span class="viewer-watermark">REC · BENDOVER</span>` +
-          `<span class="viewer-empty" id="viewer-empty">${pick(EMPTY_VIEWER_MSGS)}</span>`;
-        return;
-      }
-      const caption = frameTiming.get(name)?.transcript || "";
-      const img = document.createElement("img");
-      img.alt = caption;
-      img.className = "enter";
-      const mount = () => {
-        v.innerHTML = `<span class="viewer-watermark">REC · BENDOVER</span>`;
-        const stage = document.createElement("div");
-        stage.className = "viewer-stage";
-        const wrap = document.createElement("div");
-        wrap.className = "img-wrap";
-        wrap.appendChild(img);
-        stage.appendChild(wrap);
-        if (caption) {
-          const cap = document.createElement("div");
-          cap.className = "viewer-caption";
-          cap.textContent = caption;
-          stage.appendChild(cap);
-        }
-        v.appendChild(stage);
-      };
-      img.onload = mount;
-      const imgPath = name.includes("/") ? name : name;
-      img.src = `/05-images/${imgPath}?t=${Date.now()}`;
-      if (img.complete) mount();
-      if (speechUnlocked && narrationOn) playFrameNarration(name);
-    }
-
-    function statusLabel(phase, dash, run, usage) {
-      if (phase === "running") {
-        const elapsed = startedAt ? Math.floor(Date.now() / 1000) - startedAt : 0;
-        const done = dash.done_frames || 0;
-        if (elapsed > 60 && done > 0 && dash.pending_frames > 0) {
-          return `Generating · ~${fmtDuration(Math.round(dash.pending_frames / (done / elapsed)))} left`;
-        }
-        return GEN_STATUS[Math.floor(Date.now() / 8000) % GEN_STATUS.length];
-      }
-      if (phase === "waiting_credits") {
-        const reason = run.stop_reason || "Waiting for credits to reset — will auto-resume";
-        return `⏳ ${reason}`;
-      }
-      if (phase.includes("stop")) return run.stop_reason || "Cut! Paused.";
-      if (usage?.generation_blocked && usage?.stop_reason) return usage.stop_reason;
-      if (dash.pending_frames === 0 && dash.total_frames > 0) return "That's a wrap — all frames done";
-      return dash.step_label || "Standing by on set";
-    }
-
-    async function refreshCredits(quiet = false) {
-      if (refreshing) return;
-      refreshing = true;
-      const btn = document.getElementById("refresh-btn");
-      if (!quiet) btn.disabled = true;
-      try {
-        await fetch("/api/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "refresh_usage" }),
-        });
-        await new Promise(r => setTimeout(r, 1200));
-        await load();
-      } finally {
-        refreshing = false;
-        btn.disabled = false;
-      }
-    }
-
-    document.getElementById("refresh-btn").addEventListener("click", () => refreshCredits(false));
-
-    async function load() {
-      let d, setupStatus;
-      try {
-        const step = (document._lastStep || "setup");
-        const isPublish = step === "publish";
-        const fetchPairs = [
-          fetch("/api/status?t=" + Date.now()),
-          fetch("/api/setup-status"),
-        ];
-        if (isPublish) fetchPairs.push(fetch("/api/thumbnails"));
-        const results = await Promise.all(fetchPairs);
-        d = await results[0].json();
-        setupStatus = await results[1].json();
-        var thumbnailData = isPublish ? await results[2].json() : null;
-      } catch {
-        document.getElementById("status-text").textContent = "Offline";
-        return;
-      }
-
-      const p = d.project || {};
-      const dash = d.dashboard || {};
-      const run = d.runner || {};
-      const usage = d.usage || {};
-      const acct = d.account || {};
-      const explore = d.style_explore || {};
-      const exploreActive = run.mode === "style_explore" || (d.recent?.mode === "style_explore" && explore.total > 0);
-      const phase = run.phase || "idle";
-      document._lastStep = p.step || "setup";
-
-      document.getElementById("title").textContent = exploreActive
-        ? "Style explore · finding the look"
-        : (p.name ? `${p.name} · On Set` : "On Set · Sound Stage B");
-      document.getElementById("status-dot").className =
-        "dot" + (phase === "running" ? " live" : phase.includes("stop") ? " stop" : "");
-
-      if (run.started_at) startedAt = run.started_at;
-      document.getElementById("status-text").textContent = statusLabel(phase, dash, run, usage);
-      if (!SIM) updateGeneratingUI(phase);
-
-      const done = dash.done_frames ?? 0;
-      const total = dash.total_frames ?? 0;
-      if (SIM && total > 0) sim.frameTotal = total;
-      if (!SIM) setVideoProgress(done, total, exploreActive ? explore : null);
-
-      const loggedIn = !!acct.logged_in;
-      document.getElementById("acct-dot").style.background = loggedIn ? "var(--accent)" : "var(--line)";
-      document.getElementById("acct-label").textContent = loggedIn
-        ? (acct.email?.split("@")[0] || acct.name || "Signed in")
-        : "No Codex";
-      document.getElementById("acct-line").title = loggedIn
-        ? (acct.email || "") + (acct.plan_type ? ` · ${acct.plan_type}` : "")
-        : "Run codex login";
-
-      renderLimits(SIM ? simUsage() : usage, SIM ? { logged_in: true } : acct);
-
-      if (d.style_presets?.length) {
-        const countChanged = stylePresets.length !== d.style_presets.length;
-        stylePresets = d.style_presets;
-        if (countChanged || !styleOptionsBuilt) styleOptionsBuilt = false;
-        populateStyleSelect(p);
-      }
-      bindStylePicker(p);
-
-      const names = (d.recent?.recent_filenames) || [];
-      const wasExplore = exploreModeActive;
-      exploreModeActive = exploreActive;
-      if (wasExplore !== exploreModeActive) loadFrameTiming(exploreModeActive);
-      if (names.length) showFrame(names[0]);
-      else if (loaded) showFrame(null);
-
-      // Setup card
-      renderSetupCard(setupStatus, p);
-      bindSetupCard();
-
-      // Publish card — fetch thumbnails when on publish step
-      const currentStep = p.step || "setup";
-      if (currentStep === "publish" || p.youtube_video_id) {
-        if (!thumbnailData) {
-          try {
-            const tr = await fetch("/api/thumbnails");
-            thumbnailData = await tr.json();
-          } catch { thumbnailData = null; }
-        }
-        renderPublishCard(p, thumbnailData, setupStatus?.pipeline_running || false);
-        bindPublishCard();
-      } else {
-        const publishCard = document.getElementById("publish-card");
-        if (publishCard) publishCard.classList.add("hidden");
-      }
-
-      loaded = true;
-    }
-
-    let exploreModeActive = false;
-    let stylePresets = [];
-    let styleDirty = false;
-    let styleOptionsBuilt = false;
-    let lastStylePresetId = "";
-    let stylePickerForced = false;
-
-    function shouldShowStylePicker(project) {
-      if (stylePickerForced) return true;
-      const step = project?.step || "setup";
-      if (!project?.style_preset_id && (step === "setup" || step === "audio")) return true;
-      return false;
-    }
-
-    function canChangeStyle(project) {
-      if (project?.style_approved) return false;
-      const step = project?.step || "setup";
-      return ["setup", "audio", "manifest"].includes(step);
-    }
-
-    function updateStylePickerVisibility(project) {
-      const picker = document.getElementById("style-picker");
-      const toggle = document.getElementById("style-picker-toggle");
-      const toggleValue = document.getElementById("style-toggle-value");
-      const show = shouldShowStylePicker(project);
-      picker?.classList.toggle("hidden", !show);
-      const canChange = canChangeStyle(project);
-      toggle?.classList.toggle("hidden", show || !canChange);
-      const label = project?.style_preset_label || "";
-      if (toggle && toggleValue && !show && canChange) {
-        toggle.classList.toggle("unset", !label);
-        toggleValue.textContent = label || "Pick one…";
-        toggle.title = label
-          ? `Art style: ${label} — click to change`
-          : "Choose art style for this video";
-      }
-    }
-
-    function previewPathForPreset(preset) {
-      if (!preset || preset.id === "default") return null;
-      return `assets/style-samples/explore_${preset.id}.png`;
-    }
-
-    function findStylePreset(id) {
-      return stylePresets.find(p => p.id === id) || null;
-    }
-
-    function buildStyleOptions() {
-      const sel = document.getElementById("style-select");
-      if (!sel || !stylePresets.length) return;
-      const sorted = [...stylePresets].sort((a, b) => {
-        if (a.id === "default") return -1;
-        if (b.id === "default") return 1;
-        if (a.has_preview !== b.has_preview) return a.has_preview ? -1 : 1;
-        return Number(a.id) - Number(b.id);
-      });
-      sel.innerHTML = sorted.map(p => {
-        const suffix = p.has_preview ? "" : " (no sample yet)";
-        return `<option value="${p.id}">${p.label}${suffix}</option>`;
-      }).join("");
-      stylePresets = sorted;
-      styleOptionsBuilt = true;
-    }
-
-    function syncStyleSelect(project) {
-      const sel = document.getElementById("style-select");
-      if (!sel || !stylePresets.length) return;
-      const savedId = project?.style_preset_id || "";
-      const pick = (savedId && findStylePreset(savedId)) ? savedId : sel.value;
-      if (pick && findStylePreset(pick)) sel.value = pick;
-      lastStylePresetId = project?.style_preset_id || "";
-      updateStylePreview();
-    }
-
-    function populateStyleSelect(project) {
-      if (!styleOptionsBuilt) buildStyleOptions();
-      syncStyleSelect(project || {});
-    }
-
-    function updateStylePreview() {
-      const sel = document.getElementById("style-select");
-      const img = document.getElementById("style-preview");
-      const empty = document.getElementById("style-preview-empty");
-      const caption = document.getElementById("style-caption");
-      const saveBtn = document.getElementById("style-save-btn");
-      if (!sel) return;
-      const preset = findStylePreset(sel.value);
-      if (!preset) {
-        if (empty) empty.classList.remove("hidden");
-        if (img) img.classList.add("hidden");
-        if (caption) caption.textContent = "";
-        if (saveBtn) saveBtn.disabled = true;
-        return;
-      }
-      if (caption) {
-        caption.textContent = preset.image_style.length > 140
-          ? preset.image_style.slice(0, 137) + "…"
-          : preset.image_style;
-      }
-      const path = preset.preview || previewPathForPreset(preset);
-      if (path && img) {
-        if (empty) {
-          empty.classList.add("hidden");
-          empty.textContent = "Pick a style to preview";
-        }
-        img.classList.remove("hidden");
-        img.onerror = () => {
-          img.classList.add("hidden");
-          if (empty) {
-            empty.classList.remove("hidden");
-            empty.textContent = "No sample image for this style yet.";
-          }
-        };
-        img.onload = () => {
-          if (empty) empty.classList.add("hidden");
-          img.classList.remove("hidden");
-        };
-        img.src = `/${path}?t=${Date.now()}`;
-        img.alt = preset.label;
-      } else {
-        if (empty) {
-          empty.classList.remove("hidden");
-          empty.textContent = "Classic default — no sample image.";
-        }
-        if (img) img.classList.add("hidden");
-      }
-      if (saveBtn) saveBtn.disabled = false;
-    }
-
-    async function saveStylePreset() {
-      const sel = document.getElementById("style-select");
-      const saveBtn = document.getElementById("style-save-btn");
-      const activeEl = document.getElementById("style-active");
-      if (!sel || !saveBtn) return;
-      const preset = findStylePreset(sel.value);
-      if (!preset) return;
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Saving…";
-      try {
-        const res = await fetch("/api/project", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            style_preset_id: preset.id,
-            style_preset_label: preset.label,
-            image_style: preset.image_style,
-          }),
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || "Save failed");
-        styleDirty = false;
-        if (activeEl) {
-          activeEl.classList.remove("hidden");
-          activeEl.textContent = `Saved: ${preset.label}`;
-        }
-        showToast(`Look locked: ${preset.label}`);
-        stylePickerForced = false;
-        document.getElementById("style-picker")?.classList.remove("highlight");
-        await load();
-      } catch (err) {
-        showToast(String(err.message || err));
-      } finally {
-        saveBtn.textContent = "Use this style";
-        saveBtn.disabled = false;
-      }
-    }
-
-    function bindStylePicker(project) {
-      const sel = document.getElementById("style-select");
-      const saveBtn = document.getElementById("style-save-btn");
-      const picker = document.getElementById("style-picker");
-      const activeEl = document.getElementById("style-active");
-      if (!sel || !stylePresets.length) return;
-
-      const savedId = project?.style_preset_id || "";
-      if (savedId && savedId !== lastStylePresetId && findStylePreset(savedId)) {
-        sel.value = savedId;
-        updateStylePreview();
-      }
-
-      const isEarly = (project?.step === "setup" || project?.step === "audio") && !project?.style_approved;
-      const needsPick = !project?.style_preset_id;
-      picker?.classList.toggle("highlight", isEarly && needsPick);
-      updateStylePickerVisibility(project);
-
-      if (activeEl) {
-        if (project?.style_preset_label) {
-          activeEl.classList.remove("hidden");
-          activeEl.textContent = `Current: ${project.style_preset_label}`;
-        } else {
-          activeEl.classList.add("hidden");
-        }
-      }
-
-      if (!sel.dataset.bound) {
-        sel.dataset.bound = "1";
-        sel.addEventListener("change", () => {
-          styleDirty = true;
-          updateStylePreview();
-          if (activeEl) activeEl.classList.add("hidden");
-        });
-        saveBtn?.addEventListener("click", saveStylePreset);
-      }
-    }
-
-    document.getElementById("style-picker-toggle")?.addEventListener("click", () => {
-      stylePickerForced = true;
-      const picker = document.getElementById("style-picker");
-      picker?.classList.remove("hidden");
-      document.getElementById("style-picker-toggle")?.classList.add("hidden");
-      picker?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    document.querySelector(`[data-fa="edit-${kind}"]`)?.addEventListener('click', async () => {
+      const r = await api(`/api/text-content?kind=${kind}&project=${APP.activeId}`);
+      if (kind === 'transcript') { APP.transMode = 'edit'; APP.transContent = r.content || ''; }
+      render();
     });
-
-    // ── Setup card ──────────────────────────────────────────────────────────
-    let setupState = { script: false, audio: false, transcript: false };
-
-    function renderSetupCard(setup, project) {
-      const card = document.getElementById("setup-card");
-      if (!card) return;
-
-      const step = project?.step || "setup";
-      const earlySteps = ["setup", "audio", "manifest"];
-      const pipelineRunning = setup?.pipeline_running || false;
-      const styleApproved = setup?.style_approved || false;
-
-      // Show if: pipeline not running AND (files missing OR not yet started)
-      // Hide if: pipeline running OR step is images/render/publish
-      const isPastImages = !earlySteps.includes(step);
-      const show = !pipelineRunning && !isPastImages;
-      card.classList.toggle("hidden", !show);
-      if (!show) return;
-
-      // Update file zones
-      setupState.script = setup?.script || false;
-      setupState.audio = setup?.audio || false;
-      setupState.transcript = setup?.transcript || false;
-
-      updateUploadZone("script", setupState.script);
-      updateUploadZone("audio", setupState.audio);
-      updateUploadZone("transcript", setupState.transcript);
-
-      // Pre-fill title/brief if set
-      const titleEl = document.getElementById("setup-title");
-      const briefEl = document.getElementById("setup-brief");
-      if (titleEl && !titleEl.value && setup?.title) titleEl.value = setup.title;
-      if (briefEl && !briefEl.value && setup?.brief) briefEl.value = setup.brief;
-
-      updateSetupLaunchBtn();
-    }
-
-    function updateUploadZone(kind, ready) {
-      const zone = document.getElementById(`uz-${kind}`);
-      const status = document.getElementById(`uz-${kind}-status`);
-      if (!zone || !status) return;
-      zone.classList.toggle("ready", ready);
-      status.textContent = ready ? "✓ Ready" : "Drop or click";
-    }
-
-    function updateSetupLaunchBtn() {
-      const btn = document.getElementById("setup-launch-btn");
-      if (!btn) return;
-      const titleEl = document.getElementById("setup-title");
-      const briefEl = document.getElementById("setup-brief");
-      const titleOk = titleEl?.value.trim().length > 0;
-      const briefOk = briefEl?.value.trim().length > 0;
-      const allFiles = setupState.script && setupState.audio && setupState.transcript;
-      btn.disabled = !(allFiles && titleOk && briefOk);
-    }
-
-    async function uploadFile(kind, file) {
-      const zone = document.getElementById(`uz-${kind}`);
-      const status = document.getElementById(`uz-${kind}-status`);
-      if (status) status.textContent = "Uploading…";
-      const fd = new FormData();
-      fd.append("kind", kind);
-      fd.append("file", file, file.name);
-      try {
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        if (data.ok) {
-          setupState[kind] = true;
-          updateUploadZone(kind, true);
-          showToast(`${kind.charAt(0).toUpperCase() + kind.slice(1)} uploaded ✓`);
-        } else {
-          showToast(`Upload failed: ${data.error || "unknown"}`);
-          if (status) status.textContent = "Drop or click";
-        }
-      } catch (err) {
-        showToast(`Upload error: ${err.message}`);
-        if (status) status.textContent = "Drop or click";
+    document.querySelector(`[data-fa="cancel-${kind}"]`)?.addEventListener('click', () => {
+      if (kind === 'transcript') { APP.transMode = 'idle'; APP.transContent = null; }
+      render();
+    });
+    document.querySelector(`[data-fa="save-${kind}"]`)?.addEventListener('click', async () => {
+      const ta = document.getElementById(`ta-${kind}`);
+      const content = ta?.value || '';
+      const r = await api('/api/text-content', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind, content, project_id: APP.activeId }) });
+      if (r.ok) {
+        if (kind === 'transcript') { APP.detail.has_transcript = !!content.trim(); APP.detail.transcript_chars = r.chars||0; APP.transMode = 'idle'; APP.transContent = null; }
+        render();
       }
-      updateSetupLaunchBtn();
-    }
+    });
+    document.querySelector(`[data-fa="del-${kind}"]`)?.addEventListener('click', async () => {
+      if (!confirm(`Delete ${kind}?`)) return;
+      await api('/api/text-content/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind, project_id: APP.activeId }) });
+      if (kind === 'transcript') { APP.detail.has_transcript = false; APP.detail.transcript_chars = 0; APP.transMode = 'idle'; }
+      render();
+    });
+  });
 
-    function bindSetupCard() {
-      const kinds = ["script", "audio", "transcript"];
-      for (const kind of kinds) {
-        const zone = document.getElementById(`uz-${kind}`);
-        const fileInput = document.getElementById(`file-${kind}`);
-        if (!zone || !fileInput) continue;
-        if (zone.dataset.bound) continue;
-        zone.dataset.bound = "1";
+  document.getElementById('btn-upload-next')?.addEventListener('click', async () => {
+    await api(`/api/projects/${APP.activeId}/update`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'style' }),
+    });
+    APP.detailStep = 3; render();
+  });
+}
 
-        zone.addEventListener("click", () => fileInput.click());
-        fileInput.addEventListener("change", () => {
-          const file = fileInput.files?.[0];
-          if (file) uploadFile(kind, file);
-          fileInput.value = "";
-        });
-        zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("ready"); });
-        zone.addEventListener("dragleave", () => {
-          if (!setupState[kind]) zone.classList.remove("ready");
-        });
-        zone.addEventListener("drop", (e) => {
-          e.preventDefault();
-          if (!setupState[kind]) zone.classList.remove("ready");
-          const file = e.dataTransfer?.files?.[0];
-          if (file) uploadFile(kind, file);
-        });
-      }
+function bindStyleStep() {
+  document.querySelectorAll('.style-card').forEach(el => {
+    el.addEventListener('click', () => {
+      APP.pickedStyleId    = el.dataset.sid;
+      APP.pickedStyleLabel = el.dataset.slabel;
+      APP.pickedImageStyle = el.dataset.simg;
+      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('sel'));
+      el.classList.add('sel');
+      const note = document.querySelector('.sel-note');
+      if (note) note.innerHTML = `Selected: <strong>${esc(APP.pickedStyleLabel)}</strong>`;
+      document.getElementById('btn-style-approve').disabled = false;
+    });
+  });
 
-      const titleEl = document.getElementById("setup-title");
-      const briefEl = document.getElementById("setup-brief");
-      if (titleEl && !titleEl.dataset.bound) {
-        titleEl.dataset.bound = "1";
-        titleEl.addEventListener("input", updateSetupLaunchBtn);
-      }
-      if (briefEl && !briefEl.dataset.bound) {
-        briefEl.dataset.bound = "1";
-        briefEl.addEventListener("input", updateSetupLaunchBtn);
-      }
+  document.getElementById('btn-style-approve')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-style-approve');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const preset = APP.presets.find(p => p.id === APP.pickedStyleId);
+    // Save style to project
+    await api(`/api/projects/${APP.activeId}/update`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        style_preset_id: APP.pickedStyleId,
+        style_preset_label: APP.pickedStyleLabel,
+        image_style: preset?.image_style || APP.pickedImageStyle,
+        style_approved: true,
+        status: 'queued',
+      }),
+    });
+    // Queue it
+    await api(`/api/projects/${APP.activeId}/queue`, { method: 'POST' });
+    APP.detailStep = 4;
+    render();
+  });
+}
 
-      const launchBtn = document.getElementById("setup-launch-btn");
-      if (launchBtn && !launchBtn.dataset.bound) {
-        launchBtn.dataset.bound = "1";
-        launchBtn.addEventListener("click", async () => {
-          const title = document.getElementById("setup-title")?.value.trim();
-          const brief = document.getElementById("setup-brief")?.value.trim();
-          if (!title || !brief) return;
-          launchBtn.disabled = true;
-          launchBtn.textContent = "Launching…";
-          try {
-            const res = await fetch("/api/pipeline/begin", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title, brief }),
-            });
-            const data = await res.json();
-            if (data.ok) {
-              showToast("Pipeline launched! 🎬");
-              await load();
-            } else {
-              showToast(`Launch failed: ${data.error || "unknown"}`);
-              launchBtn.disabled = false;
-              launchBtn.textContent = "Approve style & roll!";
-            }
-          } catch (err) {
-            showToast(`Error: ${err.message}`);
-            launchBtn.disabled = false;
-            launchBtn.textContent = "Approve style & roll!";
-          }
-        });
-      }
-    }
+function bindLaunchStep() {
+  document.getElementById('btn-start-queue2')?.addEventListener('click', function() { startQueue(this); });
+  document.getElementById('btn-requeue')?.addEventListener('click', async () => {
+    await api(`/api/projects/${APP.activeId}/queue`, { method: 'POST' });
+    render();
+  });
 
-    // ── Publish card ─────────────────────────────────────────────────────────
-    let selectedThumbVariant = null;
+  // Thumbnail pick
+  document.querySelectorAll('.thumb-item').forEach(el => {
+    el.addEventListener('click', async () => {
+      const n = +el.dataset.tv;
+      const thumbs = APP.progress?.thumbnails || APP.detail?.thumbnails || [];
+      const t = thumbs.find(x => x.n === n);
+      if (!t?.exists) return;
+      APP.selectedThumb = n;
+      render(); // show selection immediately
+      await api(`/api/projects/${APP.activeId}/thumbnail/select`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ variant: n }),
+      });
+    });
+  });
 
-    function renderPublishCard(project, thumbnails, pipelineRunning) {
-      const card = document.getElementById("publish-card");
-      if (!card) return;
-
-      const step = project?.step || "setup";
-      const show = step === "publish" || !!(project?.youtube_video_id);
-      card.classList.toggle("hidden", !show);
-      if (!show) return;
-
-      // Render thumbnail variants
-      for (const v of (thumbnails?.variants || [])) {
-        const wrap = document.getElementById(`thumb-wrap-${v.n}`);
-        const item = document.getElementById(`thumb-item-${v.n}`);
-        if (!wrap) continue;
-        if (v.exists) {
-          const url = `/${v.url}?t=${Date.now()}`;
-          if (!wrap.querySelector("img")) {
-            wrap.innerHTML = `<img src="${url}" alt="Thumbnail V${v.n}" loading="lazy">`;
-          } else {
-            const img = wrap.querySelector("img");
-            if (!img.dataset.loaded) {
-              img.src = url;
-              img.dataset.loaded = "1";
-            }
-          }
-        }
-        const isSelected = thumbnails?.selected &&
-          thumbnails.selected === v.url;
-        wrap.classList.toggle("selected", isSelected);
-        if (item) item.classList.toggle("selected", isSelected);
-        if (isSelected) selectedThumbVariant = v.n;
-      }
-
-      // Pipeline running status
-      const statusEl = document.getElementById("publish-status");
-      if (statusEl) {
-        if (pipelineRunning) {
-          statusEl.innerHTML = `<span class="dot live"></span> Pipeline still running — thumbnails generating…`;
-        } else {
-          statusEl.innerHTML = "";
-        }
-      }
-
-      // YouTube upload button state
-      const ytBtn = document.getElementById("upload-yt-btn");
-      const ytLink = document.getElementById("yt-link");
-      const videoId = project?.youtube_video_id;
-      if (ytBtn) {
-        if (videoId) {
-          ytBtn.textContent = "Uploaded ✓";
-          ytBtn.disabled = true;
-          ytBtn.classList.add("done");
-        } else {
-          ytBtn.textContent = "Upload to YouTube";
-          ytBtn.disabled = false;
-          ytBtn.classList.remove("done");
-        }
-      }
-      if (ytLink) {
-        if (videoId) {
-          ytLink.href = `https://www.youtube.com/watch?v=${videoId}`;
-          ytLink.classList.remove("hidden");
-        } else {
-          ytLink.classList.add("hidden");
-        }
-      }
-    }
-
-    function bindPublishCard() {
-      // Thumbnail click to select
-      for (const n of [1, 2, 3]) {
-        const item = document.getElementById(`thumb-item-${n}`);
-        if (!item || item.dataset.bound) continue;
-        item.dataset.bound = "1";
-        item.addEventListener("click", async () => {
-          const wrap = document.getElementById(`thumb-wrap-${n}`);
-          if (!wrap?.querySelector("img")) return; // not generated yet
-          try {
-            const res = await fetch("/api/thumbnail/select", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ variant: n }),
-            });
-            const data = await res.json();
-            if (data.ok) {
-              selectedThumbVariant = n;
-              showToast(`Thumbnail V${n} selected`);
-              // Update selection visuals immediately
-              for (const m of [1, 2, 3]) {
-                const w = document.getElementById(`thumb-wrap-${m}`);
-                const it = document.getElementById(`thumb-item-${m}`);
-                w?.classList.toggle("selected", m === n);
-                it?.classList.toggle("selected", m === n);
-              }
-            } else {
-              showToast(`Error: ${data.error}`);
-            }
-          } catch (err) {
-            showToast(`Error: ${err.message}`);
-          }
-        });
-      }
-
-      // YouTube upload button
-      const ytBtn = document.getElementById("upload-yt-btn");
-      if (ytBtn && !ytBtn.dataset.bound) {
-        ytBtn.dataset.bound = "1";
-        ytBtn.addEventListener("click", async () => {
-          ytBtn.disabled = true;
-          ytBtn.textContent = "Uploading…";
-          try {
-            const res = await fetch("/api/youtube/upload", { method: "POST" });
-            const data = await res.json();
-            if (data.ok) {
-              showToast("Uploading to YouTube…");
-            } else {
-              showToast(`Error: ${data.error || "unknown"}`);
-              ytBtn.disabled = false;
-              ytBtn.textContent = "Upload to YouTube";
-            }
-          } catch (err) {
-            showToast(`Error: ${err.message}`);
-            ytBtn.disabled = false;
-            ytBtn.textContent = "Upload to YouTube";
-          }
-        });
-      }
-    }
-
-    async function boot() {
-      initFunTicker();
-      setInterval(rotateBrandTag, 14000);
-      setInterval(rotateEmptyViewer, 9000);
-      setupSpeech();
-      if (SIM) {
-        startSimulation();
-        setInterval(load, 2000);
-        setInterval(tickResets, 1000);
+  document.getElementById('btn-upload-yt')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-upload-yt');
+    btn.disabled = true; btn.textContent = '📤 Uploading…';
+    try {
+      const r = await api(`/api/projects/${APP.activeId}/upload/youtube`, { method: 'POST' });
+      if (!r.ok) {
+        btn.disabled = false; btn.textContent = '✅ Approve & Upload →';
+        toast('Upload failed: ' + (r.error || 'unknown error'), 'err', 8000);
       } else {
-        await load();
-        await loadFrameTiming(exploreModeActive);
-        setInterval(load, 2000);
-        setInterval(tickResets, 1000);
+        toast('Upload started — this can take a minute…', 'ok', 5000);
+        // Poll job status until done or error
+        const checkJob = async () => {
+          const job = await api('/api/job/status');
+          if (job.status === 'running') {
+            setTimeout(checkJob, 3000);
+          } else if (job.status === 'error') {
+            btn.disabled = false; btn.textContent = '✅ Approve & Upload →';
+            const err = job.stderr || job.stdout || 'Upload failed';
+            toast('Upload failed: ' + err.split('\n').pop(), 'err', 10000);
+          }
+          // if done — poll() will detect youtube_video_id and switch to done screen
+        };
+        setTimeout(checkJob, 3000);
       }
+    } catch(e) {
+      btn.disabled = false; btn.textContent = '✅ Approve & Upload →';
+      toast('Upload error: ' + e.message, 'err', 8000);
     }
-    boot();
-  </script>
+  });
+}
+
+// ── New video modal ────────────────────────────────────────────────
+function showNewVideoModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:6px">New video</h2>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:20px">Give it a working title. You'll brainstorm and write the script in the next step.</p>
+    <div class="field">
+      <label>Working title</label>
+      <input type="text" id="new-title" placeholder="e.g. Why We Procrastinate" autofocus>
+    </div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn-secondary" id="cancel-new">Cancel</button>
+      <button class="btn-green" id="confirm-new" style="flex:1">Create project →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('new-title')?.focus(), 50);
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('cancel-new').addEventListener('click', () => overlay.remove());
+  document.getElementById('confirm-new').addEventListener('click', async () => {
+    const title = document.getElementById('new-title').value.trim();
+    if (!title) return;
+    const btn = document.getElementById('confirm-new');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    const r = await api('/api/projects/create', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ title }),
+    });
+    if (r.ok) {
+      overlay.remove();
+      openProject(r.project.id);
+    } else {
+      alert('Error: ' + (r.error||'unknown'));
+      btn.disabled = false; btn.textContent = 'Create project →';
+    }
+  });
+
+  document.getElementById('new-title').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('confirm-new').click();
+  });
+}
+
+// ── Open project ───────────────────────────────────────────────────
+async function openProject(id) {
+  APP.screen = 'detail'; APP.activeId = id;
+  APP.selectedThumb = null; APP.chatMsgs = [];
+  APP.scriptMode = 'idle'; APP.transMode = 'idle';
+  APP.scriptContent = null; APP.transContent = null;
+  APP.pickedStyleId = ''; APP.pickedStyleLabel = '';
+  const d = await api(`/api/projects/${id}`);
+  APP.detail = d;
+  const st = d.status;
+  APP.detailStep =
+    st === 'script' ? 1 :
+    st === 'upload' ? 2 :
+    st === 'style'  ? 3 : 4;
+  render();
+}
+
+// ── Queue ──────────────────────────────────────────────────────────
+async function startQueue(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+  try {
+    const r = await api('/api/queue/start', { method: 'POST' });
+    if (r.already_running) {
+      toast('Queue is already running', 'ok');
+    } else {
+      toast('✅ Queue started!', 'ok', 4000);
+    }
+    APP.queueRunning = true;
+    APP.showQueueLog = true;
+    // fetch log immediately
+    const ql = await api('/api/queue/log');
+    APP.queueLog = ql.lines || [];
+  } catch(e) {
+    toast('Failed to start queue: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Start queue'; }
+  }
+  render();
+}
+
+function update_project_queue_status_local(id, status) {
+  const p = APP.projects.find(p => p.id === id);
+  if (p) p.status = status;
+  if (APP.detail && APP.detail.id === id) APP.detail.status = status;
+}
+
+// ── Utils ──────────────────────────────────────────────────────────
+function fmtChars(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k chars' : n+' chars'; }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer = null;
+function toast(msg, type = 'ok', ms = 3000) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, ms);
+}
+
+function showSupabaseSetup() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal" style="max-width:480px">
+    <h2 style="margin-bottom:16px;font-size:16px">☁️ Connect Supabase</h2>
+    <p style="color:#6b7280;font-size:13px;margin-bottom:16px">
+      Get these from your <a href="https://supabase.com/dashboard" target="_blank" style="color:#6b7280">Supabase project</a> →
+      Settings → API.
+    </p>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Project URL</label>
+    <input id="sb-url" type="text" placeholder="https://xxx.supabase.co"
+      style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px">
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Anon/Public Key</label>
+    <input id="sb-key" type="text" placeholder="eyJh..."
+      style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:16px">
+    <p style="color:#9ca3af;font-size:12px;margin-bottom:16px">
+      Also run the setup SQL in your Supabase SQL editor:<br>
+      <code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;font-size:11px">python3 scripts/supabase_sync.py setup-sql</code>
+    </p>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button id="sb-cancel" style="background:#f3f4f6;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px">Cancel</button>
+      <button id="sb-save" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">Save & connect</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('sb-cancel').addEventListener('click', () => overlay.remove());
+  document.getElementById('sb-save').addEventListener('click', async () => {
+    const url = document.getElementById('sb-url').value.trim();
+    const key = document.getElementById('sb-key').value.trim();
+    if (!url || !key) { toast('Both fields required', 'err'); return; }
+    const btn = document.getElementById('sb-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const r = await api('/api/supabase/save-config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url, anon_key: key }),
+    });
+    if (r.ok) {
+      overlay.remove();
+      APP.supabase = { configured: true, url };
+      toast('✅ Supabase connected!', 'ok', 4000);
+      render();
+    } else {
+      toast('Error: ' + (r.error || 'unknown'), 'err');
+      btn.disabled = false; btn.textContent = 'Save & connect';
+    }
+  });
+}
+
+// ── Boot ───────────────────────────────────────────────────────────
+if (new URLSearchParams(location.search).get('yt_auth') === 'ok') {
+  history.replaceState({}, '', '/');
+  api('/api/youtube/auth/status').then(s => { APP.ytAuth = s; render(); });
+  toast('✅ YouTube connected!', 'ok', 5000);
+}
+poll();
+</script>
 </body>
 </html>

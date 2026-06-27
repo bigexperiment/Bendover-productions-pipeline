@@ -14,6 +14,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.notify import send_ntfy  # noqa: E402
 from lib.folders import (  # noqa: E402
     FINAL_MP4,
     PROJECT_FILE,
@@ -316,6 +317,8 @@ def main() -> int:
     save_video_id_to_project(video_id)
     print(f"Studio: https://studio.youtube.com/video/{video_id}/edit")
     print(f"Watch:  https://youtu.be/{video_id}")
+    title = args.title.strip() or "Video"
+    send_ntfy(f"✅ Uploaded: {title}\nhttps://youtu.be/{video_id}")
     return 0
 
 

@@ -39,11 +39,8 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
-# Pass any extra args (project paths) to the runner
-EXTRA_ARGS=("$@")
-
 echo "Starting queue runner (detached)..."
-nohup python3 -u scripts/queue_runner.py "${EXTRA_ARGS[@]}" >> "$LOG_FILE" 2>&1 &
+nohup python3 -u scripts/queue_runner.py >> "$LOG_FILE" 2>&1 &
 QUEUE_PID=$!
 echo "$QUEUE_PID" > "$PID_FILE"
 disown "$QUEUE_PID"

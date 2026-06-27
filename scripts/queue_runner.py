@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
-"""Multi-project pipeline queue — runs projects one after another, unattended.
+"""Multi-project pipeline queue — reads tracker/queue.json, runs queued projects one at a time.
 
-Each project's image generation auto-waits when credits run out and resumes
-when the 5-hour window resets. You set up the projects and leave the computer.
+Project lifecycle:
+  script → upload → style → queued → running → thumbnails → done
 
-Usage:
-    python3 scripts/queue_runner.py           # reads queue.json
-    python3 scripts/queue_runner.py path/to/project1 path/to/project2
-
-Monitor:
-    tail -f tracker/queue.log
-    (ntfy alerts sent at project start, completion, and failures)
-
-Stop:
-    bash scripts/stop_queue.sh
+Start:  bash scripts/start_queue.sh
+Stop:   bash scripts/stop_queue.sh
+Log:    tail -f tracker/queue.log
 """
 from __future__ import annotations
 
@@ -25,14 +18,16 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
-from lib.notify import send_ntfy  # noqa: E402
+REPO_ROOT   = Path(__file__).resolve().parents[1]
+TRACKER     = REPO_ROOT / "tracker"
+PROJECTS    = REPO_ROOT / "projects"
+QUEUE_FILE  = TRACKER / "queue.json"
+LOG_FILE    = TRACKER / "queue.log"
+PID_FILE    = TRACKER / "queue.pid"
+OVERNIGHT   = REPO_ROOT / "scripts" / "overnight_runner.py"
 
-QUEUE_FILE = SCRIPTS_ROOT / "queue.json"
-LOG_FILE = SCRIPTS_ROOT / "tracker" / "queue.log"
-PID_FILE = SCRIPTS_ROOT / "tracker" / "queue.pid"
-OVERNIGHT_RUNNER = SCRIPTS_ROOT / "scripts" / "overnight_runner.py"
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from lib.notify import send_ntfy  # noqa: E402
 
 
 def log(msg: str) -> None:
@@ -44,120 +39,105 @@ def log(msg: str) -> None:
         f.write(line + "\n")
 
 
-def load_projects() -> list[Path]:
-    """Resolve project directories from CLI args or queue.json."""
-    if len(sys.argv) > 1:
-        dirs = []
-        for arg in sys.argv[1:]:
-            p = Path(arg).expanduser()
-            dirs.append(p if p.is_absolute() else SCRIPTS_ROOT / p)
-        return dirs
-
+def load_queue() -> list[dict]:
     if not QUEUE_FILE.is_file():
-        # Default: run the current project at repo root
-        return [SCRIPTS_ROOT]
-
-    data = json.loads(QUEUE_FILE.read_text(encoding="utf-8"))
-    dirs = []
-    for item in data.get("projects", []):
-        raw = item if isinstance(item, str) else item.get("path", "")
-        p = Path(raw).expanduser()
-        dirs.append(p if p.is_absolute() else SCRIPTS_ROOT / p)
-    return dirs
+        return []
+    return json.loads(QUEUE_FILE.read_text(encoding="utf-8"))
 
 
-def project_name(project_dir: Path) -> str:
-    pf = project_dir / "project.json"
+def save_queue(q: list[dict]) -> None:
+    QUEUE_FILE.write_text(json.dumps(q, indent=2) + "\n", encoding="utf-8")
+
+
+def set_status(project_id: str, status: str, extra: dict | None = None) -> None:
+    q = load_queue()
+    for p in q:
+        if p["id"] == project_id:
+            p["status"] = status
+            if extra:
+                p.update(extra)
+            break
+    save_queue(q)
+    # Mirror into project.json
+    pf = PROJECTS / project_id / "project.json"
     if pf.is_file():
-        try:
-            return json.loads(pf.read_text(encoding="utf-8")).get("name") or project_dir.name
-        except (json.JSONDecodeError, OSError):
-            pass
-    return project_dir.name
+        data = json.loads(pf.read_text(encoding="utf-8"))
+        data["queue_status"] = status
+        pf.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def is_complete(project_dir: Path) -> bool:
-    """Return True if this project's final.mp4 already exists."""
-    return (project_dir / "06-output" / "final.mp4").is_file()
+def run_project(entry: dict) -> bool:
+    pid_file = TRACKER / "overnight.pid"
+    project_id = entry["id"]
+    proj_dir   = PROJECTS / project_id
+    title      = entry.get("title") or project_id
 
+    log(f"{'=' * 56}")
+    log(f"START  {title}")
+    log(f"  dir: {proj_dir}")
+    log(f"{'=' * 56}")
+    send_ntfy(f"▶ Starting: {title}")
+    set_status(project_id, "running")
 
-def run_project(project_dir: Path) -> bool:
-    """Run the full pipeline for one project directory. Returns True on success."""
-    name = project_name(project_dir)
-
-    if not (project_dir / "project.json").is_file():
-        log(f"SKIP {name}: no project.json in {project_dir}")
-        return False
-
-    if is_complete(project_dir):
-        log(f"SKIP {name}: final.mp4 already exists")
-        return True
-
-    log(f"{'=' * 60}")
-    log(f"START: {name}")
-    log(f"  Dir: {project_dir}")
-    log(f"{'=' * 60}")
-    send_ntfy(f"Queue: starting {name}")
+    # Per-project log mirrors to both queue.log and projects/<id>/tracker/overnight.log
+    proj_log = proj_dir / "tracker" / "overnight.log"
+    proj_log.parent.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
-    env["PIPELINE_ROOT"] = str(project_dir)
+    env["PIPELINE_ROOT"] = str(proj_dir)
+    env["TERM"] = "xterm-256color"
 
-    result = subprocess.run(
-        ["python3", "-u", str(OVERNIGHT_RUNNER)],
-        env=env,
-        cwd=SCRIPTS_ROOT,
-        text=True,
+    proc = subprocess.Popen(
+        [sys.executable, "-u", str(OVERNIGHT)],
+        env=env, cwd=REPO_ROOT,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
+    pid_file.write_text(str(proc.pid), encoding="utf-8")
 
-    if result.returncode != 0:
-        log(f"FAILED: {name} (exit {result.returncode})")
-        send_ntfy(f"Queue FAILED: {name}")
+    for line in proc.stdout:  # type: ignore[union-attr]
+        sys.stdout.write(line); sys.stdout.flush()
+        with LOG_FILE.open("a") as f:  f.write(line)
+        with proj_log.open("a")  as f: f.write(line)
+
+    proc.wait()
+    pid_file.unlink(missing_ok=True)
+
+    if proc.returncode == 0:
+        log(f"DONE  {title}")
+        pf = proj_dir / "project.json"
+        yt_id = None
+        if pf.is_file():
+            yt_id = json.loads(pf.read_text(encoding="utf-8")).get("youtube_video_id")
+        next_status = "done" if yt_id else "thumbnails"
+        set_status(project_id, next_status, {"youtube_video_id": yt_id} if yt_id else None)
+        send_ntfy(f"✅ Done: {title}" + (f"\nhttps://youtu.be/{yt_id}" if yt_id else " — pick a thumbnail"))
+        return True
+    else:
+        log(f"FAILED  {title} (exit {proc.returncode})")
+        set_status(project_id, "failed")
+        send_ntfy(f"❌ Failed: {title}")
         return False
-
-    log(f"DONE: {name}")
-    return True
 
 
 def main() -> int:
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PID_FILE.write_text(str(os.getpid()) + "\n")
+    PID_FILE.write_text(str(os.getpid()) + "\n", encoding="utf-8")
+    log("Queue runner started — watching tracker/queue.json")
 
     try:
-        projects = load_projects()
-    except Exception as exc:
-        log(f"ERROR loading project list: {exc}")
-        return 1
-
-    if not projects:
-        log("No projects to run — add entries to queue.json")
-        return 1
-
-    log(f"Queue: {len(projects)} project(s)")
-    for p in projects:
-        log(f"  · {project_name(p)} — {p}")
-    send_ntfy(f"Pipeline queue started: {len(projects)} project(s)")
-
-    successes = failures = 0
-    for project_dir in projects:
-        try:
-            ok = run_project(project_dir)
-            if ok:
-                successes += 1
-            else:
-                failures += 1
-        except KeyboardInterrupt:
-            log("Interrupted by user")
-            break
-        except Exception as exc:
-            log(f"ERROR: {project_dir}: {exc}")
-            failures += 1
-
-    summary = f"Queue complete — {successes} done, {failures} failed"
-    log(summary)
-    send_ntfy(summary)
-
-    PID_FILE.unlink(missing_ok=True)
-    return 0 if failures == 0 else 1
+        while True:
+            q = load_queue()
+            pending = [p for p in q if p.get("status") == "queued"]
+            if not pending:
+                time.sleep(20)
+                continue
+            run_project(pending[0])
+            time.sleep(3)
+    except KeyboardInterrupt:
+        log("Queue runner stopped")
+    finally:
+        PID_FILE.unlink(missing_ok=True)
+    return 0
 
 
 if __name__ == "__main__":

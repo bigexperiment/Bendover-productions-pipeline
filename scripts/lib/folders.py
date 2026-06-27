@@ -29,8 +29,15 @@ PROGRESS_FILE = DIR_MANIFEST / "image_regen_progress.json"
 FINAL_MP4 = DIR_OUTPUT / "final.mp4"
 PREVIEW_MP4 = DIR_OUTPUT / "preview.mp4"
 
+# Per-project thumbnail variants live here (NOT in the shared 07-upload symlink)
+DIR_THUMBS = ROOT / "tracker" / "thumbs"
+THUMB_V1 = DIR_THUMBS / "thumbnail_v1.png"
+THUMB_V2 = DIR_THUMBS / "thumbnail_v2.png"
+THUMB_V3 = DIR_THUMBS / "thumbnail_v3.png"
+
+# 07-upload is a symlink to shared YouTube credentials — only write here at upload time
 YOUTUBE_TOKEN = DIR_UPLOAD / "youtube_token.json"
-YOUTUBE_THUMBNAIL = DIR_UPLOAD / "thumbnail.png"
+YOUTUBE_THUMBNAIL = DIR_UPLOAD / "thumbnail.png"  # final chosen thumb, copied just before upload
 YOUTUBE_METADATA = DIR_UPLOAD / "upload_metadata.json"
 YOUTUBE_REQUIREMENTS = DIR_UPLOAD / "requirements-youtube.txt"
 PROJECT_FILE = ROOT / "project.json"

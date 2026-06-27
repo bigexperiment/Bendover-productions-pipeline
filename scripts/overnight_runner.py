@@ -24,7 +24,7 @@ SCRIPTS_ROOT = Path(__file__).resolve().parents[1]  # repo root — where script
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
 sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 
-from lib.folders import FINAL_MP4, MANIFEST_FILE, PROJECT_FILE, YOUTUBE_THUMBNAIL, YOUTUBE_TOKEN  # noqa: E402
+from lib.folders import DIR_THUMBS, FINAL_MP4, MANIFEST_FILE, PROJECT_FILE, YOUTUBE_THUMBNAIL, YOUTUBE_TOKEN  # noqa: E402
 from lib.notify import send_ntfy  # noqa: E402
 
 LOG_FILE = ROOT / "tracker" / "overnight.log"
@@ -38,6 +38,8 @@ SUGGEST_DESC = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_description.py
 UPLOAD = SCRIPTS_ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
 START_STUDIO = SCRIPTS_ROOT / "scripts" / "start_studio.sh"
 STATUS_STUDIO = SCRIPTS_ROOT / "scripts" / "status_studio.sh"
+SUPABASE_SYNC = SCRIPTS_ROOT / "scripts" / "supabase_sync.py"
+SUPABASE_CONFIG = ROOT / "tracker" / "supabase_config.json"
 
 
 def log(msg: str) -> None:
@@ -67,6 +69,19 @@ def run(args: list[str], label: str, check: bool = True) -> subprocess.Completed
     return result
 
 
+def supabase_sync(cmd: str = "sync") -> None:
+    """Push current state to Supabase (best-effort, never blocks pipeline)."""
+    if not SUPABASE_CONFIG.is_file():
+        return
+    try:
+        subprocess.run(
+            ["python3", str(SUPABASE_SYNC), cmd],
+            cwd=ROOT, timeout=60, capture_output=True,
+        )
+    except Exception as exc:
+        log(f"WARNING: supabase_sync {cmd} failed: {exc}")
+
+
 def ensure_studio() -> None:
     result = subprocess.run(
         ["bash", str(STATUS_STUDIO)], cwd=ROOT, capture_output=True, text=True
@@ -90,8 +105,8 @@ def main() -> int:
         send_ntfy(f"Pipeline FAILED: style not approved. {name}")
         return 1
 
-    # Preflight
-    result = run(["python3", str(PREFLIGHT), "--images"], "preflight", check=False)
+    # Preflight (manifest check only — before build_plan runs)
+    result = run(["python3", str(PREFLIGHT)], "preflight", check=False)
     if result.returncode != 0:
         log("ABORT: preflight failed")
         send_ntfy(f"Pipeline FAILED: preflight errors. {name}")
@@ -103,11 +118,19 @@ def main() -> int:
     else:
         run(["python3", str(BUILD_PLAN), "refresh"], "refresh manifest")
 
+    # Preflight again now that manifest exists
+    result = run(["python3", str(PREFLIGHT), "--images"], "preflight (images)", check=False)
+    if result.returncode != 0:
+        log("ABORT: preflight (images) failed")
+        send_ntfy(f"Pipeline FAILED: preflight errors after build_plan. {name}")
+        return 1
+
     # Studio for monitoring
     ensure_studio()
 
     # Generate (auto-waits for credits internally)
     send_ntfy(f"Pipeline started: {name}")
+    supabase_sync()
     log("Starting image generation (auto credit-resume enabled)")
     gen_result = subprocess.run(
         ["python3", "-u", str(GENERATE), str(workers)],
@@ -132,6 +155,34 @@ def main() -> int:
         send_ntfy(f"Pipeline: render failed for {name}")
         return 1
 
+    # Upload as UNLISTED to YouTube for remote preview (no thumbnail yet)
+    client_secrets = sorted((ROOT / "07-upload").glob("client_secret*.json"))
+    unlisted_video_id = project.get("unlisted_video_id") or ""
+    if not unlisted_video_id and YOUTUBE_TOKEN.is_file() and client_secrets:
+        log("Uploading as UNLISTED for remote review preview…")
+        ul_result = run(
+            ["/Users/ganesh/miniconda3/bin/python3", str(UPLOAD),
+             "--privacy", "unlisted", "--no-thumbnail"],
+            "upload unlisted preview",
+            check=False,
+        )
+        if ul_result.returncode == 0:
+            # Read back the video ID that upload_to_youtube.py wrote to project.json
+            project = json.loads(PROJECT_FILE.read_text(encoding="utf-8"))
+            vid_id = project.get("youtube_video_id") or ""
+            if vid_id:
+                project["unlisted_video_id"] = vid_id
+                project["youtube_video_id"] = None  # clear — will be set again on final publish
+                PROJECT_FILE.write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
+                unlisted_video_id = vid_id
+                log(f"Unlisted preview: https://youtu.be/{vid_id}")
+        else:
+            log("WARNING: unlisted upload failed — review page will show no video preview")
+    elif unlisted_video_id:
+        log(f"Already have unlisted preview: {unlisted_video_id}")
+    else:
+        log("SKIP unlisted upload: no YouTube credentials")
+
     # Thumbnail — auto-generate headline if not set, then produce 3 variants
     thumbnail_text = project.get("thumbnail_text") or ""
     if not thumbnail_text:
@@ -145,6 +196,13 @@ def main() -> int:
                 thumbnail_text = options[0].strip() if options else ""
                 log(f"Thumbnail headline options: {options}")
                 log(f"Using: {thumbnail_text!r}")
+                # Write chosen text back to project.json so thumbnail script can read it
+                if thumbnail_text:
+                    project["thumbnail_text"] = thumbnail_text
+                    proj_file = ROOT / "project.json"
+                    proj_file.write_text(
+                        _json.dumps(project, indent=2) + "\n", encoding="utf-8"
+                    )
             except Exception as exc:
                 log(f"WARNING: could not read thumbnail options: {exc}")
         if not thumbnail_text:
@@ -152,23 +210,25 @@ def main() -> int:
 
     if thumbnail_text:
         thumb_ok = False
+        DIR_THUMBS.mkdir(parents=True, exist_ok=True)
         for variant in (1, 2, 3):
-            out = ROOT / "07-upload" / f"thumbnail_v{variant}.png"
             r = run(
-                ["python3", str(THUMBNAIL), f"--variant={variant}", f"--output={out}"],
+                ["python3", str(THUMBNAIL), f"--variant={variant}"],
                 f"thumbnail v{variant}",
                 check=False,
             )
+            out = DIR_THUMBS / f"thumbnail_v{variant}.png"
             if r.returncode == 0 and out.is_file():
                 thumb_ok = True
-                if variant == 1:
-                    import shutil as _shutil
-                    _shutil.copy2(out, YOUTUBE_THUMBNAIL)
-                    log(f"Copied thumbnail_v1.png → {YOUTUBE_THUMBNAIL.name}")
             else:
                 log(f"WARNING: thumbnail variant {variant} failed")
         if not thumb_ok:
             log("WARNING: all thumbnail variants failed")
+
+    # Push thumbnails + video to Supabase for remote review
+    supabase_sync()
+    log("Supabase sync done — review at tracker/review.html")
+    send_ntfy(f"🖼️ Review ready: {name}\nOpen the review page to pick a thumbnail")
 
     # Description
     if not project.get("description"):
@@ -188,6 +248,13 @@ def main() -> int:
             log("SKIP upload: no client_secret*.json in 07-upload/")
             send_ntfy(f"DONE! {name} ({size_mb:.0f} MB) — upload skipped, no client secrets.")
         else:
+            # Copy selected thumbnail variant to 07-upload/ just before uploading
+            import shutil as _shutil
+            selected_variant = project.get("selected_thumbnail_variant", 1)
+            chosen_thumb = DIR_THUMBS / f"thumbnail_v{selected_variant}.png"
+            if chosen_thumb.is_file():
+                _shutil.copy2(chosen_thumb, YOUTUBE_THUMBNAIL)
+                log(f"Copied thumbnail_v{selected_variant}.png → {YOUTUBE_THUMBNAIL.name}")
             upload_args = ["python3", str(UPLOAD)]
             if YOUTUBE_THUMBNAIL.is_file():
                 upload_args += ["--thumbnail", str(YOUTUBE_THUMBNAIL)]
@@ -196,6 +263,7 @@ def main() -> int:
             upload_result = run(upload_args, "upload to YouTube", check=False)
             if upload_result.returncode == 0:
                 log("Upload complete.")
+                supabase_sync()  # update youtube_video_id in Supabase
                 send_ntfy(
                     f"DONE! {name} uploaded to YouTube with thumbnail v1. "
                     "Check 07-upload/thumbnail_v1/v2/v3.png — swap if you prefer another."
