@@ -68,7 +68,7 @@ def main() -> int:
     tracker = ROOT / "tracker"
     tracker_keep = {
         "studio.pid", "serve.py", "index.html", "favicon.svg",
-        "studio_supervisor.py",
+        "studio_supervisor.py", "review.html", "supabase_config.json",
     }
     if tracker.exists():
         n = clear_dir(tracker, tracker_keep)
