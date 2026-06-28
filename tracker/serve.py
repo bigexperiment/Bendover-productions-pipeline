@@ -1,1605 +1,672 @@
 #!/usr/bin/env python3
+"""Bendover Productions Studio — local UI server. No DB, no auth, file-based state."""
 from __future__ import annotations
 
-import argparse
-import csv
 import json
 import os
-import mimetypes
-import re
 import shutil
-import socket
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlencode, urlparse
-from urllib.request import urlopen, Request as UrlRequest
-
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 TRACKER = Path(__file__).resolve().parent
+PROJECTS_DIR = ROOT / "projects"
+QUEUE_FILE = TRACKER / "queue.json"
+QUEUE_PID_FILE = TRACKER / "queue.pid"
+INDEX_FILE = TRACKER / "index.html"
+PORT = 47829
+
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "scripts" / "07_credits"))
-from codex_account import read_codex_account  # noqa: E402
-from fetch_codex_usage import read_usage_payload  # noqa: E402
-from lib.folders import (  # noqa: E402
-    AUDIO_EXTS,
-    DIR_AUDIO,
-    DIR_IMAGES,
-    DIR_MANIFEST,
-    DIR_OUTPUT,
-    DIR_SCRIPT,
-    DIR_STYLE_SAMPLES,
-    DIR_TRANSCRIPT,
-    DIR_UPLOAD,
-    FINAL_MP4,
-    MANIFEST_FILE,
-    PREVIEW_MP4,
-    PROGRESS_FILE,
-    PROJECT_FILE,
-    SCRIPT_FILE,
-    STYLE_EXPLORE_RUN,
-    STYLE_SAMPLES_MANIFEST,
-    TRANSCRIPT_FILE,
-    YOUTUBE_THUMBNAIL,
-)
-from lib.style_presets import apply_style_preset, load_style_presets  # noqa: E402
 
-STYLE_EXPLORE_RUN_DIR = STYLE_EXPLORE_RUN
-STYLE_EXPLORE_MANIFEST = STYLE_EXPLORE_RUN_DIR / "manifest.json"
-STYLE_EXPLORE_PROGRESS = STYLE_EXPLORE_RUN_DIR / "progress.json"
-STYLE_EXPLORE_CREDITS = STYLE_EXPLORE_RUN_DIR / "credits_log.json"
-INDEX_FILE = TRACKER / "index.html"
-PROJECTS_DIR = ROOT / "projects"
-QUEUE_FILE   = TRACKER / "queue.json"
-PORT = 47829
-HOST = "0.0.0.0"
+try:
+    from fetch_codex_usage import enrich_usage_payload, read_usage_payload  # noqa: E402
+    _HAS_CREDITS = True
+except ImportError:
+    _HAS_CREDITS = False
 
-RUN_LOCK = threading.Lock()
-ACTIVE_JOB: dict | None = None
+_yt_lock = threading.Lock()
+_yt_running: set[str] = set()
 
-# ── YouTube OAuth helpers ─────────────────────────────────────────────────────
 
-YT_UPLOAD_DIR  = ROOT / "07-upload"
-YT_TOKEN_FILE  = YT_UPLOAD_DIR / "youtube_token.json"
-YT_SCOPES      = ["https://www.googleapis.com/auth/youtube.upload",
-                   "https://www.googleapis.com/auth/youtube"]
-YT_OAUTH_REDIRECT = f"http://127.0.0.1:{PORT}/api/youtube/auth/callback"
-YT_AUTH_URI    = "https://accounts.google.com/o/oauth2/v2/auth"
-YT_TOKEN_URI   = "https://oauth2.googleapis.com/token"
-
-
-def _yt_client_secrets() -> dict | None:
-    matches = sorted(YT_UPLOAD_DIR.glob("client_secret*.json"))
-    if not matches:
-        return None
-    try:
-        data = json.loads(matches[0].read_text(encoding="utf-8"))
-        return data.get("installed") or data.get("web")
-    except Exception:
-        return None
-
-
-def yt_auth_status() -> dict:
-    cs = _yt_client_secrets()
-    has_secrets = cs is not None
-    has_token   = YT_TOKEN_FILE.is_file()
-    expired     = False
-    if has_token:
-        try:
-            tok = json.loads(YT_TOKEN_FILE.read_text(encoding="utf-8"))
-            # Token is usable if it has a refresh_token (refresh happens automatically at upload time)
-            has_token = bool(tok.get("refresh_token") or tok.get("token"))
-        except Exception:
-            has_token = False
-    return {"has_secrets": has_secrets, "has_token": has_token, "expired": expired}
-
-
-def yt_auth_url() -> str | None:
-    cs = _yt_client_secrets()
-    if not cs:
-        return None
-    params = {
-        "client_id":     cs["client_id"],
-        "redirect_uri":  YT_OAUTH_REDIRECT,
-        "response_type": "code",
-        "scope":         " ".join(YT_SCOPES),
-        "access_type":   "offline",
-        "prompt":        "consent",   # always get refresh_token
-    }
-    return f"{YT_AUTH_URI}?{urlencode(params)}"
-
-
-def yt_exchange_code(code: str) -> dict:
-    cs = _yt_client_secrets()
-    if not cs:
-        return {"ok": False, "error": "No client_secret file found in 07-upload/"}
-    body = urlencode({
-        "code":          code,
-        "client_id":     cs["client_id"],
-        "client_secret": cs["client_secret"],
-        "redirect_uri":  YT_OAUTH_REDIRECT,
-        "grant_type":    "authorization_code",
-    }).encode()
-    try:
-        req = UrlRequest(YT_TOKEN_URI, data=body,
-                         headers={"Content-Type": "application/x-www-form-urlencoded"})
-        with urlopen(req, timeout=15) as resp:
-            tok = json.loads(resp.read().decode())
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-
-    if "error" in tok:
-        return {"ok": False, "error": tok.get("error_description", tok["error"])}
-
-    # Save in google-auth compatible format
-    token_data = {
-        "token":         tok.get("access_token"),
-        "refresh_token": tok.get("refresh_token"),
-        "token_uri":     YT_TOKEN_URI,
-        "client_id":     cs["client_id"],
-        "client_secret": cs["client_secret"],
-        "scopes":        YT_SCOPES,
-    }
-    YT_TOKEN_FILE.write_text(json.dumps(token_data, indent=2) + "\n", encoding="utf-8")
-    return {"ok": True}
-
-STEP_LABELS = {
-    "setup": "Setup",
-    "audio": "Audio",
-    "manifest": "Manifest",
-    "images": "Images",
-    "render": "Render",
-    "publish": "Publish",
-}
-
-def parse_multipart_form(body: bytes, content_type: str) -> dict[str, dict[str, bytes | str | None]]:
-    """Minimal multipart/form-data parser (replaces removed stdlib cgi)."""
-    if "boundary=" not in content_type:
-        raise ValueError("Expected multipart/form-data")
-    boundary = content_type.split("boundary=", 1)[1].split(";", 1)[0].strip().strip('"').encode()
-    fields: dict[str, dict[str, bytes | str | None]] = {}
-    for part in body.split(b"--" + boundary):
-        chunk = part.strip(b"\r\n")
-        if not chunk or chunk == b"--":
-            continue
-        header_block, _, content = chunk.partition(b"\r\n\r\n")
-        if not header_block:
-            continue
-        name = filename = None
-        for line in header_block.decode("utf-8", errors="replace").split("\r\n"):
-            if not line.lower().startswith("content-disposition:"):
-                continue
-            for token in line.split(";", 1)[1].split(";"):
-                token = token.strip()
-                if token.startswith("name="):
-                    name = token[5:].strip('"')
-                elif token.startswith("filename="):
-                    filename = token[9:].strip('"') or None
-        if name:
-            fields[name] = {"filename": filename, "data": content.rstrip(b"\r\n")}
-    return fields
-
-
-def load_json(path: Path, default: dict | list | None = None):
-    if not path.is_file():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return default
-
-
-def save_project(data: dict) -> None:
-    data = apply_style_preset(data)
-    PROJECT_FILE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def load_project() -> dict:
-    project = load_json(PROJECT_FILE, {
-        "name": "my-video",
-        "step": "setup",
-        "title": "",
-        "description": "",
-        "privacy": "public",
-        "workers": 5,
-        "style_preset_id": "",
-        "style_preset_label": "",
-        "image_style": (
-            "simple educational cartoon illustration, hand-drawn doodle animation style, "
-            "thick black outlines, flat colors, minimal shading, stickman characters, "
-            "round white heads, expressive faces, thin black limbs, simple YouTube explainer "
-            "animation style, clean background, limited colors, humorous but clear."
-        ),
-        "style_approved": False,
-        "youtube_video_id": None,
-    })
-    return apply_style_preset(project)
-
-
-def script_path() -> Path | None:
-    if SCRIPT_FILE.is_file():
-        return SCRIPT_FILE
-    if TRANSCRIPT_FILE.is_file():
-        return TRANSCRIPT_FILE
-    return None
-
-
-def audio_status() -> dict:
-    from lib.audio_paths import find_narration_audio
-
-    narration = None
-    ready = False
-    error = ""
-    try:
-        narration = find_narration_audio()
-        ready = True
-    except FileNotFoundError as exc:
-        error = str(exc)
-
-    return {
-        "narration": narration.name if narration else None,
-        "url": f"02-audio/{narration.name}" if narration else None,
-        "ready": ready,
-        "error": error,
-    }
-
-
-def infer_step(project: dict, script: Path | None, audio: dict, manifest: bool, total: int, pending: int, final_mp4: bool) -> str:
-    if project.get("youtube_video_id"):
-        return "publish"
-    if final_mp4:
-        return "publish"
-    if total > 0 and pending == 0:
-        return "render"
-    if manifest and total > 0:
-        return "images"
-    transcript_ready = TRANSCRIPT_FILE.is_file() and TRANSCRIPT_FILE.read_text(encoding="utf-8").strip()
-    if transcript_ready and audio["ready"]:
-        return "manifest"
-    if script and project.get("image_style"):
-        return "audio"
-    return "setup"
-
-
-def count_images_on_disk() -> int:
-    if not DIR_IMAGES.is_dir():
-        return 0
-    return sum(1 for _ in DIR_IMAGES.glob("*.png"))
-
-
-def load_manifest_frames() -> list[dict]:
-    if not MANIFEST_FILE.is_file():
-        return []
-
-    frames: list[dict] = []
-    with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as handle:
-        for row in csv.DictReader(handle):
-            filename = row.get("filename", "")
-            exists = (DIR_IMAGES / filename).is_file() if filename else False
-            status = row.get("status") or ("done" if exists else "pending")
-            frames.append(
-                {
-                    "timestamp": row.get("timestamp", ""),
-                    "filename": filename,
-                    "scene": row.get("scene", ""),
-                    "transcript": row.get("transcript", ""),
-                    "status": status,
-                    "exists": exists,
-                }
-            )
-    return frames
-
-
-def load_disk_frames() -> list[dict]:
-    if not DIR_IMAGES.is_dir():
-        return []
-    frames = []
-    for path in sorted(DIR_IMAGES.glob("*.png")):
-        stem = path.stem
-        match = re.match(r"^(\d+)_(\d{2})$", stem)
-        timestamp = f"{match.group(1)}:{match.group(2)}" if match else stem
-        frames.append(
-            {
-                "timestamp": timestamp,
-                "filename": path.name,
-                "scene": "",
-                "transcript": "",
-                "status": "done",
-                "exists": True,
-            }
-        )
-    return frames
-
-
-def get_all_frames() -> list[dict]:
-    manifest_frames = load_manifest_frames()
-    if manifest_frames:
-        return manifest_frames
-    return load_disk_frames()
-
-
-def load_style_explore() -> dict:
-    progress = load_json(STYLE_EXPLORE_PROGRESS, {})
-    manifest = load_json(STYLE_EXPLORE_MANIFEST, {})
-    credits = load_json(STYLE_EXPLORE_CREDITS, {})
-    runner = load_json(TRACKER / "status.json", {})
-    active = runner.get("mode") == "style_explore" or bool(progress.get("mode") == "style_explore")
-    variants = manifest.get("variants") or []
-    done = sum(1 for v in variants if (STYLE_EXPLORE_RUN_DIR / v.get("filename", "")).is_file())
-    total = int(manifest.get("total") or len(variants) or 0)
-    return {
-        "active": active,
-        "scene": manifest.get("scene", ""),
-        "total": total,
-        "done": done,
-        "pending": max(0, total - done),
-        "progress": progress,
-        "credits": credits,
-        "variants": variants,
-    }
-
-
-def paginate_style_explore_frames(
-    *,
-    status_filter: str = "all",
-    offset: int = 0,
-    limit: int = 60,
-) -> dict:
-    manifest = load_json(STYLE_EXPLORE_MANIFEST, {})
-    frames: list[dict] = []
-    for row in manifest.get("variants") or []:
-        filename = row.get("filename", "")
-        rel = f"style-explore-run/{filename}" if filename else ""
-        exists = (STYLE_EXPLORE_RUN_DIR / filename).is_file() if filename else False
-        status = "done" if exists else row.get("status", "pending")
-        frames.append(
-            {
-                "timestamp": row.get("id", ""),
-                "filename": rel,
-                "label": row.get("label", ""),
-                "scene": manifest.get("scene", ""),
-                "transcript": row.get("label", ""),
-                "status": status,
-                "exists": exists,
-            }
-        )
-    if status_filter == "done":
-        frames = [f for f in frames if f["exists"]]
-    elif status_filter == "pending":
-        frames = [f for f in frames if not f["exists"]]
-    total = len(frames)
-    page = frames[offset : offset + limit]
-    return {"total": total, "offset": offset, "limit": limit, "frames": page, "mode": "style_explore"}
-
-
-def paginate_frames(
-    *,
-    status_filter: str = "all",
-    offset: int = 0,
-    limit: int = 60,
-    mode: str = "production",
-) -> dict:
-    if mode == "style_explore":
-        return paginate_style_explore_frames(status_filter=status_filter, offset=offset, limit=limit)
-    frames = get_all_frames()
-    if status_filter == "done":
-        frames = [f for f in frames if f["exists"] or f["status"] == "done"]
-    elif status_filter == "pending":
-        frames = [f for f in frames if not f["exists"] and f["status"] != "done"]
-
-    total = len(frames)
-    page = frames[offset : offset + limit]
-    return {"total": total, "offset": offset, "limit": limit, "frames": page}
-
-
-def sync_project_step(project: dict, inferred: str) -> dict:
-    order = ("setup", "audio", "manifest", "images", "render", "publish")
-    current = project.get("step") or "setup"
-    if current not in order:
-        current = "setup"
-    if order.index(inferred) > order.index(current):
-        project = {**project, "step": inferred}
-        save_project(project)
-    return project
-
-
-def build_status() -> dict:
-    project = load_project()
-    progress = load_json(PROGRESS_FILE, {})
-    runner = load_json(TRACKER / "status.json", {})
-    usage = read_usage_payload(force=False, max_cache_age=30)
-    account = read_codex_account()
-    recent = load_json(TRACKER / "recent.json", {})
-    style_explore = load_style_explore()
-    script = script_path()
-    audio = audio_status()
-    manifest = MANIFEST_FILE.is_file()
-    final_mp4 = FINAL_MP4.is_file()
-
-    explore_active = runner.get("mode") == "style_explore" or recent.get("mode") == "style_explore"
-    if explore_active and style_explore.get("total"):
-        total = int(style_explore.get("total") or 0)
-        done = int(style_explore.get("done") or 0)
-        pending = int(style_explore.get("pending") or 0)
-        progress = style_explore.get("progress") or progress
-    else:
-        total = int(progress.get("total_frames") or 0)
-        done = int(progress.get("done_frames") or 0)
-        pending = int(progress.get("pending_frames") or progress.get("missing_frames") or 0)
-
-    inferred = infer_step(project, script, audio, manifest, total, pending, final_mp4)
-    project = sync_project_step(project, inferred)
-
-    images_on_disk = count_images_on_disk()
-    step_id = project.get("step") or "setup"
-
-    return {
-        "project": project,
-        "dashboard": {
-            "step_id": step_id,
-            "step_label": STEP_LABELS.get(step_id, step_id.title()),
-            "total_frames": total,
-            "done_frames": done,
-            "pending_frames": pending,
-            "images_on_disk": images_on_disk,
-            "percent": round((done / total) * 100, 1) if total else 0,
-            "progress_bar": progress.get("progress_bar", ""),
-        },
-        "progress": progress,
-        "runner": runner,
-        "usage": usage,
-        "account": account,
-        "recent": recent,
-        "style_explore": style_explore,
-        "style_presets": load_style_presets(),
-        "audio": audio,
-    }
-
-
-def pipeline_running() -> bool:
-    pid_file = TRACKER / "overnight.pid"
-    if not pid_file.is_file():
-        return False
-    try:
-        pid = int(pid_file.read_text(encoding="utf-8").strip())
-        import os
-        os.kill(pid, 0)
-        return True
-    except (ValueError, OSError):
-        return False
-
-
-AI_DRAFT = TRACKER / "ai_draft.txt"
-
-
-def call_codex_text(codex_prompt: str, timeout: int = 180) -> str:
-    """Run codex exec and return text from the ai_draft.txt response file."""
-    if AI_DRAFT.is_file():
-        AI_DRAFT.unlink()
-
-    env = os.environ.copy()
-    env["TERM"] = "xterm-256color"
-
-    subprocess.run(
-        [
-            "codex", "exec",
-            "-s", "workspace-write",
-            "--dangerously-bypass-approvals-and-sandbox",
-            "-C", str(ROOT),
-            codex_prompt,
-        ],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-    if AI_DRAFT.is_file():
-        return AI_DRAFT.read_text(encoding="utf-8").strip()
-    raise RuntimeError("Codex did not write tracker/ai_draft.txt — check codex is authenticated")
-
-
-def build_ai_prompt(task: str, user_request: str, context: dict) -> tuple[str, bool]:
-    """Return (codex_prompt, save_to_script_file)."""
-    title  = context.get("title", "")
-    brief  = context.get("brief", "")
-    script = context.get("script", "")
-    pid    = context.get("project_id", "")
-    draft  = str(AI_DRAFT.relative_to(ROOT))
-
-    # Script output path: per-project if pid given, else root
-    if pid:
-        script_rel = f"projects/{pid}/01-script/Script.txt"
-    else:
-        script_rel = "01-script/Script.txt"
-
-    if task == "write_script":
-        ctx = f"Video title: {title}\nBrief: {brief}\n" if (title or brief) else ""
-        return (
-            f"You are a YouTube video script writer for an educational stickman-explainer channel.\n"
-            f"{ctx}"
-            f"User request: {user_request}\n\n"
-            f"Write a complete narration script. Spoken words only — no stage directions, no [MUSIC], "
-            f"no host name, no scene labels. Clear paragraphs, punchy sentences.\n\n"
-            f"Write the script to {script_rel} — overwrite it completely. "
-            f"Do not create any other files."
-        ), True
-
-    if task == "improve_script":
-        return (
-            f"You are a YouTube script editor.\n"
-            f"Video title: {title}\n\n"
-            f"Here is the current script:\n---\n{script}\n---\n\n"
-            f"User notes: {user_request or 'Tighten and improve generally.'}\n\n"
-            f"Return an improved version: tighten sentences, add a stronger opening hook, "
-            f"improve flow. Keep the same structure and meaning. Spoken words only.\n\n"
-            f"Write the improved script to {script_rel} — overwrite it completely. "
-            f"Do not create any other files."
-        ), True
-
-    if task == "ideas":
-        ctx = f"Channel topic / niche: {user_request}" if user_request else "general educational YouTube"
-        return (
-            f"You are a YouTube content strategist.\n{ctx}\n\n"
-            f"Generate 5 specific, curiosity-driven video ideas. For each idea give:\n"
-            f"- Title (punchy, 5-10 words)\n"
-            f"- One-sentence brief (what the viewer learns)\n\n"
-            f"Write your response as plain text to {draft}. No other files."
-        ), False
-
-    # generic chat / anything else
-    ctx_parts = []
-    if title:  ctx_parts.append(f"Video title: {title}")
-    if brief:  ctx_parts.append(f"Brief: {brief}")
-    if script: ctx_parts.append(f"Script (first 300 chars): {script[:300]}…")
-    ctx_str = ("\n".join(ctx_parts) + "\n\n") if ctx_parts else ""
-    return (
-        f"You are a helpful YouTube production assistant.\n{ctx_str}"
-        f"User request: {user_request}\n\n"
-        f"Write your response to {draft}. Plain text, no markdown headers. No other files."
-    ), False
-
-
-# ── Project / Queue management ────────────────────────────────────
+# ── Queue helpers ─────────────────────────────────────────────────────────────
 
 def load_queue() -> list[dict]:
     if not QUEUE_FILE.is_file():
         return []
     try:
-        return json.loads(QUEUE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        return json.loads(QUEUE_FILE.read_text())
+    except Exception:
         return []
 
 
 def save_queue(q: list[dict]) -> None:
-    TRACKER.mkdir(parents=True, exist_ok=True)
-    QUEUE_FILE.write_text(json.dumps(q, indent=2) + "\n", encoding="utf-8")
+    QUEUE_FILE.write_text(json.dumps(q, indent=2) + "\n")
 
 
-def project_dir(project_id: str) -> Path:
-    return PROJECTS_DIR / project_id
-
-
-def create_project(title: str, brief: str = "") -> dict:
-    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "my-video"
-    q = load_queue()
-    existing = {p["id"] for p in q}
-    uid, n = slug, 2
-    while uid in existing:
-        uid = f"{slug}-{n}"; n += 1
-
-    pd = PROJECTS_DIR / uid
-    for sub in ("01-script", "02-audio", "03-transcript", "04-manifest", "05-images", "06-output", "tracker"):
-        (pd / sub).mkdir(parents=True, exist_ok=True)
-
-    # Symlink shared upload dir (credentials stay at repo root)
-    upload_link = pd / "07-upload"
-    if not upload_link.exists():
-        upload_link.symlink_to(ROOT / "07-upload")
-
-    sys.path.insert(0, str(ROOT / "scripts"))
-    try:
-        from lib.image_prompt import DEFAULT_IMAGE_STYLE, DEFAULT_STYLE_GUIDE, DEFAULT_TEXT_RULES, DEFAULT_TONE
-    except Exception:
-        DEFAULT_IMAGE_STYLE = DEFAULT_STYLE_GUIDE = DEFAULT_TEXT_RULES = DEFAULT_TONE = ""
-
-    pj: dict = {
-        "id": uid, "name": uid, "title": title, "video_brief": brief,
-        "step": "script", "queue_status": "script",
-        "style_preset_id": "", "style_preset_label": "",
-        "image_style": DEFAULT_IMAGE_STYLE,
-        "style_guide": DEFAULT_STYLE_GUIDE,
-        "text_rules": DEFAULT_TEXT_RULES,
-        "tone": DEFAULT_TONE,
-        "workers": 5, "privacy": "public",
-        "style_approved": False, "auto_upload": False, "youtube_video_id": None,
-        "thumbnail_text": "", "description": "", "tags": [],
-    }
-    (pd / "project.json").write_text(json.dumps(pj, indent=2) + "\n", encoding="utf-8")
-
-    entry: dict = {"id": uid, "title": title, "status": "script"}
-    q.append(entry)
-    save_queue(q)
-    return entry
-
-
-def get_project_detail(project_id: str) -> dict:
-    pd = project_dir(project_id)
-    q  = load_queue()
-    entry = next((p for p in q if p["id"] == project_id), {"id": project_id, "status": "unknown"})
-
-    pf = pd / "project.json"
-    proj = json.loads(pf.read_text(encoding="utf-8")) if pf.is_file() else {}
-
-    script_f = pd / "01-script" / "Script.txt"
-    script_t = script_f.read_text(encoding="utf-8").strip() if script_f.is_file() else ""
-
-    audio_d = pd / "02-audio"
-    has_audio = any(f.suffix.lower() in AUDIO_EXTS for f in (audio_d.iterdir() if audio_d.exists() else []) if f.name != ".gitkeep")
-
-    trans_f = pd / "03-transcript" / "transcript.txt"
-    trans_t = trans_f.read_text(encoding="utf-8").strip() if trans_f.is_file() else ""
-
-    # Thumbnail variants (per-project, in tracker/thumbs/)
-    thumbs = []
-    for n in (1, 2, 3):
-        p2 = pd / "tracker" / "thumbs" / f"thumbnail_v{n}.png"
-        thumbs.append({"n": n, "exists": p2.is_file()})
-
-    # Per-project log
-    log_f = pd / "tracker" / "overnight.log"
-    log_lines: list[str] = []
-    if log_f.is_file():
-        log_lines = log_f.read_text(encoding="utf-8", errors="replace").splitlines()[-30:]
-
-    return {
-        **entry,
-        "title": proj.get("title") or entry.get("title", ""),
-        "brief": proj.get("video_brief", ""),
-        "style_preset_id": proj.get("style_preset_id", ""),
-        "style_preset_label": proj.get("style_preset_label", ""),
-        "style_approved": bool(proj.get("style_approved")),
-        "youtube_video_id": proj.get("youtube_video_id"),
-        "has_script": bool(script_t),
-        "script_chars": len(script_t),
-        "has_audio": has_audio,
-        "has_transcript": bool(trans_t),
-        "transcript_chars": len(trans_t),
-        "thumbnails": thumbs,
-        "log_lines": log_lines,
-    }
-
-
-def get_project_progress(project_id: str) -> dict:
-    """Rich real-time status for a running project."""
-    pd2 = project_dir(project_id)
-
-    # project.json
-    pf = pd2 / "project.json"
-    proj = json.loads(pf.read_text(encoding="utf-8")) if pf.is_file() else {}
-
-    # Image generation status (written by generate_images.py)
-    status_f = pd2 / "tracker" / "status.json"
-    img_status: dict = {}
-    if status_f.is_file():
-        try: img_status = json.loads(status_f.read_text(encoding="utf-8"))
-        except Exception: pass
-
-    done_frames  = img_status.get("done_frames", 0)
-    total_frames = img_status.get("total_frames", 0)
-    img_phase    = img_status.get("phase", "")       # running | waiting_credits | complete
-    stop_reason  = img_status.get("stop_reason", "")
-
-    # Usage (credits)
-    usage: dict = {}
-    try:
-        payload = read_usage_payload()
-        usage = payload or {}
-    except Exception:
-        pass
-
-    # Thumbnails
-    thumbs = []
-    for n in (1, 2, 3):
-        p2 = pd2 / "tracker" / "thumbs" / f"thumbnail_v{n}.png"
-        thumbs.append({"n": n, "exists": p2.is_file()})
-
-    # final.mp4
-    has_mp4 = (pd2 / "06-output" / "final.mp4").is_file()
-
-    # Description
-    has_desc = bool(proj.get("description", "").strip())
-
-    # Determine pipeline stage from log tail
-    log_f = pd2 / "tracker" / "overnight.log"
-    log_lines: list[str] = []
-    stage = "images"
-    if log_f.is_file():
-        log_lines = log_f.read_text(encoding="utf-8", errors="replace").splitlines()
-        tail = "\n".join(log_lines[-20:])
-        if "Upload complete" in tail or proj.get("youtube_video_id"):
-            stage = "done"
-        elif "Upload" in tail or "youtube" in tail.lower():
-            stage = "uploading"
-        elif thumbs[0]["exists"] or thumbs[1]["exists"] or thumbs[2]["exists"]:
-            stage = "thumbnails"
-        elif "thumbnail" in tail.lower() or "description" in tail.lower():
-            stage = "thumbnails"
-        elif has_mp4 or "Render complete" in tail:
-            stage = "render_done"
-        elif "Rendering" in tail or "render" in tail.lower():
-            stage = "rendering"
-        elif img_phase == "complete" or (done_frames > 0 and done_frames >= total_frames and total_frames > 0):
-            stage = "render_pending"
-        else:
-            stage = "images"
-
-    # Credit windows
-    fh = usage.get("five_hour") or {}
-    wk = usage.get("weekly") or {}
-    five_hour = {"pct": fh.get("remaining_percent"), "reset": fh.get("reset_in", "")}
-    weekly    = {"pct": wk.get("remaining_percent"), "reset": wk.get("reset_in", "")}
-
-    return {
-        "stage": stage,
-        "img_phase": img_phase,
-        "done_frames": done_frames,
-        "total_frames": total_frames,
-        "stop_reason": stop_reason,
-        "has_mp4": has_mp4,
-        "has_desc": has_desc,
-        "thumbnails": thumbs,
-        "youtube_video_id": proj.get("youtube_video_id"),
-        "five_hour": five_hour,
-        "weekly": weekly,
-        "log_lines": log_lines[-25:],
-    }
-
-
-def update_project_queue_status(project_id: str, status: str) -> None:
-    q = load_queue()
-    for p in q:
-        if p["id"] == project_id:
-            p["status"] = status
-            break
-    save_queue(q)
-    pf = project_dir(project_id) / "project.json"
-    if pf.is_file():
-        data = json.loads(pf.read_text(encoding="utf-8"))
-        data["queue_status"] = status
-        pf.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def queue_runner_running() -> bool:
-    pf = TRACKER / "queue.pid"
-    if not pf.is_file():
-        return False
-    try:
-        pid = int(pf.read_text().strip())
-        os.kill(pid, 0)
-        return True
-    except (ValueError, OSError):
-        return False
-
-
-# ── Text file helpers ─────────────────────────────────────────────
-
-def _text_file_for_kind(kind: str) -> "Path | None":
-    if kind == "script":
-        return SCRIPT_FILE
-    if kind == "transcript":
-        return TRANSCRIPT_FILE
-    return None
-
-
-def build_setup_status() -> dict:
-    project = load_project()
-    script_text = SCRIPT_FILE.read_text(encoding="utf-8").strip() if SCRIPT_FILE.is_file() else ""
-    transcript_text = TRANSCRIPT_FILE.read_text(encoding="utf-8").strip() if TRANSCRIPT_FILE.is_file() else ""
-    audio = audio_status()
-    return {
-        "script": bool(script_text),
-        "script_chars": len(script_text),
-        "audio": audio["ready"],
-        "transcript": bool(transcript_text),
-        "transcript_chars": len(transcript_text),
-        "style_approved": bool(project.get("style_approved")),
-        "pipeline_running": pipeline_running(),
-        "title": project.get("title", ""),
-        "brief": project.get("video_brief", ""),
-    }
-
-
-def begin_pipeline(title: str, brief: str) -> dict:
-    try:
-        project = load_project()
-        name = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "my-video"
-        project["name"] = name
-        project["title"] = title
-        project["video_brief"] = brief
-        project["style_approved"] = True
-        project["step"] = "images"
-        save_project(project)
+def ensure_queue_runner() -> None:
+    if QUEUE_PID_FILE.is_file():
+        try:
+            pid = int(QUEUE_PID_FILE.read_text().strip())
+            os.kill(pid, 0)
+            return
+        except (ValueError, ProcessLookupError, OSError):
+            QUEUE_PID_FILE.unlink(missing_ok=True)
+    log_path = TRACKER / "queue.log"
+    with log_path.open("a") as lf:
         subprocess.Popen(
-            ["bash", "scripts/start_overnight.sh"],
-            cwd=ROOT,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
+            [sys.executable, "-u", str(ROOT / "scripts" / "queue_runner.py")],
+            stdout=lf, stderr=subprocess.STDOUT,
+            start_new_session=True, cwd=ROOT,
         )
-        return {"ok": True}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
 
 
-def get_pipeline_log(lines: int = 30) -> dict:
-    log_file = TRACKER / "overnight.log"
-    if not log_file.is_file():
-        return {"lines": []}
+# ── Project helpers ───────────────────────────────────────────────────────────
+
+def load_project(pid: str) -> dict | None:
+    pf = PROJECTS_DIR / pid / "project.json"
+    if not pf.is_file():
+        return None
     try:
-        text = log_file.read_text(encoding="utf-8", errors="replace")
-        all_lines = text.splitlines()
-        return {"lines": all_lines[-lines:]}
-    except OSError:
-        return {"lines": []}
+        return json.loads(pf.read_text())
+    except Exception:
+        return None
 
 
-def get_thumbnails() -> dict:
-    variants = []
-    for n in (1, 2, 3):
-        rel = f"07-upload/thumbnail_v{n}.png"
-        path = ROOT / rel
-        variants.append({"n": n, "url": rel, "exists": path.is_file()})
-    selected = None
-    if YOUTUBE_THUMBNAIL.is_file():
-        selected = f"07-upload/{YOUTUBE_THUMBNAIL.name}"
-    return {"variants": variants, "selected": selected}
+def save_project(pid: str, data: dict) -> None:
+    pf = PROJECTS_DIR / pid / "project.json"
+    pf.write_text(json.dumps(data, indent=2) + "\n")
 
 
-def select_thumbnail(variant: int) -> dict:
-    src = DIR_UPLOAD / f"thumbnail_v{variant}.png"
-    if not src.is_file():
-        return {"ok": False, "error": f"thumbnail_v{variant}.png not found"}
-    try:
-        shutil.copy2(src, YOUTUBE_THUMBNAIL)
-        return {"ok": True}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+def resolve_status(p: dict, slug: str = "") -> str:
+    status = p.get("queue_status") or "upload"
+    if status == "script":  # legacy value
+        status = "upload"
+    if status == "thumbnails" and p.get("youtube_video_id"):
+        status = "done"
+    # "failed" that was actually a user-initiated stop
+    if status == "failed" and slug:
+        if (PROJECTS_DIR / slug / "tracker" / "stopped.flag").is_file():
+            status = "paused"
+    return status
 
 
-def run_command(label: str, args: list[str], env: dict | None = None) -> None:
-    global ACTIVE_JOB
-    with RUN_LOCK:
-        ACTIVE_JOB = {"label": label, "args": args, "status": "running"}
-
-    proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, env=env)
-
-    with RUN_LOCK:
-        ACTIVE_JOB = {
-            "label": label,
-            "status": "done" if proc.returncode == 0 else "error",
-            "returncode": proc.returncode,
-            "stdout": (proc.stdout or "")[-4000:],
-            "stderr": (proc.stderr or "")[-4000:],
-        }
-
-
-def start_job(label: str, args: list[str], env: dict | None = None) -> dict:
-    if ACTIVE_JOB and ACTIVE_JOB.get("status") == "running":
-        return {"ok": False, "error": f"Already running: {ACTIVE_JOB['label']}"}
-    threading.Thread(target=run_command, args=(label, args, env), daemon=True).start()
-    return {"ok": True, "started": label}
-
-
-def handle_run(body: dict) -> dict:
-    action = body.get("action")
-    project = load_project()
-    workers = int(body.get("workers") or project.get("workers") or 5)
-    force = bool(body.get("force"))
-
-    actions = {
-        "build_plan": (["python3", "scripts/02_manifest/build_plan.py"], "Build cut plan + manifest"),
-        "refresh_manifest": (["python3", "scripts/02_manifest/build_plan.py", "refresh"], "Refresh manifest"),
-        "generate_images": (
-            ["python3", "scripts/03_images/generate_images.py", str(workers)] + (["--force"] if force else []),
-            f"Generate images ({workers} workers)",
-        ),
-        "generate_style_explore": (
-            ["python3", "scripts/03_images/generate_style_explore.py", str(workers)] + (["--force"] if force else []),
-            f"Style explore ({workers} workers)",
-        ),
-        "refresh_usage": (["python3", "scripts/07_credits/fetch_codex_usage.py", "--force"], "Refresh Codex usage"),
-        "render_preview": (["python3", "scripts/04_render/render_draft_video.py", "--limit", "30", "--output", "06-output/preview.mp4"], "Render preview"),
-        "render_final": (["python3", "scripts/04_render/render_draft_video.py", "--output", "06-output/final.mp4"], "Render final"),
+def project_summary(slug: str) -> dict:
+    p = load_project(slug) or {}
+    return {
+        "id": slug,
+        "title": p.get("name") or p.get("title") or slug,
+        "status": resolve_status(p, slug),
+        "youtube_video_id": p.get("youtube_video_id"),
     }
 
-    if action == "generate_images" and not project.get("style_approved"):
-        return {"ok": False, "error": "Enable style_approved in project settings first"}
 
-    if action in actions:
-        args, label = actions[action]
-        return start_job(label, args)
+def list_projects() -> list[dict]:
+    if not PROJECTS_DIR.is_dir():
+        return []
+    out = []
+    for d in sorted(PROJECTS_DIR.iterdir()):
+        if d.is_dir() and not d.name.startswith(".") and (d / "project.json").is_file():
+            out.append(project_summary(d.name))
+    return out
 
-    return {"ok": False, "error": f"Unknown action: {action}"}
 
-
-def resolve_file(url_path: str) -> Path | None:
-    path = urlparse(url_path).path
-    if path in ("", "/"):
-        path = "/tracker/index.html"
-    if path in ("/favicon.ico", "/favicon.svg"):
-        fav = TRACKER / "favicon.svg"
-        return fav if fav.is_file() else None
-
-    rel = unquote(path.lstrip("/"))
-    if not rel:
-        return None
-
-    candidate = (ROOT / rel).resolve()
-    root_resolved = ROOT.resolve()
-
+def get_style_presets() -> list[dict]:
     try:
-        candidate.relative_to(root_resolved)
-    except ValueError:
-        return None
+        from lib.style_presets import load_style_presets
+        return load_style_presets()
+    except Exception:
+        return [{"id": "default", "label": "Classic stick figure explainer",
+                 "image_style": "", "preview": None, "has_preview": False}]
 
-    return candidate if candidate.is_file() else None
 
+# ── Multipart upload parser ───────────────────────────────────────────────────
+
+def parse_multipart(content_type: str, body: bytes) -> dict[str, dict]:
+    boundary = None
+    for part in content_type.split(";"):
+        part = part.strip()
+        if part.startswith("boundary="):
+            boundary = part[9:].strip('"')
+    if not boundary:
+        return {}
+    sep = ("--" + boundary).encode()
+    result: dict[str, dict] = {}
+    for raw in body.split(sep)[1:]:
+        if raw in (b"", b"--\r\n", b"--"):
+            continue
+        raw = raw.lstrip(b"\r\n")
+        last_boundary = b"\r\n"
+        if raw.endswith(b"\r\n"):
+            raw = raw[:-2]
+        hdr_end = raw.find(b"\r\n\r\n")
+        if hdr_end == -1:
+            continue
+        hdr = raw[:hdr_end].decode("utf-8", errors="replace")
+        data = raw[hdr_end + 4:]
+        name = filename = None
+        for line in hdr.split("\r\n"):
+            if "Content-Disposition" in line:
+                for token in line.split(";"):
+                    token = token.strip()
+                    if token.startswith("name="):
+                        name = token[5:].strip('"')
+                    elif token.startswith("filename="):
+                        filename = token[9:].strip('"')
+        if name:
+            result[name] = {"filename": filename, "content": data}
+    return result
+
+
+# ── HTTP handler ──────────────────────────────────────────────────────────────
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, fmt: str, *args) -> None:
-        sys.stderr.write("%s - [%s] %s\n" % (self.address_string(), self.command, fmt % args))
+    def log_message(self, *args) -> None:
+        pass  # silent
 
-    def _send_json(self, payload: dict, status: int = 200) -> None:
-        data = json.dumps(payload).encode("utf-8")
+    def send_json(self, data: dict | list, status: int = 200) -> None:
+        body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_file(self, path: Path, mime: str, no_cache: bool = False) -> None:
+        if not path.is_file():
+            self.send_response(404)
+            self.end_headers()
+            return
+        data = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        if no_cache:
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.end_headers()
         self.wfile.write(data)
 
-    def _read_json(self) -> dict:
+    def err(self, msg: str, status: int = 400) -> None:
+        self.send_json({"ok": False, "error": msg}, status)
+
+    def read_body(self) -> bytes:
         length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length) if length else b"{}"
-        return json.loads(raw.decode("utf-8") or "{}")
+        return self.rfile.read(length) if length else b""
 
-    def _send_file(self, file_path: Path) -> None:
-        mime, _ = mimetypes.guess_type(str(file_path))
-        mime = mime or "application/octet-stream"
-        size = file_path.stat().st_size
-        range_header = self.headers.get("Range")
-
-        if range_header and mime.startswith("video/"):
-            match = re.match(r"bytes=(\d+)-(\d*)", range_header)
-            if match:
-                start = int(match.group(1))
-                end = int(match.group(2)) if match.group(2) else size - 1
-                end = min(end, size - 1)
-                if start <= end:
-                    with file_path.open("rb") as handle:
-                        handle.seek(start)
-                        chunk = handle.read(end - start + 1)
-                    self.send_response(206)
-                    self.send_header("Content-Type", mime)
-                    self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
-                    self.send_header("Content-Length", str(len(chunk)))
-                    self.send_header("Accept-Ranges", "bytes")
-                    self.send_header("Cache-Control", "no-store")
-                    self.end_headers()
-                    self.wfile.write(chunk)
-                    return
-
-        with file_path.open("rb") as handle:
-            content = handle.read()
-        self.send_response(200)
-        self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(len(content)))
-        if mime.startswith("video/"):
-            self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Cache-Control", "no-store")
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
-        self.wfile.write(content)
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        path = parsed.path
+        path = parsed.path.rstrip("/") or "/"
+        qs = parse_qs(parsed.query)
 
-        if path == "/api/status":
-            try:
-                self._send_json(build_status())
-            except Exception as exc:
-                self._send_json({"error": str(exc), "project": load_project()}, 500)
-            return
-        if path == "/api/project":
-            self._send_json(load_project())
-            return
-        if path == "/api/style-presets":
-            self._send_json({"presets": load_style_presets()})
-            return
-        if path == "/api/frames":
-            query = parse_qs(parsed.query)
-            status_filter = (query.get("status") or ["all"])[0]
-            offset = int((query.get("offset") or ["0"])[0])
-            limit = min(int((query.get("limit") or ["80"])[0]), 200)
-            mode = (query.get("mode") or ["production"])[0]
-            self._send_json(paginate_frames(status_filter=status_filter, offset=offset, limit=limit, mode=mode))
-            return
-        if path == "/api/setup-status":
-            self._send_json(build_setup_status())
-            return
-        if path == "/api/pipeline/log":
-            self._send_json(get_pipeline_log())
-            return
-        if path == "/api/thumbnails":
-            self._send_json(get_thumbnails())
-            return
-        if path == "/api/text-content":
-            kind = parse_qs(urlparse(self.path).query).get("kind", [""])[0]
-            project_id = parse_qs(urlparse(self.path).query).get("project", [""])[0]
-            if project_id:
-                fp = project_dir(project_id) / ("01-script/Script.txt" if kind == "script" else "03-transcript/transcript.txt")
-            else:
-                fp = _text_file_for_kind(kind)
-            if fp is None:
-                self._send_json({"ok": False, "error": "unknown kind"}, 400)
-                return
-            if fp.is_file():
-                content = fp.read_text(encoding="utf-8")
-                self._send_json({"ok": True, "content": content, "chars": len(content.strip())})
-            else:
-                self._send_json({"ok": True, "content": "", "chars": 0})
-            return
-
-        if path == "/api/job/status":
-            self._send_json(ACTIVE_JOB or {"status": "idle"})
-            return
-
-        if path == "/api/youtube/auth/status":
-            self._send_json(yt_auth_status())
-            return
-
-        if path == "/api/youtube/auth/start":
-            url = yt_auth_url()
-            if not url:
-                self._send_json({"error": "No client_secret*.json found in 07-upload/"}, 400)
-                return
-            self.send_response(302)
-            self.send_header("Location", url)
-            self.end_headers()
-            return
-
-        if path == "/api/youtube/auth/callback":
-            qs = parse_qs(urlparse(self.path).query)
-            code = (qs.get("code") or [""])[0]
-            error = (qs.get("error") or [""])[0]
-            if error or not code:
-                html = f"<h2>Auth failed: {error or 'no code returned'}</h2><a href='/'>Back to Studio</a>"
-                self.send_response(400)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode())
-                return
-            result = yt_exchange_code(code)
-            if result["ok"]:
-                self.send_response(302)
-                self.send_header("Location", "/?yt_auth=ok")
-                self.end_headers()
-            else:
-                html = f"<h2>Token exchange failed</h2><p>{result['error']}</p><a href='/'>Back</a>"
-                self.send_response(400)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode())
+        if path == "/":
+            self.send_file(INDEX_FILE, "text/html; charset=utf-8", no_cache=True)
             return
 
         if path == "/api/projects":
-            q = load_queue()
-            self._send_json({"projects": q, "queue_running": queue_runner_running()})
+            self.send_json(list_projects())
             return
 
-        if path == "/api/queue/log":
-            log_f = TRACKER / "queue.log"
-            lines: list[str] = []
-            if log_f.is_file():
-                lines = log_f.read_text(encoding="utf-8", errors="replace").splitlines()[-40:]
-            self._send_json({"lines": lines, "running": queue_runner_running()})
+        if path == "/api/styles":
+            self.send_json(get_style_presets())
             return
 
-        if path == "/review" or path == "/tracker/review.html":
-            review_html = TRACKER / "review.html"
-            if review_html.is_file():
-                content = review_html.read_text(encoding="utf-8")
-                cfg_file = TRACKER / "supabase_config.json"
-                if cfg_file.is_file():
+        if path == "/api/credits":
+            force = "force" in qs
+            try:
+                if force:
+                    # Run a minimal codex exec to write a fresh session file with current rate limits
+                    subprocess.Popen(
+                        ["codex", "exec", "hi"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    time.sleep(2.5)  # wait for session file to appear
+                if _HAS_CREDITS:
+                    data = read_usage_payload(force=force, max_cache_age=30)
+                else:
+                    usage_file = TRACKER / "usage.json"
+                    if not usage_file.is_file():
+                        self.send_json({"error": "No usage data — run Codex to populate"}, 404)
+                        return
+                    data = json.loads(usage_file.read_text())
+                # Flag windows whose reset time has already passed
+                now = int(time.time())
+                for key in ("five_hour", "weekly"):
+                    w = data.get(key)
+                    if isinstance(w, dict):
+                        resets_at = int(w.get("resets_at") or 0)
+                        w["window_reset"] = bool(resets_at and now >= resets_at)
+                self.send_json(data)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 500)
+            return
+
+        if path.startswith("/api/project/"):
+            rest = path[len("/api/project/"):].strip("/").split("/")
+            pid = rest[0] if rest else ""
+            action = rest[1] if len(rest) > 1 else ""
+
+            p = load_project(pid)
+            if p is None:
+                self.err("Project not found", 404)
+                return
+
+            if action == "":
+                audio_dir = PROJECTS_DIR / pid / "02-audio"
+                has_audio = audio_dir.is_dir() and any(
+                    f.suffix.lower() in (".mp3", ".wav", ".m4a")
+                    for f in audio_dir.iterdir()
+                    if f.is_file() and f.name != ".gitkeep"
+                )
+                transcript = PROJECTS_DIR / pid / "03-transcript" / "transcript.txt"
+                has_transcript = transcript.is_file() and transcript.stat().st_size > 50
+
+                prog_file = PROJECTS_DIR / pid / "04-manifest" / "image_regen_progress.json"
+                progress = None
+                if prog_file.is_file():
                     try:
-                        cfg = json.loads(cfg_file.read_text())
-                        content = content.replace(
-                            '"REPLACE_WITH_SUPABASE_URL"',
-                            json.dumps(cfg.get("url", ""))
-                        ).replace(
-                            '"REPLACE_WITH_SUPABASE_ANON_KEY"',
-                            json.dumps(cfg.get("anon_key", ""))
-                        )
+                        progress = json.loads(prog_file.read_text())
                     except Exception:
                         pass
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
+
+                thumbs_dir = PROJECTS_DIR / pid / "tracker" / "thumbs"
+                thumbs = {f"v{i}": (thumbs_dir / f"thumbnail_v{i}.png").is_file() for i in (1, 2, 3)}
+
+                yt_uploading = pid in _yt_running
+
+                self.send_json({
+                    **p, "id": pid,
+                    "queue_status": resolve_status(p, pid),
+                    "audio_ok": has_audio,
+                    "transcript_ok": has_transcript,
+                    "progress": progress,
+                    "thumbs": thumbs,
+                    "yt_uploading": yt_uploading,
+                })
+                return
+
+            if action == "log":
+                lines = int(qs.get("lines", ["80"])[0])
+                log_path = PROJECTS_DIR / pid / "tracker" / "overnight.log"
+                if not log_path.is_file():
+                    log_path = TRACKER / "queue.log"
+                text = ""
+                if log_path.is_file():
+                    all_lines = log_path.read_text(errors="replace").splitlines()
+                    text = "\n".join(all_lines[-lines:])
+                self.send_json({"log": text})
+                return
+
+            if action == "thumbs":
+                thumbs_dir = PROJECTS_DIR / pid / "tracker" / "thumbs"
+                self.send_json({f"v{i}": (thumbs_dir / f"thumbnail_v{i}.png").is_file() for i in (1, 2, 3)})
+                return
+
+            if action == "frames":
+                import csv as _csv
+                manifest = PROJECTS_DIR / pid / "04-manifest" / "image_regen_manifest.csv"
+                images_dir = PROJECTS_DIR / pid / "05-images"
+                if not manifest.is_file():
+                    self.send_json({"frames": []})
+                    return
+                frames = []
+                with open(manifest, newline="", encoding="utf-8") as f:
+                    for row in _csv.DictReader(f):
+                        ts = row.get("timestamp", "0:00")
+                        parts_ts = ts.split(":")
+                        ts_sec = int(parts_ts[0]) * 60 + int(parts_ts[1]) if len(parts_ts) == 2 else 0
+                        fname = row.get("filename", "")
+                        frames.append({
+                            "filename": fname,
+                            "timestamp": ts,
+                            "timestamp_seconds": ts_sec,
+                            "transcript": row.get("transcript", ""),
+                            "duration": int(row.get("duration", 2)),
+                            "status": row.get("status", "pending"),
+                            "exists": (images_dir / fname).is_file() if fname else False,
+                        })
+                self.send_json({"frames": frames, "total": len(frames)})
+                return
+
+        # Static assets
+        if path.startswith("/thumbs/"):
+            parts = path[len("/thumbs/"):].split("/", 1)
+            if len(parts) == 2:
+                pid, fname = parts
+                self.send_file(PROJECTS_DIR / pid / "tracker" / "thumbs" / fname, "image/png")
+                return
+
+        if path.startswith("/assets/style-samples/"):
+            fname = path[len("/assets/style-samples/"):]
+            self.send_file(ROOT / "assets" / "style-samples" / fname, "image/png")
+            return
+
+        # Serve generated frame images
+        if path.startswith("/images/"):
+            parts = path[len("/images/"):].split("/", 1)
+            if len(parts) == 2:
+                slug, fname = parts
+                img = PROJECTS_DIR / slug / "05-images" / fname
+                if img.is_file() and img.suffix.lower() in (".png", ".jpg", ".jpeg"):
+                    self.send_file(img, "image/png")
+                    return
+            self.err("Not found", 404)
+            return
+
+        # Serve project audio with range request support (needed for browser seeking)
+        if path.startswith("/audio/"):
+            slug = path[len("/audio/"):].strip("/")
+            audio_dir = PROJECTS_DIR / slug / "02-audio"
+            audio_file = None
+            if audio_dir.is_dir():
+                for f in audio_dir.iterdir():
+                    if f.suffix.lower() in (".mp3", ".wav", ".m4a") and f.name != ".gitkeep" and f.is_file():
+                        audio_file = f
+                        break
+            if audio_file is None:
+                self.err("No audio", 404)
+                return
+            mime = {"mp3": "audio/mpeg", "wav": "audio/wav", "m4a": "audio/mp4"}.get(
+                audio_file.suffix.lower().lstrip("."), "audio/mpeg"
+            )
+            file_size = audio_file.stat().st_size
+            range_hdr = self.headers.get("Range", "")
+            if range_hdr.startswith("bytes="):
+                spec = range_hdr[6:]
+                s_str, _, e_str = spec.partition("-")
+                start = int(s_str) if s_str else 0
+                end = int(e_str) if e_str else file_size - 1
+                end = min(end, file_size - 1)
+                length = end - start + 1
+                with audio_file.open("rb") as af:
+                    af.seek(start)
+                    chunk = af.read(length)
+                self.send_response(206)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(length))
+                self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+                self.send_header("Accept-Ranges", "bytes")
                 self.end_headers()
-                self.wfile.write(content.encode())
+                self.wfile.write(chunk)
             else:
-                self.send_error(404, "review.html not found")
+                data = audio_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(file_size))
+                self.send_header("Accept-Ranges", "bytes")
+                self.end_headers()
+                self.wfile.write(data)
             return
 
-        if path.startswith("/api/projects/") and path.endswith("/progress"):
-            project_id = path[len("/api/projects/"):-len("/progress")]
-            self._send_json(get_project_progress(project_id))
-            return
-
-        if path.startswith("/api/projects/"):
-            project_id = path[len("/api/projects/"):]
-            if "/" in project_id:
-                self.send_error(404, "not found"); return
-            try:
-                self._send_json(get_project_detail(project_id))
-            except Exception as exc:
-                self._send_json({"error": str(exc)}, 500)
-            return
-
-        if path == "/api/supabase/config":
-            cfg_file = ROOT / "tracker" / "supabase_config.json"
-            if cfg_file.is_file():
-                try:
-                    cfg = json.loads(cfg_file.read_text())
-                    self._send_json({"ok": True, "url": cfg.get("url", ""), "configured": True})
-                except Exception:
-                    self._send_json({"ok": False, "configured": False})
-            else:
-                self._send_json({"ok": False, "configured": False})
-            return
-
-        file_path = resolve_file(self.path)
-        if file_path:
-            self._send_file(file_path)
-            return
-
-        self.send_error(404, f"Not found: {path} (root: {ROOT})")
+        self.send_response(404)
+        self.end_headers()
 
     def do_POST(self) -> None:
-        path = urlparse(self.path).path
-
-        if path == "/api/project":
-            data = self._read_json()
-            current = load_project()
-            current.update(data)
-            save_project(current)
-            self._send_json({"ok": True, "project": load_project()})
+        path = urlparse(self.path).path.rstrip("/")
+        if not path.startswith("/api/project/"):
+            self.err("Not found", 404)
             return
 
-        if path == "/api/text-content":
-            data = self._read_json()
-            kind = str(data.get("kind", ""))
-            content = str(data.get("content", ""))
-            pid = str(data.get("project_id", ""))
-            if pid:
-                fp = project_dir(pid) / ("01-script/Script.txt" if kind == "script" else "03-transcript/transcript.txt")
-            else:
-                fp = _text_file_for_kind(kind)
-            if fp is None:
-                self._send_json({"ok": False, "error": "unknown kind"}, 400)
+        rest = path[len("/api/project/"):].strip("/").split("/")
+        pid = rest[0] if rest else ""
+        action = rest[1] if len(rest) > 1 else ""
+
+        if not pid or load_project(pid) is None:
+            self.err("Project not found", 404)
+            return
+
+        body = self.read_body()
+        ct = self.headers.get("Content-Type", "")
+
+        # ── Upload audio ──────────────────────────────────────────────────────
+        if action == "upload-audio":
+            fields = parse_multipart(ct, body)
+            f = fields.get("file")
+            if not f or not f.get("content"):
+                self.err("No file provided")
                 return
-            fp.parent.mkdir(parents=True, exist_ok=True)
-            fp.write_text(content, encoding="utf-8")
-            self._send_json({"ok": True, "chars": len(content.strip())})
+            dest_dir = PROJECTS_DIR / pid / "02-audio"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for old in dest_dir.iterdir():
+                if old.is_file() and old.suffix.lower() in (".mp3", ".wav", ".m4a"):
+                    old.unlink()
+            fname = f.get("filename") or "narration.mp3"
+            (dest_dir / fname).write_bytes(f["content"])
+            self._maybe_advance_to_style(pid)
+            self.send_json({"ok": True, "filename": fname})
             return
 
-        if path == "/api/text-content/delete":
-            data = self._read_json()
-            kind = str(data.get("kind", ""))
-            pid = str(data.get("project_id", ""))
-            if pid:
-                fp = project_dir(pid) / ("01-script/Script.txt" if kind == "script" else "03-transcript/transcript.txt")
-            else:
-                fp = _text_file_for_kind(kind)
-            if fp is None:
-                self._send_json({"ok": False, "error": "unknown kind"}, 400)
+        # ── Upload transcript ─────────────────────────────────────────────────
+        if action == "upload-transcript":
+            fields = parse_multipart(ct, body)
+            f = fields.get("file")
+            if not f or not f.get("content"):
+                self.err("No file provided")
                 return
-            if fp.is_file():
-                fp.unlink()
-            self._send_json({"ok": True})
+            dest_dir = PROJECTS_DIR / pid / "03-transcript"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            (dest_dir / "transcript.txt").write_bytes(f["content"])
+            self._maybe_advance_to_style(pid)
+            self.send_json({"ok": True})
             return
 
-        # ── Project management ────────────────────────────────────
-        if path == "/api/projects/create":
-            data = self._read_json()
-            title = str(data.get("title", "")).strip()
-            brief = str(data.get("brief", "")).strip()
-            if not title:
-                self._send_json({"ok": False, "error": "title required"}, 400); return
+        # ── Set style ─────────────────────────────────────────────────────────
+        if action == "set-style":
             try:
-                entry = create_project(title, brief)
-                self._send_json({"ok": True, "project": entry})
-            except Exception as exc:
-                self._send_json({"ok": False, "error": str(exc)}, 500)
+                data = json.loads(body)
+            except Exception:
+                self.err("Bad JSON")
+                return
+            p = load_project(pid)
+            preset_id = data.get("preset_id")
+            if preset_id:
+                try:
+                    preset = next((x for x in get_style_presets() if x["id"] == preset_id), None)
+                    if preset:
+                        p["style_preset_id"] = preset["id"]
+                        p["style_preset_label"] = preset.get("label", "")
+                        p["image_style"] = preset.get("image_style", "")
+                        if preset.get("scene"):
+                            p["style_guide"] = preset["scene"]
+                except Exception:
+                    pass
+            if data.get("custom_style"):
+                p["image_style"] = data["custom_style"]
+                p["style_preset_id"] = "custom"
+                p["style_preset_label"] = "Custom"
+            if data.get("style_guide"):
+                p["style_guide"] = data["style_guide"]
+            if data.get("tone"):
+                p["tone"] = data["tone"]
+            if data.get("text_rules"):
+                p["text_rules"] = data["text_rules"]
+            p["queue_status"] = "style"
+            save_project(pid, p)
+            self.send_json({"ok": True})
             return
 
-        if path.startswith("/api/projects/") and path.endswith("/update"):
-            project_id = path[len("/api/projects/"):-len("/update")]
-            data = self._read_json()
-            pd2 = project_dir(project_id)
-            pf = pd2 / "project.json"
-            if not pf.is_file():
-                self._send_json({"ok": False, "error": "project not found"}, 404); return
-            proj = json.loads(pf.read_text(encoding="utf-8"))
-            proj.update(data)
-            pf.write_text(json.dumps(proj, indent=2) + "\n", encoding="utf-8")
-            # Sync title / status to queue
+        # ── Validate & queue ──────────────────────────────────────────────────
+        if action == "queue":
+            p = load_project(pid)
+            if not p.get("image_style"):
+                self.send_json({"ok": False, "preflight": "No style selected. Go back to the Style step."})
+                return
+
+            proj_dir = str(PROJECTS_DIR / pid)
+            env = {**os.environ, "PIPELINE_ROOT": proj_dir}
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "preflight.py")],
+                cwd=ROOT, env=env, capture_output=True, text=True, timeout=30,
+            )
+            preflight_out = (result.stdout + result.stderr).strip()
+
+            if result.returncode != 0:
+                self.send_json({"ok": False, "preflight": preflight_out or "Preflight failed."})
+                return
+
+            # Mark style approved and queue the project
+            p["style_approved"] = True
+            p["queue_status"] = "queued"
+            save_project(pid, p)
+
+            # Clear stopped flag if this is a restart after pausing
+            (PROJECTS_DIR / pid / "tracker" / "stopped.flag").unlink(missing_ok=True)
+
             q = load_queue()
-            for p in q:
-                if p["id"] == project_id:
-                    if "title" in data: p["title"] = data["title"]
-                    if "status" in data: p["status"] = data["status"]
-                    break
+            title = p.get("name") or p.get("title") or pid
+            existing = next((x for x in q if x["id"] == pid), None)
+            if existing:
+                existing["status"] = "queued"
+                existing["title"] = title
+            else:
+                q.append({"id": pid, "title": title, "status": "queued"})
             save_queue(q)
-            self._send_json({"ok": True})
+            ensure_queue_runner()
+            self.send_json({"ok": True, "preflight": preflight_out})
             return
 
-        if path.startswith("/api/projects/") and path.endswith("/queue"):
-            project_id = path[len("/api/projects/"):-len("/queue")]
-            update_project_queue_status(project_id, "queued")
-            self._send_json({"ok": True})
-            # Auto-start queue runner if not running
-            if not queue_runner_running():
-                subprocess.Popen(
-                    ["bash", "scripts/start_queue.sh"],
-                    cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
-            return
+        # ── Stop generation ──────────────────────────────────────────────────
+        if action == "stop":
+            proj_path = str(PROJECTS_DIR / pid)
 
-        if path.startswith("/api/projects/") and path.endswith("/thumbnail/select"):
-            project_id = path[len("/api/projects/"):-len("/thumbnail/select")]
-            data = self._read_json()
-            variant = int(data.get("variant", 1))
-            pd2 = project_dir(project_id)
-            src = pd2 / "tracker" / "thumbs" / f"thumbnail_v{variant}.png"
-            if src.is_file():
-                # Save selection to project.json for upload step
-                pf2 = pd2 / "project.json"
-                if pf2.is_file():
-                    import json as _j
-                    pdata = _j.loads(pf2.read_text(encoding="utf-8"))
-                    pdata["selected_thumbnail_variant"] = variant
-                    pf2.write_text(_j.dumps(pdata, indent=2) + "\n", encoding="utf-8")
-                self._send_json({"ok": True})
-            else:
-                self._send_json({"ok": False, "error": "variant not found"}, 404)
-            return
+            # Write stopped flag FIRST so generate_images.py self-terminates on next loop tick
+            (PROJECTS_DIR / pid / "tracker" / "stopped.flag").touch()
 
-        if path.startswith("/api/projects/") and path.endswith("/upload/youtube"):
-            project_id = path[len("/api/projects/"):-len("/upload/youtube")]
-            pd2 = project_dir(project_id)
-            # Copy selected thumbnail to 07-upload/ before uploading
-            import shutil as _shu, json as _j2
-            pf2 = pd2 / "project.json"
-            if pf2.is_file():
-                pdata = _j2.loads(pf2.read_text(encoding="utf-8"))
-                variant = pdata.get("selected_thumbnail_variant", 1)
-                src_thumb = pd2 / "tracker" / "thumbs" / f"thumbnail_v{variant}.png"
-                dst_thumb = pd2 / "07-upload" / "thumbnail.png"
-                if src_thumb.is_file():
-                    _shu.copy2(src_thumb, dst_thumb)
-            env = os.environ.copy()
-            env["PIPELINE_ROOT"] = str(pd2)
-            # Use conda python — has google-auth installed
-            conda_python = "/Users/ganesh/miniconda3/bin/python3"
-            upload_script = str(ROOT / "scripts" / "05_publish" / "upload_to_youtube.py")
-            result = start_job(
-                "Upload to YouTube",
-                [conda_python, upload_script],
-                env=env,
-            )
-            self._send_json(result)
-            return
-
-        if path.startswith("/api/projects/") and path.endswith("/upload"):
-            # File upload for a specific project
-            project_id = path[len("/api/projects/"):-len("/upload")]
-            self._handle_upload(project_id=project_id)
-            return
-
-        if path == "/api/ai":
-            data = self._read_json()
-            task         = str(data.get("task", "chat"))
-            user_request = str(data.get("prompt", "")).strip()
-            context      = data.get("context", {})
-            pid          = str(data.get("project_id", "")).strip()
-
-            if not user_request and task not in ("improve_script",):
-                self._send_json({"ok": False, "error": "prompt is required"}, 400)
-                return
-
-            # For script tasks, override the output path if project_id given
-            if pid:
-                context["project_id"] = pid
-
-            try:
-                codex_prompt, saves_to_script = build_ai_prompt(task, user_request, context)
-                call_codex_text(codex_prompt)
-
-                if saves_to_script:
-                    fp = (project_dir(pid) / "01-script" / "Script.txt") if pid else SCRIPT_FILE
-                    content = fp.read_text(encoding="utf-8").strip() if fp.is_file() else ""
-                    self._send_json({"ok": True, "saved_to": "script", "content": content, "chars": len(content)})
-                else:
-                    content = AI_DRAFT.read_text(encoding="utf-8").strip() if AI_DRAFT.is_file() else ""
-                    self._send_json({"ok": True, "response": content})
-            except subprocess.TimeoutExpired:
-                self._send_json({"ok": False, "error": "Codex timed out (>180s) — try a shorter request"}, 500)
-            except Exception as exc:
-                self._send_json({"ok": False, "error": str(exc)}, 500)
-            return
-
-        if path == "/api/queue/start":
-            already = queue_runner_running()
-            if not already:
-                subprocess.Popen(
-                    ["bash", "scripts/start_queue.sh"],
-                    cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
-            self._send_json({"ok": True, "already_running": already})
-            return
-
-        if path == "/api/queue/stop":
-            stopped = False
-            # Kill queue runner
-            pf = TRACKER / "queue.pid"
-            if pf.is_file():
+            # Kill overnight runner
+            night_pid_file = TRACKER / "overnight.pid"
+            if night_pid_file.is_file():
                 try:
-                    pid = int(pf.read_text().strip())
-                    os.kill(pid, 15)  # SIGTERM
-                    stopped = True
-                except (ValueError, OSError):
+                    night_pid = int(night_pid_file.read_text().strip())
+                    os.kill(night_pid, 15)  # SIGTERM
+                    time.sleep(0.3)
+                    try:
+                        os.kill(night_pid, 9)
+                    except ProcessLookupError:
+                        pass
+                except (ValueError, ProcessLookupError, OSError):
                     pass
-                pf.unlink(missing_ok=True)
-            # Kill overnight runner / generate_images if running
-            opf = TRACKER / "overnight.pid"
-            if opf.is_file():
-                try:
-                    pid = int(opf.read_text().strip())
-                    os.kill(pid, 15)
-                except (ValueError, OSError):
-                    pass
-                opf.unlink(missing_ok=True)
-            # Also kill any lingering generate_images / overnight_runner by name
-            subprocess.run(
-                ["pkill", "-f", "generate_images.py"], capture_output=True
-            )
-            subprocess.run(
-                ["pkill", "-f", "overnight_runner.py"], capture_output=True
-            )
-            # Reset any "running" projects back to "queued" so they re-run next time
-            q = load_queue()
-            changed = False
-            for p in q:
-                if p.get("status") == "running":
-                    p["status"] = "queued"
-                    changed = True
-            if changed:
-                save_queue(q)
-            self._send_json({"ok": True, "stopped": stopped})
-            return
+                night_pid_file.unlink(missing_ok=True)
 
-        if path == "/api/reset":
+            # Kill all codex worker processes that were spawned for this project.
+            # They are identified by having the project path in their command line.
             try:
                 subprocess.run(
-                    [sys.executable, str(ROOT / "scripts" / "clear_workspace.py")],
-                    cwd=ROOT, check=True, capture_output=True,
+                    ["pkill", "-9", "-f", proj_path],
+                    capture_output=True,
                 )
-                self._send_json({"ok": True})
-            except subprocess.CalledProcessError as exc:
-                self._send_json({"ok": False, "error": exc.stderr.decode()}, 500)
+            except Exception:
+                pass
+
+            p = load_project(pid)
+            p["queue_status"] = "paused"
+            save_project(pid, p)
+
+            q = load_queue()
+            for entry in q:
+                if entry["id"] == pid:
+                    entry["status"] = "paused"
+            save_queue(q)
+            self.send_json({"ok": True})
             return
 
-        if path == "/api/run":
-            result = handle_run(self._read_json())
-            self._send_json(result, 200 if result.get("ok") else 400)
-            return
-
-        if path == "/api/upload":
-            self._handle_upload()
-            return
-        if path == "/api/pipeline/begin":
-            body = self._read_json()
-            result = begin_pipeline(
-                title=str(body.get("title", "")).strip(),
-                brief=str(body.get("brief", "")).strip(),
-            )
-            self._send_json(result, 200 if result.get("ok") else 400)
-            return
-        if path == "/api/thumbnail/select":
-            body = self._read_json()
-            variant = int(body.get("variant", 0))
-            if variant not in (1, 2, 3):
-                self._send_json({"ok": False, "error": "variant must be 1, 2, or 3"}, 400)
-                return
-            result = select_thumbnail(variant)
-            self._send_json(result, 200 if result.get("ok") else 400)
-            return
-        if path == "/api/youtube/upload":
-            result = start_job(
-                "upload to YouTube",
-                ["/Users/ganesh/miniconda3/bin/python3", "scripts/05_publish/upload_to_youtube.py"],
-            )
-            self._send_json(result, 200 if result.get("ok") else 400)
-            return
-
-        if path == "/api/supabase/sync":
-            result = start_job("supabase sync", ["python3", "scripts/supabase_sync.py", "sync"])
-            self._send_json(result, 200 if result.get("ok") else 400)
-            return
-
-        if path == "/api/supabase/save-config":
-            body = self._read_json()
-            pat = (body.get("pat") or "").strip()
-            if not pat:
-                self._send_json({"ok": False, "error": "pat required"}, 400)
-                return
-            # Auto-fetch project URL + anon key from Supabase Management API
-            import urllib.request as _ur, urllib.error as _ue
-            def _mgmt(endpoint):
-                req = _ur.Request(
-                    f"https://api.supabase.com/v1{endpoint}",
-                    headers={"Authorization": f"Bearer {pat}", "User-Agent": "curl/7.88.1"},
-                )
-                with _ur.urlopen(req, timeout=15) as r:
-                    return json.loads(r.read())
+        # ── Pick thumbnail ────────────────────────────────────────────────────
+        if action == "pick-thumb":
             try:
-                projects = _mgmt("/projects")
-                proj = next((p for p in projects if "bendover" in p.get("name","").lower()), None)
-                if not proj:
-                    self._send_json({"ok": False, "error": f"No bendover-productions project found. Projects: {[p['name'] for p in projects]}"}, 400)
+                data = json.loads(body)
+            except Exception:
+                self.err("Bad JSON")
+                return
+            variant = str(data.get("variant", "v1")).lstrip("v") or "1"
+            src = PROJECTS_DIR / pid / "tracker" / "thumbs" / f"thumbnail_v{variant}.png"
+            if not src.is_file():
+                self.err(f"Thumbnail v{variant} not found")
+                return
+            # Copy to shared upload dir so upload_to_youtube.py can find it
+            shared = ROOT / "07-upload"
+            shared.mkdir(exist_ok=True)
+            shutil.copy2(src, shared / "thumbnail.png")
+            proj_upload = PROJECTS_DIR / pid / "07-upload"
+            if proj_upload.is_dir() and not proj_upload.is_symlink():
+                shutil.copy2(src, proj_upload / "thumbnail.png")
+            p = load_project(pid)
+            p["selected_thumbnail_variant"] = int(variant)
+            save_project(pid, p)
+            self.send_json({"ok": True})
+            return
+
+        # ── YouTube upload ────────────────────────────────────────────────────
+        if action == "youtube-upload":
+            with _yt_lock:
+                if pid in _yt_running:
+                    self.send_json({"ok": False, "error": "Upload already in progress"})
                     return
-                ref = proj["id"]
-                keys = _mgmt(f"/projects/{ref}/api-keys")
-                anon_key = next(k["api_key"] for k in keys if k["name"] == "anon")
-                service_key = next(k["api_key"] for k in keys if k["name"] == "service_role")
-                cfg = {
-                    "url": f"https://{ref}.supabase.co",
-                    "anon_key": anon_key,
-                    "service_key": service_key,
-                    "pat": pat,
-                }
-                cfg_file = ROOT / "tracker" / "supabase_config.json"
-                cfg_file.write_text(json.dumps(cfg, indent=2) + "\n")
-                self._send_json({"ok": True, "url": cfg["url"], "project": proj["name"]})
-            except _ue.HTTPError as exc:
-                self._send_json({"ok": False, "error": f"API error {exc.code}: {exc.read().decode()[:200]}"}, 400)
-            except Exception as exc:
-                self._send_json({"ok": False, "error": str(exc)}, 500)
+                _yt_running.add(pid)
+
+            proj_dir = str(PROJECTS_DIR / pid)
+
+            def do_upload() -> None:
+                try:
+                    env = {**os.environ, "PIPELINE_ROOT": proj_dir}
+                    upload_script = ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
+                    subprocess.run(
+                        [sys.executable, str(upload_script)],
+                        cwd=ROOT, env=env, timeout=600,
+                    )
+                except Exception:
+                    pass
+                finally:
+                    with _yt_lock:
+                        _yt_running.discard(pid)
+
+            threading.Thread(target=do_upload, daemon=True).start()
+            self.send_json({"ok": True, "message": "Upload started — poll project status for youtube_video_id"})
             return
 
-        self.send_error(404)
+        self.err("Unknown action", 404)
 
-    def _handle_upload(self, project_id: str = "") -> None:
-        content_type = self.headers.get("Content-Type", "")
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length)
-        try:
-            form = parse_multipart_form(body, content_type)
-        except ValueError as exc:
-            self._send_json({"ok": False, "error": str(exc)}, 400)
+    def _maybe_advance_to_style(self, pid: str) -> None:
+        p = load_project(pid)
+        if not p:
             return
-
-        kind_field = form.get("kind", {})
-        kind = kind_field.get("data", b"script")
-        kind = kind.decode("utf-8") if isinstance(kind, bytes) else "script"
-        item = form.get("file")
-        if not item or not item.get("filename"):
-            self._send_json({"ok": False, "error": "No file"}, 400)
-            return
-
-        filename = Path(str(item["filename"])).name
-        file_data = item["data"]
-        if not isinstance(file_data, bytes):
-            self._send_json({"ok": False, "error": "No file data"}, 400)
-            return
-
-        # Resolve target directories (per-project or root)
-        if project_id:
-            pd2 = project_dir(project_id)
-            d_script = pd2 / "01-script"; sf = d_script / "Script.txt"
-            d_audio  = pd2 / "02-audio"
-            d_trans  = pd2 / "03-transcript"; tf = d_trans / "transcript.txt"
-        else:
-            d_script = DIR_SCRIPT; sf = SCRIPT_FILE
-            d_audio  = DIR_AUDIO
-            d_trans  = DIR_TRANSCRIPT; tf = TRANSCRIPT_FILE
-
-        if kind == "script":
-            d_script.mkdir(parents=True, exist_ok=True)
-            sf.write_bytes(file_data)
-            chars = len(file_data.decode("utf-8", errors="replace").strip())
-            self._send_json({"ok": True, "chars": chars})
-            return
-
-        if kind == "audio":
-            d_audio.mkdir(parents=True, exist_ok=True)
-            for p in d_audio.iterdir():
-                if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
-                    p.unlink()
-            dest = d_audio / filename
-            dest.write_bytes(file_data)
-            self._send_json({"ok": True, "path": f"02-audio/{dest.name}"})
-            return
-
-        if kind == "transcript":
-            d_trans.mkdir(parents=True, exist_ok=True)
-            tf.write_bytes(file_data)
-            chars = len(file_data.decode("utf-8", errors="replace").strip())
-            self._send_json({"ok": True, "chars": chars})
-            return
-
-        self._send_json({"ok": False, "error": f"Unknown kind: {kind}"}, 400)
+        audio_dir = PROJECTS_DIR / pid / "02-audio"
+        has_audio = audio_dir.is_dir() and any(
+            f.suffix.lower() in (".mp3", ".wav", ".m4a")
+            for f in audio_dir.iterdir()
+            if f.is_file() and f.name != ".gitkeep"
+        )
+        transcript = PROJECTS_DIR / pid / "03-transcript" / "transcript.txt"
+        has_transcript = transcript.is_file() and transcript.stat().st_size > 50
+        if has_audio and has_transcript and p.get("queue_status", "upload") == "upload":
+            p["queue_status"] = "style"
+            save_project(pid, p)
 
 
-def port_is_free(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind((HOST, port))
-        except OSError:
-            return False
-    return True
+# ── Entry point ───────────────────────────────────────────────────────────────
 
-
-def pick_port(preferred: int) -> int:
-    for port in range(preferred, preferred + 10):
-        if port_is_free(port):
-            return port
-    raise SystemExit(
-        f"ERROR: No free port in {preferred}-{preferred + 9}. "
-        f"Kill stale server: lsof -tiTCP:{preferred}-sTCP:LISTEN | xargs kill"
-    )
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Video studio UI server")
-    parser.add_argument("--port", type=int, default=PORT, help=f"Preferred port (default {PORT})")
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-
-    if not INDEX_FILE.is_file():
-        print(f"ERROR: Missing {INDEX_FILE}", file=sys.stderr)
-        sys.exit(1)
-
-    port = pick_port(args.port)
-    if port != args.port:
-        print(f"NOTE: Port {args.port} busy, using {port} instead")
-
-    port_file = TRACKER / "port.txt"
-    port_file.write_text(f"{port}\n", encoding="utf-8")
-
-    print(f"Project root: {ROOT}")
-    print(f"Studio UI:  http://127.0.0.1:{port}/")
-    print(f"            http://0.0.0.0:{port}/ (all interfaces)")
-
-    ThreadingHTTPServer.allow_reuse_address = True
+def main() -> int:
+    PROJECTS_DIR.mkdir(exist_ok=True)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    (TRACKER / "port.txt").write_text(str(PORT))
+    print(f"Studio → http://127.0.0.1:{PORT}/", flush=True)
     try:
-        with ThreadingHTTPServer((HOST, port), Handler) as httpd:
-            httpd.serve_forever()
-    except OSError as exc:
-        print(f"ERROR: Could not bind port {port}: {exc}", file=sys.stderr)
-        sys.exit(1)
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

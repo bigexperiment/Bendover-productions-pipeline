@@ -26,7 +26,8 @@ from lib.folders import DIR_IMAGES as IMAGES_DIR, MANIFEST_FILE, PROGRESS_FILE  
 from lib.image_prompt import FrameJob, build_frame_prompt  # noqa: E402
 from lib.notify import notify_credits_stopped, notify_images_complete, send_ntfy  # noqa: E402
 PROJECT_FILE = ROOT / "project.json"
-TRACKER_DIR = ROOT / "tracker"
+TRACKER_DIR  = ROOT / "tracker"
+STOPPED_FLAG = TRACKER_DIR / "stopped.flag"
 TRACKER_STATUS = TRACKER_DIR / "status.json"
 TRACKER_RECENT = TRACKER_DIR / "recent.json"
 TRACKER_LOGS = TRACKER_DIR / "logs"
@@ -261,6 +262,20 @@ def run_generation_batch(
     credits_hit = False
 
     while queue or running:
+        # Bail immediately if a stop was requested from the UI
+        if STOPPED_FLAG.is_file():
+            for _, (_, proc, _, _) in list(running.items()):
+                if proc.poll() is None:
+                    proc.terminate()
+            for filename, (job, proc, _, log_handle) in list(running.items()):
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                log_handle.close()
+            running.clear()
+            return queue, completed, failed, False
+
         usage = refresh_usage(force=True)
         if should_stop_generation(usage)[0]:
             credits_hit = True

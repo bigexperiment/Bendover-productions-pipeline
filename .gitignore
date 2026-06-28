@@ -71,3 +71,4 @@ __pycache__/
 .cache/
 .venv/
 .venv-youtube/
+exports/

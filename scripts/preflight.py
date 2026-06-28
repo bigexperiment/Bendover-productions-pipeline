@@ -35,7 +35,7 @@ _build_plan = module_from_spec(_spec)
 sys.modules[_spec.name] = _build_plan
 _spec.loader.exec_module(_build_plan)
 
-REQUIRED_PROJECT_KEYS = ("name", "image_style", "style_guide", "text_rules", "tone")
+REQUIRED_PROJECT_KEYS = ("name", "image_style", "style_guide")
 
 
 def ok(msg: str) -> None:
@@ -120,7 +120,11 @@ def run_preflight(*, phase: str = "manifest") -> int:
     # --- audio (exactly one file) ---
     try:
         audio = find_narration_audio()
-        ok(f"audio: {audio.relative_to(ROOT)}")
+        try:
+            display = audio.relative_to(ROOT)
+        except ValueError:
+            display = audio
+        ok(f"audio: {display}")
     except FileNotFoundError as exc:
         fail(errors, str(exc))
         audio = None

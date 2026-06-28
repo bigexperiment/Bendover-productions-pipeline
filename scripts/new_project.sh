@@ -42,19 +42,21 @@ mkdir -p "$PROJECT_DIR/05-images"
 mkdir -p "$PROJECT_DIR/06-output"
 mkdir -p "$PROJECT_DIR/07-upload"
 mkdir -p "$PROJECT_DIR/tracker"
+mkdir -p "$PROJECT_DIR/tracker/thumbs"
 
-# Copy style presets (shared assets, read-only reference)
+# Link shared assets (style previews etc.)
 if [[ -d "$ROOT/assets" ]]; then
   ln -s "$ROOT/assets" "$PROJECT_DIR/assets" 2>/dev/null || true
 fi
 
-# Write project.json template
+# project.json — queue_status "upload" so Studio UI shows the upload step
 cat > "$PROJECT_DIR/project.json" <<EOF
 {
   "name": "$TITLE",
-  "step": "script",
+  "queue_status": "upload",
   "style_approved": false,
   "image_style": "",
+  "style_preset_id": "",
   "style_preset_label": "",
   "style_guide": "",
   "text_rules": "",
@@ -63,51 +65,16 @@ cat > "$PROJECT_DIR/project.json" <<EOF
 }
 EOF
 
-# Write script placeholder
-cat > "$PROJECT_DIR/01-script/Script.txt" <<EOF
-[Paste or write your script here]
+# Script placeholder — Claude will fill this in
+cat > "$PROJECT_DIR/01-script/Script.txt" <<'EOF'
 EOF
 
-# Write transcript placeholder
-cat > "$PROJECT_DIR/03-transcript/transcript.txt" <<EOF
-[Paste TurboScribe transcript here — include (M:SS) inline timestamps]
+# Transcript placeholder
+cat > "$PROJECT_DIR/03-transcript/transcript.txt" <<'EOF'
 EOF
 
-# Add to queue.json
-QUEUE_FILE="$ROOT/queue.json"
-if [[ -f "$QUEUE_FILE" ]]; then
-  # Append the new project path to the projects array
-  python3 - <<PYEOF
-import json
-q = json.loads(open("$QUEUE_FILE").read())
-q.setdefault("projects", [])
-entry = {"path": "projects/$SLUG", "name": "$TITLE"}
-# Avoid duplicates
-if not any(p.get("path") == "projects/$SLUG" for p in q["projects"] if isinstance(p, dict)):
-    q["projects"].append(entry)
-open("$QUEUE_FILE", "w").write(json.dumps(q, indent=2) + "\n")
-print("Added to queue.json")
-PYEOF
-else
-  cat > "$QUEUE_FILE" <<EOF
-{
-  "projects": [
-    {"path": "projects/$SLUG", "name": "$TITLE"}
-  ]
-}
-EOF
-  echo "Created queue.json"
-fi
-
 echo ""
-echo "Project created: projects/$SLUG"
+echo "✓ Project created: projects/$SLUG"
 echo ""
-echo "Next steps:"
-echo "  1. Edit projects/$SLUG/project.json  — set image_style, style_guide, tone, text_rules"
-echo "  2. Paste script → projects/$SLUG/01-script/Script.txt"
-echo "  3. Add audio   → projects/$SLUG/02-audio/<narration>.mp3"
-echo "  4. Add transcript → projects/$SLUG/03-transcript/transcript.txt"
-echo "  5. Run preflight: PIPELINE_ROOT=projects/$SLUG python3 scripts/preflight.py"
-echo "  6. Set style_approved: true in project.json when ready"
-echo ""
-echo "Then add more projects and run:  bash scripts/start_queue.sh"
+echo "Next: paste the approved script into projects/$SLUG/01-script/Script.txt"
+echo "Then open the Studio UI → http://127.0.0.1:47829"

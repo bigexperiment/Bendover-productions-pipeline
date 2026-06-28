@@ -1,1299 +1,1371 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bendover Productions</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:system-ui,-apple-system,sans-serif;background:#f3f4f6;color:#111;min-height:100vh}
-    .wrap{max-width:620px;margin:0 auto;padding:28px 18px 80px}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bendover Productions Studio</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* Header */
-    .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-    .hdr h1{font-size:19px;font-weight:800}
-    .hdr .sub{font-size:13px;color:#6b7280;margin-top:2px}
-    .btn-new{background:#111;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer}
-    .btn-new:hover{background:#333}
+:root {
+  --bg:           #f5f4f1;
+  --surface:      #ffffff;
+  --surface-2:    #faf9f7;
+  --surface-3:    #f0eeeb;
+  --border:       #e4e1db;
+  --border-2:     #ccc9c2;
+  --text:         #1c1917;
+  --text-2:       #44403c;
+  --muted:        #78716c;
+  --muted-2:      #a8a29e;
+  --accent:       #7c3aed;
+  --accent-2:     #6d28d9;
+  --accent-soft:  #f5f3ff;
+  --accent-mid:   #ddd6fe;
+  --accent-text:  #5b21b6;
+  --green:        #059669;
+  --green-soft:   #ecfdf5;
+  --green-mid:    #a7f3d0;
+  --green-text:   #065f46;
+  --red:          #dc2626;
+  --red-soft:     #fef2f2;
+  --red-mid:      #fecaca;
+  --red-text:     #991b1b;
+  --amber:        #d97706;
+  --amber-soft:   #fffbeb;
+  --amber-mid:    #fde68a;
+  --amber-text:   #92400e;
+  --shadow-xs:    0 1px 2px rgba(0,0,0,.06);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.04);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,.09), 0 2px 8px rgba(0,0,0,.05);
+  --r:            12px;
+  --r-sm:         8px;
+  --r-xs:         5px;
+}
 
-    /* Queue status bar */
-    .yt-auth-bar{display:flex;align-items:center;gap:10px;border-radius:10px;padding:11px 16px;margin-bottom:12px;font-size:13px;font-weight:600}
-    .yt-auth-bar.ok{background:#f0fdf4;border:1px solid #86efac;color:#166534}
-    .yt-auth-bar.err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b}
-    .yt-auth-bar.warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
-    .yt-connect,.yt-reconnect{color:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
-    .queue-bar{display:flex;align-items:center;gap:10px;background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-    .queue-dot{width:9px;height:9px;border-radius:50%;background:#9ca3af;flex-shrink:0}
-    .queue-dot.running{background:#16a34a;animation:pulse 1.4s ease infinite}
-    .queue-dot.idle{background:#9ca3af}
-    .queue-text{font-size:14px;font-weight:600;flex:1}
-    .btn-queue{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer}
-    .btn-queue:hover{background:#15803d}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-    /* Project cards */
-    .proj-list{display:flex;flex-direction:column;gap:10px}
-    .proj-card{background:#fff;border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;transition:box-shadow .15s}
-    .proj-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.12)}
-    .proj-card-inner{display:flex;align-items:center;gap:12px}
-    .proj-status-icon{font-size:20px;flex-shrink:0}
-    .proj-info{flex:1;min-width:0}
-    .proj-title{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .proj-subtitle{font-size:13px;color:#6b7280;margin-top:2px}
-    .proj-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;flex-shrink:0}
-    .badge-script{background:#ede9fe;color:#6d28d9}
-    .badge-upload{background:#fff7ed;color:#c2410c}
-    .badge-style{background:#fef9c3;color:#854d0e}
-    .badge-queued{background:#f0fdf4;color:#166534}
-    .badge-running{background:#dbeafe;color:#1d4ed8}
-    .badge-thumbnails{background:#fce7f3;color:#9d174d}
-    .badge-done{background:#f0fdf4;color:#166534}
-    .badge-failed{background:#fef2f2;color:#991b1b}
-    .empty-state{text-align:center;padding:48px 20px;color:#9ca3af}
-    .empty-state .big{font-size:40px;margin-bottom:12px}
-    .empty-state p{font-size:15px}
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+#header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  z-index: 10;
+  box-shadow: 0 1px 0 var(--border), var(--shadow-xs);
+}
+#header-left { display: flex; align-items: center; gap: 10px; }
+#logo-mark {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 14px; font-weight: 800; flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(124,58,237,.35);
+}
+#header-left h1 {
+  font-size: 14px; font-weight: 700; letter-spacing: -0.3px; color: var(--text);
+}
+#header-left .tagline {
+  font-size: 11px; color: var(--muted-2);
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: 20px; padding: 2px 8px;
+}
 
-    /* Detail view */
-    .detail-hdr{display:flex;align-items:center;gap:12px;margin-bottom:24px}
-    .btn-back{background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;padding:2px 6px;border-radius:6px}
-    .btn-back:hover{background:#e5e7eb;color:#111}
-    .detail-title{font-size:19px;font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Credits widget */
+#credits-widget { display: flex; align-items: center; gap: 6px; }
 
-    /* Steps */
-    .step-bar{display:flex;align-items:center;margin-bottom:24px}
-    .snode{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0}
-    .scircle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:#e5e7eb;color:#9ca3af}
-    .scircle.act{background:#2563eb;color:#fff}
-    .scircle.done{background:#16a34a;color:#fff}
-    .slabel{font-size:10px;font-weight:600;color:#9ca3af;white-space:nowrap}
-    .slabel.act{color:#2563eb}
-    .slabel.done{color:#16a34a}
-    .sline{flex:1;height:2px;background:#e5e7eb;margin-bottom:14px}
-    .sline.done{background:#16a34a}
+.credit-pill {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 5px 11px;
+  font-size: 12px; min-width: 155px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.credit-pill.stale { border-color: var(--amber-mid); background: var(--amber-soft); }
+.credit-pill .cp-label {
+  color: var(--muted); font-weight: 700; font-size: 10px;
+  letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; min-width: 22px;
+}
+.credit-pill .cp-bar-wrap {
+  flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+}
+.credit-pill .cp-bar { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+.credit-pill .cp-pct { font-weight: 800; font-size: 12px; min-width: 34px; text-align: right; }
+.credit-pill .cp-sub { color: var(--muted-2); font-size: 10px; white-space: nowrap; }
 
-    /* Cards */
-    .card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:14px}
-    .card-title{font-size:17px;font-weight:700;margin-bottom:5px}
-    .card-sub{font-size:13px;color:#6b7280;margin-bottom:20px}
+#credits-refresh {
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); border-radius: var(--r-xs);
+  padding: 5px 8px; cursor: pointer; font-size: 14px; line-height: 1;
+  transition: all 0.15s;
+}
+#credits-refresh:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+#credits-refresh.spinning { animation: spin 0.8s linear infinite; }
 
-    /* AI chat section */
-    .ai-chat{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:14px}
-    .ai-msgs{min-height:80px;max-height:360px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#fafafa}
-    .msg{max-width:88%;padding:10px 13px;border-radius:10px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
-    .msg.user{background:#2563eb;color:#fff;align-self:flex-end;border-radius:10px 10px 2px 10px}
-    .msg.ai{background:#fff;color:#111;align-self:flex-start;border:1px solid #e5e7eb;border-radius:10px 10px 10px 2px}
-    .msg.thinking{color:#9ca3af;font-style:italic;background:transparent;border:none;padding:4px 0;font-size:13px}
-    .ai-input-row{display:flex;border-top:1px solid #e5e7eb}
-    .ai-input-row textarea{flex:1;padding:12px 14px;font-family:inherit;font-size:14px;border:none;outline:none;resize:none;height:56px}
-    .ai-send-btn{background:#2563eb;color:#fff;border:none;padding:0 18px;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0}
-    .ai-send-btn:hover{background:#1d4ed8}
-    .ai-send-btn:disabled{opacity:.4;cursor:not-allowed}
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+#layout { display: flex; flex: 1; overflow: hidden; }
 
-    /* Script editor */
-    .script-area{width:100%;padding:12px;font-family:ui-monospace,monospace;font-size:13px;border:1px solid #e5e7eb;border-radius:8px;min-height:200px;resize:vertical;outline:none;transition:border-color .15s}
-    .script-area:focus{border-color:#2563eb}
-    .script-meta{font-size:12px;color:#9ca3af;margin-top:6px}
+/* Sidebar */
+#sidebar {
+  width: 256px; background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column;
+}
+#sidebar-head {
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#sidebar-head h2 {
+  font-size: 10px; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.8px; text-transform: uppercase;
+}
+#project-list { padding: 4px 8px; }
 
-    /* File blocks */
-    .file-block{border:2px solid #e5e7eb;border-radius:10px;margin-bottom:10px;overflow:hidden}
-    .file-block.ready{border-color:#16a34a}
-    .fb-head{display:flex;align-items:center;gap:12px;padding:13px 15px}
-    .fb-icon{font-size:20px;flex-shrink:0}
-    .fb-info{flex:1;min-width:0}
-    .fb-name{font-weight:700;font-size:14px}
-    .fb-hint{font-size:12px;color:#9ca3af;margin-top:2px}
-    .file-block.ready .fb-hint{color:#16a34a}
-    .fb-acts{display:flex;gap:6px;flex-shrink:0}
-    .zone{display:flex;align-items:center;gap:10px;border-top:1px dashed #e5e7eb;padding:12px 15px;cursor:pointer;background:#fafafa}
-    .zone:hover{background:#eff6ff}
-    .zone-text{font-size:13px;color:#6b7280}
-    .fb-paste-btn{display:block;margin:0 15px 12px;padding:9px;text-align:center;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:#374151;background:#fff}
-    .fb-paste-btn:hover{background:#f9fafb}
-    .fb-ta-wrap{border-top:1px solid #e5e7eb;padding:12px 14px;background:#fafafa}
-    .fb-ta-wrap textarea{width:100%;padding:9px 11px;font-family:ui-monospace,monospace;font-size:12px;border:1px solid #e5e7eb;border-radius:6px;min-height:140px;resize:vertical;outline:none}
-    .fb-ta-wrap textarea:focus{border-color:#2563eb}
-    .ta-btns{display:flex;gap:8px;margin-top:8px;justify-content:flex-end}
+.proj-item {
+  padding: 10px 10px; cursor: pointer;
+  border-radius: var(--r-sm); margin: 2px 0;
+  display: flex; flex-direction: column; gap: 5px;
+  transition: background 0.1s; border: 1px solid transparent;
+}
+.proj-item:hover { background: var(--surface-2); }
+.proj-item.active {
+  background: var(--accent-soft); border-color: var(--accent-mid);
+}
+.proj-item .proj-name {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+.proj-item.active .proj-name { color: var(--accent-text); }
 
-    /* Style grid */
-    .style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;max-height:320px;overflow-y:auto}
-    .style-card{border:2px solid #e5e7eb;border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s}
-    .style-card:hover{border-color:#93c5fd}
-    .style-card.sel{border-color:#2563eb}
-    .style-card.sel .sname{color:#2563eb}
-    .style-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#e5e7eb}
-    .style-card .sname{font-size:11px;font-weight:600;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
-    .style-no-img{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-size:12px;color:#9ca3af}
-    .sel-note{margin-top:10px;font-size:13px;color:#6b7280}
-    .sel-note strong{color:#2563eb}
+/* Badges */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  border-radius: 20px; padding: 2px 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap;
+}
+.badge-upload     { background: var(--surface-3); color: var(--muted); border: 1px solid var(--border); }
+.badge-style      { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.badge-queued     { background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-mid); }
+.badge-running    { background: var(--green-soft); color: var(--green-text); border: 1px solid var(--green-mid); }
+.badge-thumbnails { background: var(--amber-soft); color: var(--amber-text); border: 1px solid var(--amber-mid); }
+.badge-done       { background: var(--green-soft); color: var(--green-text); border: 1px solid var(--green-mid); }
+.badge-failed     { background: var(--red-soft); color: var(--red-text); border: 1px solid var(--red-mid); }
+.badge-paused     { background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-mid); }
+.badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.badge-running .badge-dot { animation: pulse 1.4s ease infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 
-    /* Progress monitor */
-    .prog-bar{background:#e5e7eb;border-radius:99px;height:13px;overflow:hidden;margin-bottom:6px}
-    .prog-fill{background:#2563eb;height:100%;border-radius:99px;transition:width .5s}
-    .prog-text{font-size:13px;color:#6b7280;margin-bottom:16px}
-    .credits{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-    .cbox{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px}
-    .cbox .clbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:5px}
-    .cbox .cval{font-size:20px;font-weight:800}
-    .cbox .creset{font-size:11px;color:#9ca3af;margin-top:2px}
-    .cbox.warn .cval{color:#d97706}
-    .cbox.empty .cval{color:#dc2626}
-    .log-box{background:#111;color:#86efac;font-family:ui-monospace,monospace;font-size:12px;padding:12px;border-radius:8px;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+/* ── Main ───────────────────────────────────────────────────────────────────── */
+#main { flex: 1; overflow-y: auto; padding: 32px 36px; }
+#main.empty {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); text-align: center;
+}
 
-    /* Thumbnails */
-    .thumb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-    .thumb-item{border:3px solid #e5e7eb;border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s}
-    .thumb-item:hover{border-color:#93c5fd}
-    .thumb-item.sel{border-color:#2563eb}
-    .thumb-item.sel .thumb-lbl{color:#2563eb}
-    .thumb-item img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
-    .thumb-ph{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-size:12px;color:#9ca3af;text-align:center;padding:6px}
-    .thumb-lbl{text-align:center;padding:6px;font-size:12px;font-weight:700;color:#9ca3af}
+.page-title {
+  font-size: 24px; font-weight: 800; letter-spacing: -0.6px;
+  margin-bottom: 8px; color: var(--text); line-height: 1.25;
+}
+.page-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 28px; }
 
-    /* Buttons */
-    button{font-family:inherit;cursor:pointer;transition:background .15s,opacity .15s}
-    .btn-primary{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;width:100%}
-    .btn-primary:hover:not(:disabled){background:#1d4ed8}
-    .btn-primary:disabled{opacity:.4;cursor:not-allowed}
-    .btn-green{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;width:100%}
-    .btn-green:hover:not(:disabled){background:#15803d}
-    .btn-green:disabled{opacity:.4;cursor:not-allowed}
-    .btn-red{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;width:100%}
-    .btn-red:hover:not(:disabled){background:#b91c1c}
-    .btn-red:disabled{opacity:.4;cursor:not-allowed}
-    .btn-sm{padding:6px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-weight:600;background:#fff;color:#374151}
-    .btn-sm:hover{background:#f9fafb}
-    .btn-sm.danger{color:#dc2626;border-color:#fca5a5}
-    .btn-sm.danger:hover{background:#fef2f2}
-    .btn-row{display:flex;gap:10px;margin-top:18px}
-    .btn-row .btn-primary,.btn-row .btn-green{flex:1}
-    .btn-secondary{background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:600}
-    .btn-secondary:hover{background:#e5e7eb}
+/* Step bar */
+.step-bar { display: flex; align-items: center; margin-bottom: 28px; }
+.step-node { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+.step-node .dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; flex-shrink: 0;
+  transition: all 0.2s;
+}
+.step-node.done .dot   { background: var(--green); color: #fff; }
+.step-node.active .dot { background: var(--accent); color: #fff; box-shadow: 0 0 0 4px var(--accent-mid); }
+.step-node.idle .dot   { background: var(--surface-3); color: var(--muted-2); border: 1px solid var(--border); }
+.step-node .label { color: var(--muted); font-size: 11px; }
+.step-node.active .label { color: var(--accent); }
+.step-node.done .label { color: var(--green-text); }
+.step-line { flex: 1; height: 2px; background: var(--border); margin: 0 8px; min-width: 16px; border-radius: 1px; }
+.step-line.done { background: var(--green); }
 
-    /* Alerts */
-    .alert{border-radius:8px;padding:11px 13px;font-size:13px;margin-bottom:14px}
-    .alert.info{background:#eff6ff;border:1px solid #93c5fd}
-    .alert.ok{background:#f0fdf4;border:1px solid #86efac;color:#166534}
-    .alert.warn{background:#fef3c7;border:1px solid #fbbf24}
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.card-title {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.7px; text-transform: uppercase;
+}
+.card-desc {
+  color: var(--muted); font-size: 13px; margin-bottom: 20px; line-height: 1.6;
+}
 
-    /* Inputs */
-    .field{margin-bottom:16px}
-    .field label{display:block;font-weight:600;font-size:13px;margin-bottom:5px}
-    .field input,.field textarea{width:100%;padding:10px 12px;font-family:inherit;font-size:14px;border:2px solid #e5e7eb;border-radius:8px;outline:none;transition:border-color .15s}
-    .field input:focus,.field textarea:focus{border-color:#2563eb}
-    .field textarea{resize:vertical;min-height:64px}
-    .field .hint{font-size:12px;color:#9ca3af;margin-top:4px}
+/* Upload zones */
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--r-sm);
+  padding: 32px 20px;
+  text-align: center; cursor: pointer;
+  transition: all 0.2s;
+  position: relative; background: var(--surface-2);
+}
+.upload-zone:hover, .upload-zone.drag {
+  border-color: var(--accent); background: var(--accent-soft);
+}
+.upload-zone.done {
+  border-color: var(--green); border-style: solid; background: var(--green-soft);
+}
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-zone .icon { font-size: 28px; margin-bottom: 10px; display: block; }
+.upload-zone .uz-label { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.upload-zone .uz-done  { font-size: 13px; font-weight: 600; color: var(--green); }
+.field-label {
+  font-size: 11px; color: var(--muted); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 7px; margin-top: 16px;
+}
 
-    /* Done screen */
-    .done-box{text-align:center;padding:16px 0}
-    .done-box .big{font-size:48px;margin-bottom:12px}
-    .done-box h2{font-size:21px;margin-bottom:8px}
-    .done-box p{color:#6b7280;margin-bottom:20px;font-size:14px}
-    .done-links{display:flex;flex-direction:column;gap:9px}
-    .done-links a{display:block;padding:12px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;text-align:center}
-    .link-yt{background:#dc2626;color:#fff}
-    .link-studio{background:#f3f4f6;color:#374151}
+/* Style grid */
+.style-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px; margin-bottom: 12px;
+}
+.style-card {
+  background: var(--surface-2); border: 2px solid var(--border);
+  border-radius: var(--r-sm); padding: 10px; cursor: pointer;
+  transition: all 0.15s;
+}
+.style-card:hover { border-color: var(--accent-mid); background: var(--accent-soft); }
+.style-card.selected {
+  border-color: var(--accent); background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-mid);
+}
+.style-preview {
+  width: 100%; aspect-ratio: 16/9;
+  background: var(--surface-3); border-radius: var(--r-xs);
+  margin-bottom: 8px; overflow: hidden;
+}
+.style-preview img { width: 100%; height: 100%; object-fit: cover; }
+.style-label     { font-size: 12px; font-weight: 600; color: var(--text); }
+.style-label-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-    /* Toast */
-    .toast{
-      position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
-      background:#111;color:#fff;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:600;
-      opacity:0;transition:opacity .2s,transform .2s;z-index:999;pointer-events:none;white-space:nowrap;
-    }
-    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-    .toast.ok{background:#16a34a}
-    .toast.err{background:#dc2626}
+#custom-panel { display: none; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 16px; }
+#custom-panel.open { display: block; }
 
-    /* Queue log panel */
-    .queue-log-panel{background:#fff;border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-    .queue-log-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-    .queue-log-hdr span{font-size:13px;font-weight:700;color:#374151}
-    .queue-log-hdr button{background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;text-decoration:underline}
+textarea {
+  width: 100%; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--text); padding: 10px 13px;
+  font-size: 13px; font-family: inherit;
+  resize: vertical; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s; line-height: 1.6;
+}
+textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-mid); background: #fff; }
 
-    /* Misc */
-    input[type=file]{display:none}
-    .sep{height:1px;background:#e5e7eb;margin:16px 0}
-  </style>
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; cursor: pointer; border: none;
+  transition: all 0.15s; white-space: nowrap; text-decoration: none; letter-spacing: -0.1px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-2); box-shadow: 0 4px 14px rgba(124,58,237,.35);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-outline { background: var(--surface); color: var(--text-2); border: 1px solid var(--border); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { background: #047857; box-shadow: 0 4px 14px rgba(5,150,105,.3); }
+.btn-red { background: var(--red); color: #fff; }
+.btn-red:hover:not(:disabled) { background: #b91c1c; }
+.btn-red:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid transparent; }
+.btn-ghost:hover { background: var(--surface-3); border-color: var(--border); color: var(--text); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Log viewer */
+#log-box {
+  background: #0f0f14;
+  border: 1px solid #1e1e2a;
+  border-radius: var(--r-sm);
+  padding: 16px 18px;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+  font-size: 11.5px; line-height: 1.7; color: #c9d1d9;
+  height: 280px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+#log-box::-webkit-scrollbar { width: 6px; }
+#log-box::-webkit-scrollbar-track { background: transparent; }
+#log-box::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* Progress */
+.progress-wrap { margin-bottom: 8px; }
+.progress-bar { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; }
+.progress-bar .fill {
+  height: 100%; border-radius: 4px; transition: width 0.6s ease;
+  background: linear-gradient(90deg, var(--accent) 0%, #a855f7 100%);
+}
+.progress-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* Thumbnails */
+.thumb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.thumb-card {
+  border: 2px solid var(--border); border-radius: var(--r-sm);
+  overflow: hidden; cursor: pointer; transition: all 0.18s;
+  background: var(--surface); box-shadow: var(--shadow-xs);
+}
+.thumb-card:hover {
+  border-color: var(--accent); box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.thumb-card.selected {
+  border-color: var(--green); box-shadow: 0 0 0 3px var(--green-mid);
+  transform: translateY(-2px);
+}
+.thumb-card img { width: 100%; display: block; }
+.thumb-foot {
+  padding: 10px; display: flex; justify-content: center;
+  background: var(--surface-2); border-top: 1px solid var(--border);
+}
+.thumb-empty {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 110px; color: var(--muted-2); font-size: 12px;
+  background: var(--surface-2); border: 1px dashed var(--border); border-radius: var(--r-sm);
+}
+
+/* Alerts */
+.alert {
+  padding: 12px 15px; border-radius: var(--r-sm);
+  font-size: 13px; margin-bottom: 16px; line-height: 1.5;
+}
+.alert-red    { background: var(--red-soft);   border: 1px solid var(--red-mid);   color: var(--red-text); }
+.alert-green  { background: var(--green-soft); border: 1px solid var(--green-mid); color: var(--green-text); }
+.alert-amber  { background: var(--amber-soft); border: 1px solid var(--amber-mid); color: var(--amber-text); }
+.alert-purple { background: var(--accent-soft); border: 1px solid var(--accent-mid); color: var(--accent-text); }
+
+/* Preflight output */
+#preflight-out {
+  background: #0f0f14; border: 1px solid #1e1e2a; border-radius: var(--r-sm);
+  padding: 12px 14px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #c9d1d9;
+  white-space: pre-wrap; max-height: 200px; overflow-y: auto; margin-top: 14px; display: none;
+}
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+
+/* Info row */
+.info-row { display: flex; gap: 28px; margin-bottom: 18px; }
+.info-item { display: flex; flex-direction: column; gap: 3px; }
+.info-item .ii-label {
+  font-size: 10px; color: var(--muted); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.info-item .ii-value { font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* Divider */
+.divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+/* Stat block (for running view) */
+.stat-row { display: flex; gap: 16px; margin-bottom: 20px; }
+.stat-block {
+  flex: 1; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 14px 16px;
+}
+.stat-block .sb-val { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -1px; }
+.stat-block .sb-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 500; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Empty state */
+.empty-state { text-align: center; }
+.empty-state .es-icon {
+  width: 56px; height: 56px; background: var(--accent-soft);
+  border: 1px solid var(--accent-mid); border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; margin: 0 auto 16px;
+}
+.empty-state h2 { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+.empty-state p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+/* Running pulse ring */
+.pulse-ring {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--green); display: inline-block; position: relative;
+}
+.pulse-ring::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  border: 2px solid var(--green); animation: ring 1.6s ease-out infinite;
+}
+@keyframes ring { 0%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(2.2)} }
+
+/* ── Frame Viewer ────────────────────────────────────────────────────────────*/
+.viewer-wrap {
+  position: relative; background: #000; border-radius: var(--r-sm);
+  overflow: hidden; aspect-ratio: 16/9; margin-bottom: 0;
+}
+.viewer-wrap img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+  transition: opacity 0.25s ease;
+}
+.viewer-wrap.loading img { opacity: 0.5; }
+.viewer-caption {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.82));
+  color: #fff; padding: 32px 18px 14px;
+  font-size: 13px; line-height: 1.55; font-weight: 500;
+  pointer-events: none;
+}
+.viewer-live-badge {
+  position: absolute; top: 10px; right: 10px;
+  background: #ef4444; color: #fff;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+  padding: 3px 8px; border-radius: 4px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 5px;
+}
+.viewer-live-badge .live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #fff;
+  animation: pulse 1s ease infinite;
+}
+.viewer-placeholder {
+  width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center; color: #555; font-size: 13px;
+  background: #0a0a0f;
+}
+.viewer-controls {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 0 2px; flex-wrap: wrap;
+}
+.viewer-btn {
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: var(--r-xs); padding: 6px 12px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text-2);
+  transition: all 0.12s; line-height: 1;
+}
+.viewer-btn:hover { background: var(--accent-soft); border-color: var(--accent-mid); color: var(--accent); }
+.viewer-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.viewer-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.viewer-count { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.viewer-time  { font-size: 12px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.viewer-spacer { flex: 1; }
+
+.audio-bar-wrap {
+  margin-top: 10px; position: relative; height: 5px;
+  background: var(--surface-3); border-radius: 3px; cursor: pointer;
+}
+.audio-bar-fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+  pointer-events: none; transition: width 0.5s linear;
+}
+.audio-bar-wrap:hover .audio-bar-fill { background: var(--accent-2); }
+</style>
 </head>
 <body>
-<div class="wrap" id="app">Loading…</div>
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<div id="header">
+  <div id="header-left">
+    <div id="logo-mark">B</div>
+    <h1>Bendover Studio</h1>
+    <span class="tagline">local</span>
+  </div>
+  <div id="credits-widget">
+    <div class="credit-pill" id="cp-5h" title="5-hour generation window">
+      <span class="cp-label">5h</span>
+      <div class="cp-bar-wrap"><div class="cp-bar" id="bar-5h" style="width:0%"></div></div>
+      <span class="cp-pct" id="pct-5h">—</span>
+      <span class="cp-sub" id="sub-5h"></span>
+    </div>
+    <div class="credit-pill" id="cp-wk" title="Weekly generation window">
+      <span class="cp-label">Wkly</span>
+      <div class="cp-bar-wrap"><div class="cp-bar" id="bar-wk" style="width:0%"></div></div>
+      <span class="cp-pct" id="pct-wk">—</span>
+      <span class="cp-sub" id="sub-wk"></span>
+    </div>
+    <button id="credits-refresh" onclick="refreshCredits()" title="Refresh credits (runs codex to get live data)">↻</button>
+  </div>
+</div>
 
-<!-- Hidden file inputs -->
-<input type="file" id="fi-script"     accept=".txt">
-<input type="file" id="fi-audio"      accept=".mp3,.wav,.m4a">
-<input type="file" id="fi-transcript" accept=".txt">
+<!-- ── Layout ─────────────────────────────────────────────────────────────── -->
+<div id="layout">
+
+  <aside id="sidebar">
+    <div id="sidebar-head"><h2>Projects</h2></div>
+    <div id="project-list">
+      <div style="padding:16px 12px;color:var(--muted-2);font-size:12px">Loading…</div>
+    </div>
+  </aside>
+
+  <main id="main" class="empty">
+    <div class="empty-state">
+      <div class="es-icon">🎬</div>
+      <h2>Select a project</h2>
+      <p>Pick one from the sidebar, or create<br>new ones via Claude Code <code>/start</code></p>
+    </div>
+  </main>
+
+</div>
 
 <script>
-// ── App state ──────────────────────────────────────────────────────
-const APP = {
-  screen: 'list',     // list | detail
-  projects: [],
-  queueRunning: false,
-  queueLog: [],
-  showQueueLog: false,
-  ytAuth: null,   // {has_secrets, has_token}
-  supabase: null, // {configured, url}
-  // detail
-  activeId: null,
-  detail: null,
-  detailStep: 1,      // 1=script 2=upload 3=style 4=running/thumb/done
-  presets: [],
-  pickedStyleId: '', pickedStyleLabel: '', pickedImageStyle: '',
-  selectedThumb: null,
-  progress: null,      // live progress for running project
-  // per-file ui mode
-  scriptMode: 'idle',   // idle | paste | edit
-  transMode: 'idle',
-  scriptContent: null, transContent: null,
-  // chat
-  chatMsgs: [],
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let selectedId   = null;
+let projects     = [];
+let currentProj  = null;
+let logTimer     = null;
+let stylePresets = [];
+let selectedPreset = null;
+
+const STATUS_LABELS = {
+  upload:     'Upload files',
+  style:      'Choose style',
+  queued:     'In queue',
+  running:    'Generating',
+  thumbnails: 'Pick thumbnail',
+  done:       'Done',
+  failed:     'Failed',
+  paused:     'Paused',
 };
+const STEPS = ['upload','style','queued','running','thumbnails','done'];
 
-// ── API ────────────────────────────────────────────────────────────
-const api = (path, opts) => fetch(path, opts).then(r => r.json());
+// ── Boot ───────────────────────────────────────────────────────────────────────
+(async () => {
+  stylePresets = await get('/api/styles').catch(() => []);
+  await refreshProjects();
+  setInterval(refreshProjects, 3000);
+  loadCredits();
+  setInterval(loadCredits, 30000);
+})();
 
-async function uploadFile(kind, file, projectId) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function get(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function post(url, data) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: data !== undefined ? JSON.stringify(data) : undefined });
+  return r.json();
+}
+async function upload(url, field, file) {
   const fd = new FormData();
-  fd.append('kind', kind);
-  fd.append('file', file, file.name);
-  const url = projectId ? `/api/projects/${projectId}/upload` : '/api/upload';
-  return fetch(url, { method: 'POST', body: fd }).then(r => r.json());
+  fd.append(field, file, file.name);
+  return (await fetch(url, { method:'POST', body: fd })).json();
 }
-
-// ── Poll ───────────────────────────────────────────────────────────
-let pollTimer = null;
-async function poll() {
-  try {
-    const r = await api('/api/projects');
-    APP.projects = r.projects || [];
-    APP.queueRunning = !!r.queue_running;
-
-    if (!APP.presets.length) {
-      const ps = await api('/api/style-presets');
-      APP.presets = ps.presets || [];
-    }
-
-    // Check YouTube auth status periodically
-    if (!APP.ytAuth || Math.random() < 0.1) {
-      APP.ytAuth = await api('/api/youtube/auth/status');
-    }
-
-    // Check Supabase config status periodically
-    if (!APP.supabase || Math.random() < 0.05) {
-      APP.supabase = await api('/api/supabase/config').catch(() => ({ configured: false }));
-    }
-
-    if (APP.queueRunning || APP.showQueueLog) {
-      const ql = await api('/api/queue/log');
-      APP.queueLog = ql.lines || [];
-      if (!ql.running && APP.queueRunning) {
-        // just stopped
-        toast('Queue finished', 'ok', 4000);
-      }
-      APP.queueRunning = ql.running;
-    }
-
-    if (APP.screen === 'detail' && APP.activeId) {
-      const d = await api(`/api/projects/${APP.activeId}`);
-      APP.detail = d;
-      const st = d.status;
-      if (st === 'script')     APP.detailStep = 1;
-      else if (st === 'upload') APP.detailStep = 2;
-      else if (st === 'style')  APP.detailStep = 3;
-      else if (['queued','running','thumbnails','done','failed'].includes(st)) APP.detailStep = 4;
-
-      // Fetch live progress if running or thumbnails stage
-      if (['running','thumbnails'].includes(st) || APP.progress) {
-        APP.progress = await api(`/api/projects/${APP.activeId}/progress`);
-        // Auto-detect thumbnail-ready → switch status
-        if (APP.progress.thumbnails?.some(t => t.exists) && st === 'running') {
-          d.status = 'thumbnails';
-          update_project_queue_status_local(APP.activeId, 'thumbnails');
-        }
-        // Auto-detect done
-        if (APP.progress.youtube_video_id && st !== 'done') {
-          d.status = 'done';
-        }
-      }
-    }
-
-    renderIfChanged();
-  } catch(e) { console.error('poll', e); }
-  pollTimer = setTimeout(poll, 4000);
-}
-
-// ── Render ─────────────────────────────────────────────────────────
-let _lastRenderKey = '';
-function renderIfChanged() {
-  // Never interrupt user while they're typing or a modal is open
-  const active = document.activeElement;
-  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
-  if (document.querySelector('.modal-overlay')) return;
-  // Skip full re-render if nothing meaningful changed
-  const key = JSON.stringify({
-    screen: APP.screen,
-    projects: APP.projects.map(p => p.status + p.id),
-    queueRunning: APP.queueRunning,
-    queueLog: APP.queueLog.length,
-    activeId: APP.activeId,
-    detailStatus: APP.detail?.status,
-    detailStep: APP.detailStep,
-    progress: APP.progress ? `${APP.progress.stage}:${APP.progress.done_frames}` : null,
-    thumbs: APP.progress?.thumbnails?.map(t => t.exists).join(''),
-    ytAuth: APP.ytAuth?.has_token,
-    showLog: APP.showQueueLog,
-  });
-  if (key === _lastRenderKey) return;
-  _lastRenderKey = key;
-  render();
-}
-
-function render() {
-  document.getElementById('app').innerHTML =
-    APP.screen === 'list'   ? renderList() :
-    APP.screen === 'detail' ? renderDetail() : '';
-  bindEvents();
-}
-
-// ── PROJECT LIST ───────────────────────────────────────────────────
-const STATUS_ICON = {
-  script:'📝', upload:'📁', style:'🎨', queued:'⏳',
-  running:'▶️', thumbnails:'🖼', done:'✅', failed:'❌', unknown:'❓'
-};
-const STATUS_LABEL = {
-  script:'Write script', upload:'Upload files', style:'Pick style',
-  queued:'In queue', running:'Running…', thumbnails:'Pick thumbnail',
-  done:'Done', failed:'Failed', unknown:'Unknown'
-};
-const STATUS_BADGE = {
-  script:'badge-script', upload:'badge-upload', style:'badge-style',
-  queued:'badge-queued', running:'badge-running', thumbnails:'badge-thumbnails',
-  done:'badge-done', failed:'badge-failed', unknown:''
-};
-
-function renderList() {
-  const qRunning = APP.queueRunning;
-  const qPending = APP.projects.filter(p => p.status === 'queued').length;
-
-  const cards = APP.projects.length
-    ? APP.projects.map(p => {
-        const st = p.status || 'unknown';
-        const isActive = p.id === APP.activeId;
-        const pr2 = isActive ? APP.progress : null;
-        let subtitle = STATUS_LABEL[st] || st;
-        if (st === 'running' && pr2) {
-          const stageLabels = {
-            images:`🎨 Frames ${pr2.done_frames||0}/${pr2.total_frames||'?'}${pr2.img_phase==='waiting_credits'?' — credits paused':''}`,
-            render_pending:'✂️ Starting render…', rendering:'✂️ Rendering…',
-            render_done:'🖼 Generating thumbnails…', thumbnails:'🖼 Thumbnails ready',
-            uploading:'📤 Uploading…', done:'✅ Done'
-          };
-          subtitle = stageLabels[pr2.stage] || 'Running…';
-        }
-        return `<div class="proj-card" data-pid="${esc(p.id)}">
-          <div class="proj-card-inner">
-            <span class="proj-status-icon">${STATUS_ICON[st]||'❓'}</span>
-            <div class="proj-info">
-              <div class="proj-title">${esc(p.title||p.id)}</div>
-              <div class="proj-subtitle">${subtitle}</div>
-            </div>
-            <span class="proj-badge ${STATUS_BADGE[st]||''}">${st}</span>
-          </div>
-        </div>`;
-      }).join('')
-    : `<div class="empty-state"><div class="big">🎬</div><p>No videos yet.<br>Hit "New video" to start.</p></div>`;
-
-  const logPanel = APP.showQueueLog ? `
-    <div class="queue-log-panel">
-      <div class="queue-log-hdr">
-        <span>Queue log</span>
-        <button id="btn-hide-log">hide</button>
-      </div>
-      <div class="log-box">${esc(APP.queueLog.slice(-30).join('\n') || 'No output yet…')}</div>
-    </div>` : '';
-
-  const queueBar = `${logPanel}<div class="queue-bar">
-    <span class="queue-dot ${qRunning?'running':'idle'}"></span>
-    <span class="queue-text">${qRunning ? 'Pipeline running…' : qPending ? `${qPending} video${qPending>1?'s':''} queued` : 'Pipeline idle'}</span>
-    ${!qRunning && qPending ? `<button class="btn-queue" id="btn-start-queue">▶ Start queue</button>` : ''}
-    ${qRunning ? `<button class="btn-queue" style="background:#dc2626;margin-left:4px" id="btn-stop-queue">⏹ Stop</button>` : ''}
-    ${(qRunning || qPending || APP.showQueueLog) ? `<button class="btn-queue" style="background:#374151;margin-left:4px" id="btn-show-log">${APP.showQueueLog?'Hide log':'View log'}</button>` : ''}
-  </div>`;
-
-  const yt = APP.ytAuth;
-  const ytCard = yt ? (() => {
-    if (!yt.has_secrets) return `<div class="yt-auth-bar warn">
-      ⚠️ No YouTube client secret found in <code>07-upload/</code> — upload will not work.
-    </div>`;
-    if (yt.has_token) return `<div class="yt-auth-bar ok">
-      ✅ YouTube connected
-      <a href="/api/youtube/auth/start" class="yt-reconnect">Reconnect</a>
-    </div>`;
-    return `<div class="yt-auth-bar err">
-      ❌ YouTube not connected —
-      <a href="/api/youtube/auth/start" class="yt-connect">Sign in with Google →</a>
-    </div>`;
-  })() : '';
-
-  const sb = APP.supabase;
-  const supabaseCard = (() => {
-    if (!sb) return '';
-    if (sb.configured) return `<div class="yt-auth-bar ok" style="display:flex;align-items:center;gap:10px">
-      ☁️ Supabase connected — <a href="#" id="sb-sync-btn" style="color:inherit;text-decoration:underline;font-weight:600">Sync now</a>
-      &nbsp;|&nbsp; <a href="/review" target="_blank" style="color:inherit;text-decoration:underline;font-weight:600">Open review page →</a>
-    </div>`;
-    return `<div class="yt-auth-bar warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      ☁️ Supabase not configured —
-      <button onclick="showSupabaseSetup()" style="background:#374151;color:#fff;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:12px">Set up →</button>
-    </div>`;
-  })();
-
-  return `<div class="hdr">
-    <div><h1>Bendover Productions</h1><div class="sub">Video pipeline</div></div>
-    <button class="btn-new" id="btn-new-video">+ New video</button>
-  </div>
-  ${ytCard}
-  ${supabaseCard}
-  ${queueBar}
-  <div class="proj-list">${cards}</div>`;
-}
-
-// ── PROJECT DETAIL ─────────────────────────────────────────────────
-function renderDetail() {
-  const d = APP.detail;
-  if (!d) return `<div style="color:#9ca3af;padding:40px;text-align:center">Loading…</div>`;
-
-  const st = d.status || 'script';
-  const title = d.title || d.id || 'Untitled';
-
-  const hdr = `<div class="detail-hdr">
-    <button class="btn-back" id="btn-back">←</button>
-    <div class="detail-title">${esc(title)}</div>
-  </div>`;
-
-  // Step bar
-  const steps = ['Script','Upload','Style','Launch'];
-  const cs = APP.detailStep;
-  const nodes = steps.map((lbl,i) => {
-    const n = i+1;
-    const isDone = n < cs;
-    const isAct  = n === cs;
-    const c = isDone?'done':isAct?'act':'';
-    return `<div class="snode">
-      <div class="scircle ${c}">${isDone?'✓':n}</div>
-      <div class="slabel ${c}">${lbl}</div>
-    </div>`;
-  });
-  const lines = [0,1,2].map(i => `<div class="sline ${cs>i+1?'done':''}"></div>`);
-  const stepBar = `<div class="step-bar">${nodes[0]}${lines[0]}${nodes[1]}${lines[1]}${nodes[2]}${lines[2]}${nodes[3]}</div>`;
-
-  let body = '';
-  if (cs === 1) body = renderDetailScript(d);
-  else if (cs === 2) body = renderDetailUpload(d);
-  else if (cs === 3) body = renderDetailStyle(d);
-  else if (cs === 4) body = renderDetailLaunch(d);
-
-  return hdr + stepBar + body;
-}
-
-// Step 1: Script
-function renderDetailScript(d) {
-  const hasScript = d.has_script;
-  const chars = d.script_chars || 0;
-
-  // Chat messages
-  const msgs = APP.chatMsgs.map(m =>
-    `<div class="msg ${m.role}">${esc(m.text)}</div>`
-  ).join('') || `<div class="msg thinking">Ask me to brainstorm a video idea or write the script…</div>`;
-
-  const chatArea = `<div class="ai-chat">
-    <div class="ai-msgs" id="chat-msgs">${msgs}</div>
-    <div class="ai-input-row">
-      <textarea id="chat-inp" placeholder="e.g. 'Write a script about why we procrastinate'" rows="2"></textarea>
-      <button class="ai-send-btn" id="chat-send">Send</button>
-    </div>
-  </div>`;
-
-  // Quick action buttons
-  const quickBtns = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-    <button class="btn-sm" data-quick="ideas">💡 Brainstorm ideas</button>
-    <button class="btn-sm" data-quick="write">📄 Write script for me</button>
-    <button class="btn-sm" data-quick="improve">✏️ Improve current script</button>
-  </div>`;
-
-  // Script editor
-  const mode = APP.scriptMode;
-  let scriptSection = '';
-  if (hasScript && mode === 'idle') {
-    scriptSection = `<div class="file-block ready">
-      <div class="fb-head">
-        <span class="fb-icon">📄</span>
-        <div class="fb-info"><div class="fb-name">Script</div><div class="fb-hint">✓ ${fmtChars(chars)}</div></div>
-        <div class="fb-acts">
-          <button class="btn-sm" data-fa="edit-script">Edit</button>
-          <button class="btn-sm danger" data-fa="del-script">Delete</button>
-        </div>
-      </div>
-    </div>`;
-  } else if (mode === 'edit' || mode === 'paste' || !hasScript) {
-    const val = APP.scriptContent !== null ? esc(APP.scriptContent) : '';
-    const ph = 'Your script goes here — or ask AI above to write it…';
-    scriptSection = `<div class="card" style="padding:16px">
-      <div style="font-weight:600;font-size:13px;margin-bottom:8px">Script ${hasScript?'(editing)':'(empty)'}</div>
-      <textarea class="script-area" id="script-ta" placeholder="${ph}">${val}</textarea>
-      <div class="script-meta" id="script-char-count">${val ? `${val.length} chars` : ''}</div>
-      <div class="ta-btns" style="margin-top:10px">
-        ${hasScript ? `<button class="btn-sm" data-fa="cancel-script">Cancel</button>` : ''}
-        <button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb" data-fa="save-script">Save script</button>
-      </div>
-    </div>`;
-  }
-
-  const canNext = hasScript && mode === 'idle';
-  return `<div class="card">
-    <div class="card-title">Write your script</div>
-    <div class="card-sub">Chat with AI to brainstorm and write the script. Or paste/type it yourself.</div>
-    ${quickBtns}
-    ${chatArea}
-  </div>
-  ${scriptSection}
-  <button class="btn-primary" id="btn-script-next" ${canNext?'':'disabled'} style="margin-top:4px">Script ready → Next</button>`;
-}
-
-// Step 2: Upload
-function renderDetailUpload(d) {
-  const {has_audio, has_transcript, transcript_chars} = d;
-  const canNext = has_audio && has_transcript;
-
-  return `<div class="card">
-    <div class="card-title">Upload audio & transcript</div>
-    <div class="card-sub">Record your narration, get it transcribed (TurboScribe), then upload both here.</div>
-
-    <!-- Audio -->
-    <div class="file-block ${has_audio?'ready':''}">
-      <div class="fb-head">
-        <span class="fb-icon">🎙️</span>
-        <div class="fb-info">
-          <div class="fb-name">Audio</div>
-          <div class="fb-hint">${has_audio ? '✓ Audio uploaded' : '.mp3 / .wav / .m4a'}</div>
-        </div>
-        ${has_audio ? '' : ''}
-      </div>
-      ${has_audio ? '' : `<div class="zone" data-upload="audio"><span>📂</span><span class="zone-text">Click to upload audio file</span></div>`}
-    </div>
-
-    <!-- Transcript -->
-    ${textFileBlockDetail('transcript', '📝', 'Transcript', '.txt from TurboScribe / Whisper', has_transcript, transcript_chars)}
-
-    <button class="btn-primary" id="btn-upload-next" ${canNext?'':'disabled'} style="margin-top:16px">Files ready → Next</button>
-  </div>`;
-}
-
-function textFileBlockDetail(kind, icon, label, hint, ready, chars) {
-  const mode = kind === 'transcript' ? APP.transMode : APP.scriptMode;
-  let inner = `<div class="fb-head">
-    <span class="fb-icon">${icon}</span>
-    <div class="fb-info">
-      <div class="fb-name">${label}</div>
-      <div class="fb-hint">${ready ? `✓ ${fmtChars(chars)}` : hint}</div>
-    </div>
-    ${ready ? `<div class="fb-acts">
-      <button class="btn-sm" data-fa="edit-${kind}">Edit</button>
-      <button class="btn-sm danger" data-fa="del-${kind}">Delete</button>
-    </div>` : ''}
-  </div>`;
-
-  if (mode === 'edit' || mode === 'paste') {
-    const val = (kind === 'transcript' ? APP.transContent : APP.scriptContent) || '';
-    inner += `<div class="fb-ta-wrap">
-      <textarea id="ta-${kind}" placeholder="Paste ${label.toLowerCase()} here…">${esc(val)}</textarea>
-      <div class="ta-btns">
-        <button class="btn-sm" data-fa="cancel-${kind}">Cancel</button>
-        <button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb" data-fa="save-${kind}">Save</button>
-      </div>
-    </div>`;
-  } else if (!ready) {
-    inner += `<div class="zone" data-upload="${kind}"><span>📂</span><span class="zone-text">Click to upload .txt file</span></div>
-    <div style="padding:0 15px;display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <div style="flex:1;height:1px;background:#e5e7eb"></div><span style="font-size:11px;color:#9ca3af;font-weight:600">OR</span><div style="flex:1;height:1px;background:#e5e7eb"></div>
-    </div>
-    <button class="fb-paste-btn" data-fa="paste-${kind}">✏️ Paste text directly</button>`;
-  }
-  return `<div class="file-block ${ready?'ready':''}" id="fb-${kind}">${inner}</div>`;
-}
-
-// Step 3: Style
-function renderDetailStyle(d) {
-  const presets = APP.presets;
-  const picked = APP.pickedStyleId || d.style_preset_id;
-  const pickedPreset = presets.find(p => p.id === picked);
-
-  const grid = presets.map(p => {
-    const sel = p.id === picked ? 'sel' : '';
-    const src = p.preview || `assets/style-samples/explore_${p.id}.png`;
-    return `<div class="style-card ${sel}" data-sid="${p.id}" data-slabel="${esc(p.label)}" data-simg="${esc(p.image_style||'')}">
-      <img src="/${src}" alt="${esc(p.label)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
-      <div class="style-no-img" style="display:none">No preview</div>
-      <div class="sname">${esc(p.label)}</div>
-    </div>`;
-  }).join('');
-
-  const canNext = !!picked;
-  return `<div class="card">
-    <div class="card-title">Pick a visual style</div>
-    <div class="card-sub">Sets the look for every frame. You can ask AI above to show you options.</div>
-    <div class="style-grid">${grid}</div>
-    ${pickedPreset ? `<div class="sel-note">Selected: <strong>${esc(pickedPreset.label)}</strong></div>` : ''}
-    <button class="btn-green" id="btn-style-approve" style="margin-top:16px" ${canNext?'':'disabled'}>Approve style &amp; add to queue →</button>
-  </div>`;
-}
-
-// Step 4: Launch / Running / Thumbnails / Done
-function renderDetailLaunch(d) {
-  const st = d.status;
-  const pr = APP.progress;
-
-  if (st === 'queued') {
-    return `<div class="card">
-      <div class="card-title">⏳ Queued</div>
-      <div class="card-sub">Waiting for the pipeline to pick this up.</div>
-      <div class="alert info">Once started: all frames will be generated, video rendered, 3 thumbnails created, and you'll get an ntfy alert to pick one. Credits auto-pause and resume.</div>
-      ${!APP.queueRunning ? `<button class="btn-green" id="btn-start-queue2">▶ Start queue now</button>` : `<p style="font-size:13px;color:#6b7280;margin-top:4px">Queue runner is active — will pick this up automatically.</p>`}
-    </div>`;
-  }
-
-  // Show thumbnail picker if queue status is thumbnails, OR if pipeline stage reached thumbnails
-  const prStage = pr?.stage;
-  const showThumbs = st === 'thumbnails'
-    || (prStage === 'thumbnails' && pr?.thumbnails?.some(t => t.exists));
-  if (showThumbs) return renderThumbnailPicker(d, pr);
-
-  if (st === 'running' || (st !== 'done' && st !== 'failed' && pr)) {
-    return renderRunningDetail(d, pr);
-  }
-
-  if (st === 'done') {
-    const yt = d.youtube_video_id || pr?.youtube_video_id;
-    return `<div class="card"><div class="done-box">
-      <div class="big">🎉</div>
-      <h2>Video is live!</h2>
-      <p>Uploaded to YouTube successfully.</p>
-      <div class="done-links">
-        <a class="link-yt" href="https://youtu.be/${esc(yt)}" target="_blank">Watch on YouTube →</a>
-        <a class="link-studio" href="https://studio.youtube.com/video/${esc(yt)}/edit" target="_blank">Open YouTube Studio</a>
-      </div>
-    </div></div>`;
-  }
-
-  if (st === 'failed') {
-    const lines = (pr?.log_lines || d.log_lines || []).slice(-20).join('\n');
-    return `<div class="card">
-      <div class="card-title">❌ Pipeline failed</div>
-      <div class="alert warn">Check the log below, fix the issue, then re-queue.</div>
-      <div class="log-box">${esc(lines||'No log')}</div>
-      <button class="btn-primary" id="btn-requeue" style="margin-top:14px">Re-add to queue</button>
-    </div>`;
-  }
-
-  return `<div class="card"><p style="color:#9ca3af">Status: ${st}</p></div>`;
-}
-
-const STAGE_INFO = {
-  images:        { icon: '🎨', label: 'Generating frames',         sub: null },
-  render_pending:{ icon: '✂️',  label: 'All frames done — starting render…', sub: null },
-  rendering:     { icon: '✂️',  label: 'Rendering video',          sub: null },
-  render_done:   { icon: '🖼',  label: 'Render done — making thumbnails…', sub: null },
-  thumbnails:    { icon: '🖼',  label: 'Creating thumbnails + description', sub: null },
-  uploading:     { icon: '📤',  label: 'Uploading to YouTube…',    sub: null },
-  done:          { icon: '✅',  label: 'Done!',                    sub: null },
-};
-
-function renderRunningDetail(d, pr) {
-  const stage     = pr?.stage || 'images';
-  const imgPhase  = pr?.img_phase || '';
-  const done      = pr?.done_frames  || 0;
-  const total     = pr?.total_frames || 0;
-  const pct       = total ? Math.round(done / total * 100) : 0;
-  const waiting   = imgPhase === 'waiting_credits';
-  const fh        = pr?.five_hour || {};
-  const wk        = pr?.weekly    || {};
-  const logLines  = pr?.log_lines || d.log_lines || [];
-
-  const info = STAGE_INFO[stage] || STAGE_INFO.images;
-
-  // Stage pipeline visual
-  const stages = ['images','rendering','thumbnails','uploading'];
-  const stageIdx = stages.indexOf(stage.replace('render_pending','rendering').replace('render_done','thumbnails'));
-  const stagePipeline = `<div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
-    ${['🎨 Frames','✂️ Render','🖼 Thumbnails','📤 Upload'].map((lbl,i) => {
-      const done2 = i < stageIdx;
-      const act   = i === stageIdx;
-      const bg    = done2 ? '#f0fdf4' : act ? '#eff6ff' : '#f9fafb';
-      const col   = done2 ? '#16a34a' : act ? '#2563eb' : '#9ca3af';
-      const bdr   = done2 ? '#86efac' : act ? '#93c5fd' : '#e5e7eb';
-      return `<div style="padding:5px 10px;border-radius:6px;border:1px solid ${bdr};background:${bg};color:${col};font-size:12px;font-weight:700">${done2?'✓ ':''}${lbl}</div>`;
-    }).join('')}
-  </div>`;
-
-  // Frame progress (only during images stage)
-  let frameSection = '';
-  if (stage === 'images' || (stage !== 'rendering' && stage !== 'thumbnails' && stage !== 'uploading' && stage !== 'done')) {
-    if (total > 0) {
-      frameSection = `<div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
-        <div class="prog-text" style="margin-bottom:16px">${done} / ${total} frames &nbsp;·&nbsp; ${pct}%${waiting?' &nbsp;·&nbsp; <strong style="color:#d97706">Credits paused</strong>':''}</div>`;
-    } else {
-      frameSection = `<div class="prog-text" style="margin-bottom:16px;color:#9ca3af">Building frame list…</div>`;
-    }
-  }
-
-  // Credit boxes (only during image stage)
-  let creditSection = '';
-  if (stage === 'images') {
-    const credBox = (lbl, c) => {
-      if (!c || c.pct === null) return `<div class="cbox"><div class="clbl">${lbl}</div><div class="cval">—</div></div>`;
-      const p = Math.round(c.pct);
-      const cls = waiting && p === 0 ? 'empty' : p <= 10 ? 'warn' : '';
-      return `<div class="cbox ${cls}"><div class="clbl">${lbl}</div><div class="cval">${p}%</div>
-        <div class="creset">${p === 0 && waiting ? `Auto-resumes in ${c.reset||'?'}` : `Resets in ${c.reset||'?'}`}</div></div>`;
-    };
-    creditSection = `<div class="credits">${credBox('5-hour credits', fh)}${credBox('Weekly credits', wk)}</div>`;
-  }
-
-  return `<div class="card">
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px">
-      <span class="queue-dot running" style="width:10px;height:10px;flex-shrink:0"></span>
-      <span style="font-size:16px;font-weight:700">${info.icon} ${info.label}</span>
-    </div>
-    ${stagePipeline}
-    ${frameSection}
-    ${creditSection}
-    <div style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:6px">Live log</div>
-    <div class="log-box">${esc(logLines.slice(-20).join('\n') || 'No output yet…')}</div>
-  </div>`;
-}
-
-function renderThumbnailPicker(d, pr) {
-  const thumbs = pr?.thumbnails || d.thumbnails || [];
-  const anyExist = thumbs.some(t => t.exists);
-  const sel = APP.selectedThumb;
-  const selExists = sel && thumbs.find(t => t.n === sel)?.exists;
-  const t = Math.floor(Date.now() / 10000);
-
-  const grid = [1,2,3].map(n => {
-    const tv = thumbs.find(x => x.n === n);
-    const isSel = sel === n ? 'sel' : '';
-    const img = tv?.exists
-      ? `<img src="/projects/${d.id}/tracker/thumbs/thumbnail_v${n}.png?t=${t}" alt="v${n}">`
-      : `<div class="thumb-ph">⏳<br>Generating…</div>`;
-    return `<div class="thumb-item ${isSel}" data-tv="${n}">${img}<div class="thumb-lbl">Option ${n}</div></div>`;
-  }).join('');
-
-  return `<div class="card">
-    <div class="card-title">🖼 Pick a thumbnail</div>
-    <div class="card-sub">Click the one you want — it uploads to YouTube automatically.</div>
-    ${!anyExist ? '<div class="alert warn">Still generating thumbnails… check back in a moment.</div>' : ''}
-    <div class="thumb-grid">${grid}</div>
-    ${sel && selExists
-      ? `<button class="btn-red" id="btn-upload-yt" style="margin-top:12px">✅ Approve Option ${sel} &amp; Upload to YouTube →</button>`
-      : `<p style="text-align:center;color:#9ca3af;font-size:14px;margin-top:12px">← Click a thumbnail to approve it</p>`
-    }
-  </div>`;
-}
-
-// ── Bind events ────────────────────────────────────────────────────
-function bindEvents() {
-  // List screen
-  document.getElementById('btn-new-video')?.addEventListener('click', () => showNewVideoModal());
-  document.getElementById('btn-start-queue')?.addEventListener('click', function() { startQueue(this); });
-  document.getElementById('btn-stop-queue')?.addEventListener('click', async function() {
-    this.disabled = true; this.textContent = 'Stopping…';
-    await api('/api/queue/stop', { method: 'POST' });
-    APP.queueRunning = false;
-    toast('Pipeline stopped', 'ok', 3000);
-    render();
-  });
-  document.getElementById('btn-show-log')?.addEventListener('click', () => { APP.showQueueLog = !APP.showQueueLog; render(); });
-  document.getElementById('btn-hide-log')?.addEventListener('click', () => { APP.showQueueLog = false; render(); });
-  document.querySelectorAll('.proj-card').forEach(el => {
-    el.addEventListener('click', () => openProject(el.dataset.pid));
-  });
-
-  // Supabase sync
-  document.getElementById('sb-sync-btn')?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    const el = e.target; el.textContent = 'Syncing…';
-    const r = await api('/api/supabase/sync', { method: 'POST' }).catch(() => ({ ok: false }));
-    if (r.ok) {
-      toast('Supabase sync started', 'ok', 3000);
-    } else {
-      toast('Sync failed: ' + (r.error || 'unknown'), 'err', 4000);
-    }
-    el.textContent = 'Sync now';
-  });
-
-  // Detail: back
-  document.getElementById('btn-back')?.addEventListener('click', () => {
-    APP.screen = 'list'; APP.activeId = null; APP.detail = null;
-    APP.chatMsgs = []; APP.scriptMode = 'idle'; APP.transMode = 'idle';
-    APP.scriptContent = null; APP.transContent = null;
-    render();
-  });
-
-  // Detail: step 1 - script
-  bindScriptStep();
-  // Detail: step 2 - upload
-  bindUploadStep();
-  // Detail: step 3 - style
-  bindStyleStep();
-  // Detail: step 4
-  bindLaunchStep();
-}
-
-function bindScriptStep() {
-  // Quick action buttons
-  document.querySelectorAll('[data-quick]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const d = APP.detail;
-      const inpEl = document.getElementById('chat-inp');
-      if (btn.dataset.quick === 'ideas') {
-        inpEl.value = 'Brainstorm 5 YouTube video ideas for an educational channel';
-        sendChat();
-      } else if (btn.dataset.quick === 'write') {
-        inpEl.value = `Write a complete script for a video about: ${d?.title || '(describe the topic)'}`;
-        sendChat('write_script');
-      } else if (btn.dataset.quick === 'improve') {
-        sendChat('improve_script');
-      }
-    });
-  });
-
-  // Chat send
-  document.getElementById('chat-send')?.addEventListener('click', () => sendChat());
-  document.getElementById('chat-inp')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendChat();
-  });
-
-  // Script file actions
-  document.querySelector('[data-fa="edit-script"]')?.addEventListener('click', async () => {
-    const r = await api(`/api/text-content?kind=script&project=${APP.activeId}`);
-    APP.scriptContent = r.content || '';
-    APP.scriptMode = 'edit';
-    render();
-    setTimeout(() => {
-      const ta = document.getElementById('script-ta');
-      if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
-    }, 50);
-  });
-  document.querySelector('[data-fa="del-script"]')?.addEventListener('click', async () => {
-    if (!confirm('Delete script?')) return;
-    await api('/api/text-content/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind: 'script', project_id: APP.activeId }) });
-    APP.detail.has_script = false; APP.detail.script_chars = 0;
-    APP.scriptMode = 'idle'; APP.scriptContent = null;
-    render();
-  });
-  document.querySelector('[data-fa="cancel-script"]')?.addEventListener('click', () => {
-    APP.scriptMode = 'idle'; APP.scriptContent = null; render();
-  });
-  document.querySelector('[data-fa="save-script"]')?.addEventListener('click', async () => {
-    const ta = document.getElementById('script-ta');
-    const content = ta?.value || '';
-    const r = await api('/api/text-content', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind: 'script', content, project_id: APP.activeId }) });
-    if (r.ok) {
-      APP.detail.has_script = !!content.trim();
-      APP.detail.script_chars = r.chars || 0;
-      APP.scriptMode = 'idle'; APP.scriptContent = null;
-      render();
-    }
-  });
-
-  // Script textarea char count
-  document.getElementById('script-ta')?.addEventListener('input', e => {
-    const cc = document.getElementById('script-char-count');
-    if (cc) cc.textContent = `${e.target.value.length} chars`;
-  });
-
-  // Next button
-  document.getElementById('btn-script-next')?.addEventListener('click', async () => {
-    await api(`/api/projects/${APP.activeId}/update`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ status: 'upload' }),
-    });
-    APP.detailStep = 2;
-    render();
-  });
-}
-
-async function sendChat(forceTask = null) {
-  const inpEl = document.getElementById('chat-inp');
-  const text = inpEl?.value?.trim() || '';
-  const d = APP.detail || {};
-
-  const task = forceTask || (text.toLowerCase().includes('script') && text.toLowerCase().includes('write') ? 'write_script' : 'chat');
-
-  if (!text && task !== 'improve_script') return;
-  if (inpEl) inpEl.value = '';
-
-  if (text) APP.chatMsgs.push({ role: 'user', text });
-  APP.chatMsgs.push({ role: 'thinking', text: 'Codex is thinking…' });
-  render();
-
-  // scroll to bottom
-  setTimeout(() => {
-    const el = document.getElementById('chat-msgs');
-    if (el) el.scrollTop = el.scrollHeight;
-  }, 50);
-
-  let scriptContent = '';
-  if (task === 'improve_script' && d.has_script) {
-    const sc = await api(`/api/text-content?kind=script&project=${APP.activeId}`);
-    scriptContent = sc.content || '';
-  }
-
-  const res = await api('/api/ai', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      task,
-      prompt: text,
-      project_id: APP.activeId,
-      context: { title: d.title||'', brief: d.brief||'', script: scriptContent },
-    }),
-  });
-
-  // Remove "thinking" placeholder
-  APP.chatMsgs = APP.chatMsgs.filter(m => m.role !== 'thinking');
-
-  if (!res.ok) {
-    APP.chatMsgs.push({ role: 'ai', text: '⚠️ ' + (res.error || 'Error') });
-  } else if (res.saved_to === 'script') {
-    APP.chatMsgs.push({ role: 'ai', text: `✅ Script written (${res.chars} chars). You can review and edit it below.` });
-    if (APP.detail) { APP.detail.has_script = true; APP.detail.script_chars = res.chars; }
-    APP.scriptContent = res.content;
-    APP.scriptMode = 'edit';
-  } else {
-    APP.chatMsgs.push({ role: 'ai', text: res.response || '(no response)' });
-  }
-  render();
-  setTimeout(() => {
-    const el = document.getElementById('chat-msgs');
-    if (el) el.scrollTop = el.scrollHeight;
-  }, 50);
-}
-
-function bindUploadStep() {
-  // File zone clicks
-  document.querySelectorAll('.zone[data-upload]').forEach(el => {
-    el.addEventListener('click', () => {
-      const kind = el.dataset.upload;
-      document.getElementById(`fi-${kind}`)?.click();
-    });
-  });
-
-  // File inputs
-  ['script','audio','transcript'].forEach(kind => {
-    const inp = document.getElementById(`fi-${kind}`);
-    if (!inp) return;
-    inp.onchange = async e => {
-      const file = e.target.files[0]; if (!file) return;
-      const r = await uploadFile(kind, file, APP.activeId);
-      if (r.ok) {
-        if (kind === 'audio')      { APP.detail.has_audio = true; }
-        if (kind === 'transcript') { APP.detail.has_transcript = true; APP.detail.transcript_chars = r.chars||0; }
-        render();
-      } else alert('Upload failed: ' + (r.error||'error'));
-      inp.value = '';
-    };
-  });
-
-  // Paste/edit/save for transcript
-  ['transcript'].forEach(kind => {
-    document.querySelector(`[data-fa="paste-${kind}"]`)?.addEventListener('click', () => {
-      if (kind === 'transcript') { APP.transMode = 'paste'; APP.transContent = ''; }
-      render();
-      setTimeout(() => document.getElementById(`ta-${kind}`)?.focus(), 50);
-    });
-    document.querySelector(`[data-fa="edit-${kind}"]`)?.addEventListener('click', async () => {
-      const r = await api(`/api/text-content?kind=${kind}&project=${APP.activeId}`);
-      if (kind === 'transcript') { APP.transMode = 'edit'; APP.transContent = r.content || ''; }
-      render();
-    });
-    document.querySelector(`[data-fa="cancel-${kind}"]`)?.addEventListener('click', () => {
-      if (kind === 'transcript') { APP.transMode = 'idle'; APP.transContent = null; }
-      render();
-    });
-    document.querySelector(`[data-fa="save-${kind}"]`)?.addEventListener('click', async () => {
-      const ta = document.getElementById(`ta-${kind}`);
-      const content = ta?.value || '';
-      const r = await api('/api/text-content', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind, content, project_id: APP.activeId }) });
-      if (r.ok) {
-        if (kind === 'transcript') { APP.detail.has_transcript = !!content.trim(); APP.detail.transcript_chars = r.chars||0; APP.transMode = 'idle'; APP.transContent = null; }
-        render();
-      }
-    });
-    document.querySelector(`[data-fa="del-${kind}"]`)?.addEventListener('click', async () => {
-      if (!confirm(`Delete ${kind}?`)) return;
-      await api('/api/text-content/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ kind, project_id: APP.activeId }) });
-      if (kind === 'transcript') { APP.detail.has_transcript = false; APP.detail.transcript_chars = 0; APP.transMode = 'idle'; }
-      render();
-    });
-  });
-
-  document.getElementById('btn-upload-next')?.addEventListener('click', async () => {
-    await api(`/api/projects/${APP.activeId}/update`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ status: 'style' }),
-    });
-    APP.detailStep = 3; render();
-  });
-}
-
-function bindStyleStep() {
-  document.querySelectorAll('.style-card').forEach(el => {
-    el.addEventListener('click', () => {
-      APP.pickedStyleId    = el.dataset.sid;
-      APP.pickedStyleLabel = el.dataset.slabel;
-      APP.pickedImageStyle = el.dataset.simg;
-      document.querySelectorAll('.style-card').forEach(c => c.classList.remove('sel'));
-      el.classList.add('sel');
-      const note = document.querySelector('.sel-note');
-      if (note) note.innerHTML = `Selected: <strong>${esc(APP.pickedStyleLabel)}</strong>`;
-      document.getElementById('btn-style-approve').disabled = false;
-    });
-  });
-
-  document.getElementById('btn-style-approve')?.addEventListener('click', async () => {
-    const btn = document.getElementById('btn-style-approve');
-    btn.disabled = true; btn.textContent = 'Saving…';
-    const preset = APP.presets.find(p => p.id === APP.pickedStyleId);
-    // Save style to project
-    await api(`/api/projects/${APP.activeId}/update`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        style_preset_id: APP.pickedStyleId,
-        style_preset_label: APP.pickedStyleLabel,
-        image_style: preset?.image_style || APP.pickedImageStyle,
-        style_approved: true,
-        status: 'queued',
-      }),
-    });
-    // Queue it
-    await api(`/api/projects/${APP.activeId}/queue`, { method: 'POST' });
-    APP.detailStep = 4;
-    render();
-  });
-}
-
-function bindLaunchStep() {
-  document.getElementById('btn-start-queue2')?.addEventListener('click', function() { startQueue(this); });
-  document.getElementById('btn-requeue')?.addEventListener('click', async () => {
-    await api(`/api/projects/${APP.activeId}/queue`, { method: 'POST' });
-    render();
-  });
-
-  // Thumbnail pick
-  document.querySelectorAll('.thumb-item').forEach(el => {
-    el.addEventListener('click', async () => {
-      const n = +el.dataset.tv;
-      const thumbs = APP.progress?.thumbnails || APP.detail?.thumbnails || [];
-      const t = thumbs.find(x => x.n === n);
-      if (!t?.exists) return;
-      APP.selectedThumb = n;
-      render(); // show selection immediately
-      await api(`/api/projects/${APP.activeId}/thumbnail/select`, {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ variant: n }),
-      });
-    });
-  });
-
-  document.getElementById('btn-upload-yt')?.addEventListener('click', async () => {
-    const btn = document.getElementById('btn-upload-yt');
-    btn.disabled = true; btn.textContent = '📤 Uploading…';
-    try {
-      const r = await api(`/api/projects/${APP.activeId}/upload/youtube`, { method: 'POST' });
-      if (!r.ok) {
-        btn.disabled = false; btn.textContent = '✅ Approve & Upload →';
-        toast('Upload failed: ' + (r.error || 'unknown error'), 'err', 8000);
-      } else {
-        toast('Upload started — this can take a minute…', 'ok', 5000);
-        // Poll job status until done or error
-        const checkJob = async () => {
-          const job = await api('/api/job/status');
-          if (job.status === 'running') {
-            setTimeout(checkJob, 3000);
-          } else if (job.status === 'error') {
-            btn.disabled = false; btn.textContent = '✅ Approve & Upload →';
-            const err = job.stderr || job.stdout || 'Upload failed';
-            toast('Upload failed: ' + err.split('\n').pop(), 'err', 10000);
-          }
-          // if done — poll() will detect youtube_video_id and switch to done screen
-        };
-        setTimeout(checkJob, 3000);
-      }
-    } catch(e) {
-      btn.disabled = false; btn.textContent = '✅ Approve & Upload →';
-      toast('Upload error: ' + e.message, 'err', 8000);
-    }
-  });
-}
-
-// ── New video modal ────────────────────────────────────────────────
-function showNewVideoModal() {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.innerHTML = `<div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-    <h2 style="font-size:18px;font-weight:800;margin-bottom:6px">New video</h2>
-    <p style="font-size:13px;color:#6b7280;margin-bottom:20px">Give it a working title. You'll brainstorm and write the script in the next step.</p>
-    <div class="field">
-      <label>Working title</label>
-      <input type="text" id="new-title" placeholder="e.g. Why We Procrastinate" autofocus>
-    </div>
-    <div class="btn-row" style="margin-top:0">
-      <button class="btn-secondary" id="cancel-new">Cancel</button>
-      <button class="btn-green" id="confirm-new" style="flex:1">Create project →</button>
-    </div>
-  </div>`;
-  document.body.appendChild(overlay);
-  setTimeout(() => document.getElementById('new-title')?.focus(), 50);
-
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('cancel-new').addEventListener('click', () => overlay.remove());
-  document.getElementById('confirm-new').addEventListener('click', async () => {
-    const title = document.getElementById('new-title').value.trim();
-    if (!title) return;
-    const btn = document.getElementById('confirm-new');
-    btn.disabled = true; btn.textContent = 'Creating…';
-    const r = await api('/api/projects/create', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ title }),
-    });
-    if (r.ok) {
-      overlay.remove();
-      openProject(r.project.id);
-    } else {
-      alert('Error: ' + (r.error||'unknown'));
-      btn.disabled = false; btn.textContent = 'Create project →';
-    }
-  });
-
-  document.getElementById('new-title').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('confirm-new').click();
-  });
-}
-
-// ── Open project ───────────────────────────────────────────────────
-async function openProject(id) {
-  APP.screen = 'detail'; APP.activeId = id;
-  APP.selectedThumb = null; APP.chatMsgs = [];
-  APP.scriptMode = 'idle'; APP.transMode = 'idle';
-  APP.scriptContent = null; APP.transContent = null;
-  APP.pickedStyleId = ''; APP.pickedStyleLabel = '';
-  const d = await api(`/api/projects/${id}`);
-  APP.detail = d;
-  const st = d.status;
-  APP.detailStep =
-    st === 'script' ? 1 :
-    st === 'upload' ? 2 :
-    st === 'style'  ? 3 : 4;
-  render();
-}
-
-// ── Queue ──────────────────────────────────────────────────────────
-async function startQueue(btn) {
-  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
-  try {
-    const r = await api('/api/queue/start', { method: 'POST' });
-    if (r.already_running) {
-      toast('Queue is already running', 'ok');
-    } else {
-      toast('✅ Queue started!', 'ok', 4000);
-    }
-    APP.queueRunning = true;
-    APP.showQueueLog = true;
-    // fetch log immediately
-    const ql = await api('/api/queue/log');
-    APP.queueLog = ql.lines || [];
-  } catch(e) {
-    toast('Failed to start queue: ' + e.message, 'err');
-    if (btn) { btn.disabled = false; btn.textContent = '▶ Start queue'; }
-  }
-  render();
-}
-
-function update_project_queue_status_local(id, status) {
-  const p = APP.projects.find(p => p.id === id);
-  if (p) p.status = status;
-  if (APP.detail && APP.detail.id === id) APP.detail.status = status;
-}
-
-// ── Utils ──────────────────────────────────────────────────────────
-function fmtChars(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k chars' : n+' chars'; }
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-let toastTimer = null;
-function toast(msg, type = 'ok', ms = 3000) {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = `toast ${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.classList.remove('show'); }, ms);
+// ── Credits ───────────────────────────────────────────────────────────────────
+async function loadCredits() {
+  try {
+    const d = await get('/api/credits');
+    renderCredits(d);
+  } catch(e) {}
 }
 
-function showSupabaseSetup() {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `<div class="modal" style="max-width:460px">
-    <h2 style="margin-bottom:10px;font-size:16px">☁️ Connect Supabase</h2>
-    <p style="color:#6b7280;font-size:13px;margin-bottom:16px">
-      Paste your <strong>Personal Access Token</strong> from
-      <a href="https://supabase.com/dashboard/account/tokens" target="_blank" style="color:#4b7cf6">supabase.com/dashboard/account/tokens</a>.
-      Everything else is fetched automatically.
-    </p>
-    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Personal Access Token (sbp_…)</label>
-    <input id="sb-pat" type="password" placeholder="sbp_…"
-      style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:16px;font-family:monospace">
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button id="sb-cancel" style="background:#f3f4f6;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px">Cancel</button>
-      <button id="sb-save" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">Connect →</button>
-    </div>
-  </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('sb-cancel').addEventListener('click', () => overlay.remove());
-  document.getElementById('sb-save').addEventListener('click', async () => {
-    const pat = document.getElementById('sb-pat').value.trim();
-    if (!pat) { toast('Paste your access token', 'err'); return; }
-    const btn = document.getElementById('sb-save');
-    btn.disabled = true; btn.textContent = 'Connecting…';
-    const r = await api('/api/supabase/save-config', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ pat }),
-    });
-    if (r.ok) {
-      overlay.remove();
-      APP.supabase = { configured: true, url: r.url };
-      toast('✅ Supabase connected — ' + (r.project || ''), 'ok', 5000);
-      render();
-    } else {
-      toast('Error: ' + (r.error || 'unknown'), 'err', 6000);
-      btn.disabled = false; btn.textContent = 'Connect →';
+async function refreshCredits() {
+  const btn = document.getElementById('credits-refresh');
+  btn.classList.add('spinning');
+  try {
+    const d = await get('/api/credits?force=1');
+    renderCredits(d);
+  } catch(e) {}
+  setTimeout(() => btn.classList.remove('spinning'), 800);
+}
+
+function renderCredits(d) {
+  const ageSeconds = d.event_age_seconds || 0;
+  const ageStr = fmtAge(ageSeconds);
+  const isStale = !d.credits_fresh;
+  renderCreditPill('5h', d.five_hour, isStale, ageStr);
+  renderCreditPill('wk', d.weekly,    isStale, ageStr);
+}
+
+function fmtAge(secs) {
+  if (!secs || secs < 60) return 'just now';
+  if (secs < 3600) return Math.round(secs / 60) + 'm ago';
+  if (secs < 86400) return Math.round(secs / 3600) + 'h ago';
+  return Math.round(secs / 86400) + 'd ago';
+}
+
+function renderCreditPill(key, w, isStale, ageStr) {
+  if (!w) return;
+  const pill  = document.getElementById('cp-' + key);
+  const bar   = document.getElementById('bar-' + key);
+  const pctEl = document.getElementById('pct-' + key);
+  const subEl = document.getElementById('sub-' + key);
+
+  if (w.window_reset) {
+    if (pill)  pill.classList.add('stale');
+    if (bar)   { bar.style.width = '0%'; bar.className = 'cp-bar'; }
+    if (pctEl) { pctEl.textContent = '?'; pctEl.style.cssText = 'color:var(--muted);font-weight:800'; }
+    if (subEl) subEl.textContent = 'reset · click ↻';
+    return;
+  }
+
+  const pct   = Math.round(parseFloat(w.remaining_percent || 0));
+  const color = pct > 50 ? '#10b981' : pct > 20 ? '#f59e0b' : '#ef4444';
+  if (pill)  pill.classList.toggle('stale', isStale);
+  if (bar)   { bar.style.width = pct + '%'; bar.style.background = color; bar.className = 'cp-bar'; }
+  if (pctEl) { pctEl.textContent = pct + '%'; pctEl.style.cssText = `color:${color};font-weight:800`; }
+  if (subEl) {
+    subEl.textContent = isStale
+      ? ageStr
+      : (w.reset_in ? 'resets ' + w.reset_in : '');
+  }
+}
+
+// ── Project list ───────────────────────────────────────────────────────────────
+async function refreshProjects() {
+  try {
+    const fresh = await get('/api/projects');
+    if (JSON.stringify(fresh) !== JSON.stringify(projects)) {
+      projects = fresh;
+      renderSidebar();
     }
-  });
+    if (selectedId) refreshProject();
+  } catch(e) {}
 }
 
-// ── Boot ───────────────────────────────────────────────────────────
-if (new URLSearchParams(location.search).get('yt_auth') === 'ok') {
-  history.replaceState({}, '', '/');
-  api('/api/youtube/auth/status').then(s => { APP.ytAuth = s; render(); });
-  toast('✅ YouTube connected!', 'ok', 5000);
+function renderSidebar() {
+  const el = document.getElementById('project-list');
+  if (!projects.length) {
+    el.innerHTML = '<div style="padding:16px 12px;color:var(--muted-2);font-size:12px;line-height:1.6">No projects yet.<br>Run <code>/start</code> in Claude Code.</div>';
+    return;
+  }
+  el.innerHTML = projects.map(p => `
+    <div class="proj-item${p.id === selectedId ? ' active' : ''}" onclick="selectProject('${esc(p.id)}')">
+      <div class="proj-name">${esc(p.title || p.id)}</div>
+      <div><span class="badge badge-${p.status||'upload'}">${badgeDot(p.status)}<span>${STATUS_LABELS[p.status]||p.status}</span></span></div>
+    </div>
+  `).join('');
 }
-poll();
+
+function badgeDot(s) {
+  return s === 'running' ? '<span class="badge-dot"></span>' : '';
+}
+
+// ── Project detail ─────────────────────────────────────────────────────────────
+function selectProject(id) {
+  selectedId = id;
+  clearInterval(logTimer); logTimer = null;
+  clearInterval(vPollTimer); vPollTimer = null;
+  const audio = document.getElementById('viewer-audio');
+  if (audio) { audio.pause(); audio.src = ''; }
+  currentProj = null;
+  renderSidebar();
+  const main = document.getElementById('main');
+  main.classList.remove('empty');
+  main.innerHTML = '<div style="padding:60px;color:var(--muted-2);text-align:center;font-size:13px">Loading…</div>';
+  refreshProject();
+}
+
+async function refreshProject() {
+  if (!selectedId) return;
+  try {
+    const p = await get('/api/project/' + selectedId);
+    const sig = JSON.stringify(p);
+    if (!currentProj || JSON.stringify(currentProj) !== sig) {
+      currentProj = p;
+      renderDetail(p);
+    }
+  } catch(e) {}
+}
+
+function stepState(status, stepName) {
+  const idx  = STEPS.indexOf(status);
+  const sIdx = STEPS.indexOf(stepName);
+  if (sIdx < idx) return 'done';
+  if (sIdx === idx) return 'active';
+  return 'idle';
+}
+
+function renderDetail(p) {
+  const status    = p.queue_status || 'upload';
+  const stepNames = ['Upload', 'Style', 'Queue', 'Generate', 'Thumbnail', 'Done'];
+
+  const stepBar = STEPS.map((s, i) => {
+    const state   = stepState(status, s);
+    const isDone  = state === 'done';
+    const line    = i < STEPS.length - 1 ? `<div class="step-line${isDone ? ' done' : ''}"></div>` : '';
+    return `
+      <div class="step-node ${state}">
+        <div class="dot">${isDone ? '✓' : i+1}</div>
+        <span class="label">${stepNames[i]}</span>
+      </div>${line}`;
+  }).join('');
+
+  const showStepBar = !['running','queued','paused','failed','thumbnails','done'].includes(status);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-title">${esc(p.name || p.title || p.id)}</div>
+    <div class="page-meta">
+      <span class="badge badge-${status}">${badgeDot(status)}<span>${STATUS_LABELS[status]||status}</span></span>
+    </div>
+    ${showStepBar ? `<div class="step-bar">${stepBar}</div>` : ''}
+    <div id="step-content"></div>
+  `;
+
+  const el = document.getElementById('step-content');
+  if (status === 'upload')          renderUpload(p, el);
+  else if (status === 'style')      renderStyle(p, el);
+  else if (status === 'queued')     renderQueued(el);
+  else if (status === 'running')    renderRunning(p, el);
+  else if (status === 'paused')     renderPaused(p, el);
+  else if (status === 'thumbnails') renderThumbnails(p, el);
+  else if (status === 'done')       renderDone(p, el);
+  else if (status === 'failed')     renderFailed(el);
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+function renderUpload(p, el) {
+  const both = p.audio_ok && p.transcript_ok;
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Step 1 — Upload Files</div></div>
+      <p class="card-desc">Upload narration audio and your TurboScribe transcript. The page advances automatically once both are ready.</p>
+      <div class="upload-grid">
+        <div>
+          <div class="field-label" style="margin-top:0">Narration audio</div>
+          <div class="upload-zone${p.audio_ok?' done':''}" id="audio-zone"
+               ondragover="dz(event)" ondragleave="dzl(event)" ondrop="dropAudio(event)">
+            <input type="file" accept=".mp3,.wav,.m4a" onchange="handleAudio(this.files[0])">
+            <span class="icon">${p.audio_ok ? '✅' : '🎙️'}</span>
+            <div id="audio-lbl" class="${p.audio_ok ? 'uz-done' : 'uz-label'}">
+              ${p.audio_ok ? 'Audio ready' : '<strong style="display:block;margin-bottom:3px;color:var(--text-2)">Drop .mp3 or .wav</strong>or click to browse'}
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="field-label" style="margin-top:0">TurboScribe transcript</div>
+          <div class="upload-zone${p.transcript_ok?' done':''}" id="tx-zone"
+               ondragover="dz(event)" ondragleave="dzl(event)" ondrop="dropTx(event)">
+            <input type="file" accept=".txt" onchange="handleTx(this.files[0])">
+            <span class="icon">${p.transcript_ok ? '✅' : '📝'}</span>
+            <div id="tx-lbl" class="${p.transcript_ok ? 'uz-done' : 'uz-label'}">
+              ${p.transcript_ok ? 'Transcript ready' : '<strong style="display:block;margin-bottom:3px;color:var(--text-2)">Drop .txt file</strong>or click to browse'}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1;height:4px;background:var(--surface-3);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${((p.audio_ok?1:0)+(p.transcript_ok?1:0))*50}%;background:var(--accent);border-radius:2px;transition:width 0.4s"></div>
+        </div>
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">
+          ${(p.audio_ok?1:0)+(p.transcript_ok?1:0)}/2 ready${both?' · moving to style…':''}
+        </span>
+      </div>
+    </div>
+  `;
+}
+function dz(e) { e.preventDefault(); e.currentTarget.classList.add('drag'); }
+function dzl(e) { e.currentTarget.classList.remove('drag'); }
+function dropAudio(e) { e.preventDefault(); e.currentTarget.classList.remove('drag'); handleAudio(e.dataTransfer.files[0]); }
+function dropTx(e)    { e.preventDefault(); e.currentTarget.classList.remove('drag'); handleTx(e.dataTransfer.files[0]); }
+async function handleAudio(file) {
+  if (!file||!selectedId) return;
+  lbl('audio', '⏳ Uploading…');
+  const r = await upload('/api/project/'+selectedId+'/upload-audio','file',file);
+  if (r.ok) refreshProject(); else lbl('audio','❌ '+(r.error||'Failed'));
+}
+async function handleTx(file) {
+  if (!file||!selectedId) return;
+  lbl('tx', '⏳ Uploading…');
+  const r = await upload('/api/project/'+selectedId+'/upload-transcript','file',file);
+  if (r.ok) refreshProject(); else lbl('tx','❌ '+(r.error||'Failed'));
+}
+function lbl(zone, text) { const el = document.getElementById(zone+'-lbl'); if(el) el.textContent = text; }
+
+// ── Style ──────────────────────────────────────────────────────────────────────
+function renderStyle(p, el) {
+  selectedPreset = p.style_preset_id || null;
+  const hasStyle = p.image_style && p.image_style.length > 10;
+
+  const cards = stylePresets.map(s => {
+    const imgName = s.preview ? s.preview.split('/').pop() : null;
+    return `
+      <div class="style-card${selectedPreset===s.id?' selected':''}" id="ps-${esc(s.id)}" onclick="pickPreset('${esc(s.id)}')">
+        <div class="style-preview">${imgName?`<img src="/assets/style-samples/${imgName}" onerror="this.style.display='none'">`:''}</div>
+        <div class="style-label">${esc(s.label)}</div>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Step 2 — Visual Style</div></div>
+      <p class="card-desc">Pick a preset look for the generated images, or define your own.</p>
+
+      <div class="style-grid">${cards}</div>
+
+      <div class="style-card${selectedPreset==='__custom__'?' selected':''}" id="ps-__custom__"
+           onclick="pickCustom()" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:2px">
+        <span style="font-size:22px">✏️</span>
+        <div>
+          <div class="style-label">Custom style</div>
+          <div class="style-label-sub">Write your own image prompt</div>
+        </div>
+      </div>
+
+      <div id="custom-panel" class="${selectedPreset==='__custom__'||p.style_preset_id==='custom'?'open':''}">
+        <div class="field-label" style="margin-top:0">Image style prompt <span style="color:var(--red)">*</span></div>
+        <textarea id="f-style" rows="4" placeholder="e.g. flat vector, thick black outlines, bold primary colors, retro cartoon…">${p.style_preset_id==='custom'?esc(p.image_style||''):''}</textarea>
+        <div class="field-label">Per-frame rules <span style="color:var(--muted-2)">(optional)</span></div>
+        <textarea id="f-guide" rows="3" placeholder="- One concept per frame&#10;- No text in images">${esc(p.style_guide||'')}</textarea>
+        <div class="field-label">Tone <span style="color:var(--muted-2)">(optional)</span></div>
+        <textarea id="f-tone" rows="2" placeholder="e.g. Educational, dry humor">${esc(p.tone||'')}</textarea>
+      </div>
+
+      ${hasStyle && p.style_preset_id !== 'custom' ? `
+        <div class="alert alert-purple" style="margin-top:14px;font-size:12px;margin-bottom:0">
+          Current style: <strong>${esc(p.style_preset_label||p.style_preset_id||'set')}</strong> — change above or confirm below
+        </div>` : ''}
+
+      <hr class="divider">
+      <div class="row">
+        <button class="btn btn-primary" onclick="confirmStyle()">Confirm style →</button>
+      </div>
+    </div>
+  `;
+}
+
+function pickPreset(id) {
+  selectedPreset = id;
+  document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+  const c = document.getElementById('ps-'+id); if (c) c.classList.add('selected');
+  const panel = document.getElementById('custom-panel'); if (panel) panel.classList.remove('open');
+}
+function pickCustom() {
+  selectedPreset = '__custom__';
+  document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+  const c = document.getElementById('ps-__custom__'); if (c) c.classList.add('selected');
+  const panel = document.getElementById('custom-panel'); if (panel) panel.classList.add('open');
+}
+async function confirmStyle() {
+  if (!selectedId) return;
+  const customStyle = document.getElementById('f-style')?.value?.trim()||'';
+  const guide       = document.getElementById('f-guide')?.value?.trim()||'';
+  const tone        = document.getElementById('f-tone')?.value?.trim()||'';
+  if (!selectedPreset) { alert('Pick a style first.'); return; }
+  if (selectedPreset==='__custom__' && !customStyle) { alert('Enter a custom style description.'); return; }
+  const body = selectedPreset !== '__custom__'
+    ? { preset_id: selectedPreset, style_guide: guide, tone }
+    : { custom_style: customStyle, style_guide: guide, tone };
+  const r = await post('/api/project/'+selectedId+'/set-style', body);
+  if (r.ok) renderValidateCard();
+  else alert('Error: '+(r.error||'Unknown'));
+}
+
+// ── Validate & Queue ───────────────────────────────────────────────────────────
+function renderValidateCard() {
+  const el = document.getElementById('step-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Step 3 — Start Generation</div></div>
+      <p class="card-desc">
+        Runs a quick preflight check, then adds this project to the generation queue.
+        Credits auto-pause and auto-resume — you'll get an ntfy ping when thumbnails are ready.
+      </p>
+      <div class="row">
+        <button class="btn btn-primary" id="start-btn" onclick="startGeneration()">▶ Start Generation</button>
+      </div>
+      <pre id="preflight-out"></pre>
+    </div>
+  `;
+}
+
+async function startGeneration() {
+  const btn = document.getElementById('start-btn');
+  const pf  = document.getElementById('preflight-out');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Validating…'; }
+  try {
+    const r = await fetch('/api/project/'+selectedId+'/queue', { method:'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      if (pf && d.preflight) { pf.style.display='block'; pf.textContent=d.preflight; }
+      await refreshProject();
+    } else {
+      if (btn) { btn.disabled=false; btn.textContent='▶ Start Generation'; }
+      if (pf)  { pf.style.display='block'; pf.textContent=d.preflight||d.error||'Preflight failed.'; }
+    }
+  } catch(e) {
+    if (btn) { btn.disabled=false; btn.textContent='▶ Start Generation'; }
+  }
+}
+
+// ── Queued ────────────────────────────────────────────────────────────────────
+function renderQueued(el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">In Queue</div></div>
+      <div class="row" style="gap:12px;padding:8px 0">
+        <div class="spinner"></div>
+        <div>
+          <div style="font-weight:600;margin-bottom:3px">Waiting for the queue runner…</div>
+          <div style="color:var(--muted);font-size:12px">One project runs at a time. Generation will start automatically.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Running ───────────────────────────────────────────────────────────────────
+function renderRunning(p, el) {
+  const prog  = p.progress || {};
+  const done  = prog.done || prog.completed || 0;
+  const total = prog.total || 0;
+  const pct   = total > 0 ? Math.round((done/total)*100) : 0;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="pulse-ring"></div>
+          <div class="card-title" style="color:var(--green-text)">Generating</div>
+        </div>
+        <button class="btn btn-red" id="stop-btn" onclick="stopGeneration()" style="padding:6px 14px;font-size:12px">■ Stop</button>
+      </div>
+
+      ${total > 0 ? `
+        <div class="stat-row" style="margin-bottom:14px">
+          <div class="stat-block"><div class="sb-val">${done}</div><div class="sb-lbl">frames done</div></div>
+          <div class="stat-block"><div class="sb-val">${total - done}</div><div class="sb-lbl">remaining</div></div>
+          <div class="stat-block"><div class="sb-val">${pct}%</div><div class="sb-lbl">complete</div></div>
+        </div>
+        <div class="progress-bar" style="margin-bottom:0"><div class="fill" style="width:${pct}%"></div></div>
+      ` : `
+        <div style="color:var(--muted);font-size:13px;padding:2px 0 8px">Pipeline running — credits auto-pause &amp; resume if needed</div>
+      `}
+    </div>
+
+    <div class="card" style="padding-bottom:18px">
+      <div class="card-header" style="margin-bottom:12px">
+        <div class="card-title">Live Preview</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="viewer-mute-wrap"></span>
+        </div>
+      </div>
+
+      <div class="viewer-wrap" id="viewer-wrap">
+        <div class="viewer-placeholder" id="viewer-placeholder">Waiting for first image…</div>
+        <img id="viewer-img" style="display:none" alt="">
+        <div class="viewer-caption" id="viewer-caption" style="display:none"></div>
+        <div class="viewer-live-badge" id="viewer-live-badge" style="display:none">
+          <span class="live-dot"></span>LIVE
+        </div>
+      </div>
+
+      <div class="audio-bar-wrap" id="audio-bar-wrap" onclick="audioSeekClick(event)" title="Click to seek">
+        <div class="audio-bar-fill" id="audio-bar-fill" style="width:0%"></div>
+      </div>
+
+      <div class="viewer-controls">
+        <button class="viewer-btn" id="vbtn-prev" onclick="viewerPrev()" title="Previous frame">◀</button>
+        <span class="viewer-count" id="viewer-count">— / —</span>
+        <button class="viewer-btn" id="vbtn-next" onclick="viewerNext()" title="Next frame">▶</button>
+        <button class="viewer-btn" id="vbtn-play" onclick="viewerTogglePlay()" title="Play/Pause audio">▶ Play</button>
+        <span class="viewer-time" id="viewer-time">0:00</span>
+        <div class="viewer-spacer"></div>
+        <button class="viewer-btn" id="vbtn-live" onclick="viewerGoLive()" title="Jump to latest">📡 Live</button>
+      </div>
+
+      <audio id="viewer-audio" preload="auto" style="display:none">
+        <source src="/audio/${esc(selectedId)}" type="audio/mpeg">
+      </audio>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Pipeline Log</div></div>
+      <div id="log-box">Loading…</div>
+    </div>
+  `;
+
+  viewerInit(selectedId);
+  clearInterval(logTimer);
+  pollLog();
+  logTimer = setInterval(pollLog, 2500);
+}
+
+async function stopGeneration() {
+  if (!selectedId) return;
+  const btn = document.getElementById('stop-btn');
+  if (btn) { btn.disabled=true; btn.textContent='Stopping…'; }
+  try {
+    const r = await post('/api/project/'+selectedId+'/stop');
+    if (r.ok) {
+      clearInterval(logTimer);
+      await refreshProject();
+    } else {
+      if (btn) { btn.disabled=false; btn.textContent='■ Stop'; }
+      alert('Error: '+(r.error||'Stop failed'));
+    }
+  } catch(e) {
+    if (btn) { btn.disabled=false; btn.textContent='■ Stop'; }
+  }
+}
+
+// ── Viewer ─────────────────────────────────────────────────────────────────────
+let vFrames      = [];   // all frames from manifest
+let vIdx         = 0;    // current frame index (into done frames)
+let vDone        = [];   // frames that have images on disk
+let vLive        = true; // auto-follow newest frame
+let vProjId      = null;
+let vPollTimer   = null;
+let vAudioReady  = false;
+let vMuted       = false;
+
+function viewerInit(projId) {
+  vProjId = projId;
+  vFrames = []; vDone = []; vIdx = 0; vLive = true;
+  clearInterval(vPollTimer);
+  const audio = document.getElementById('viewer-audio');
+  if (audio) {
+    audio.addEventListener('timeupdate', viewerAudioTick);
+    audio.addEventListener('canplay', () => { vAudioReady = true; });
+  }
+  viewerPoll();
+  vPollTimer = setInterval(viewerPoll, 2500);
+}
+
+async function viewerPoll() {
+  if (!vProjId) return;
+  try {
+    const data = await get('/api/project/' + vProjId + '/frames');
+    const frames = data.frames || [];
+    vFrames = frames;
+    const prevDoneCount = vDone.length;
+    vDone = frames.filter(f => f.exists);
+
+    if (!vDone.length) return;
+
+    // In live mode, always jump to the latest available frame
+    if (vLive) {
+      const newIdx = vDone.length - 1;
+      if (newIdx !== vIdx || prevDoneCount !== vDone.length) {
+        vIdx = newIdx;
+        viewerShowFrame(vIdx, /*autoPlay=*/prevDoneCount === 0);
+      }
+    }
+    viewerUpdateControls();
+  } catch(e) {}
+}
+
+function viewerShowFrame(idx, autoPlay) {
+  if (!vDone.length) return;
+  idx = Math.max(0, Math.min(idx, vDone.length - 1));
+  vIdx = idx;
+  const frame = vDone[idx];
+
+  const wrap = document.getElementById('viewer-wrap');
+  const img  = document.getElementById('viewer-img');
+  const cap  = document.getElementById('viewer-caption');
+  const ph   = document.getElementById('viewer-placeholder');
+  if (!img) return;
+
+  wrap && wrap.classList.add('loading');
+  img.onload = () => {
+    wrap && wrap.classList.remove('loading');
+    img.style.display = 'block';
+    ph && (ph.style.display = 'none');
+  };
+  img.src = `/images/${esc(vProjId)}/${esc(frame.filename)}?t=${Date.now()}`;
+  if (cap) {
+    cap.textContent = frame.transcript || '';
+    cap.style.display = frame.transcript ? 'block' : 'none';
+  }
+
+  // Sync audio
+  const audio = document.getElementById('viewer-audio');
+  if (audio && frame.timestamp_seconds !== undefined) {
+    const target = frame.timestamp_seconds;
+    if (Math.abs(audio.currentTime - target) > 1.5) {
+      audio.currentTime = target;
+    }
+    if (autoPlay && !vMuted) {
+      audio.play().catch(() => {});
+    }
+  }
+  viewerUpdateControls();
+}
+
+function viewerUpdateControls() {
+  const count = document.getElementById('viewer-count');
+  const live  = document.getElementById('viewer-live-badge');
+  const lBtn  = document.getElementById('vbtn-live');
+  const prev  = document.getElementById('vbtn-prev');
+  const next  = document.getElementById('vbtn-next');
+  const play  = document.getElementById('vbtn-play');
+  const audio = document.getElementById('viewer-audio');
+  const isPlaying = audio && !audio.paused;
+
+  if (count) count.textContent = `${vIdx + 1} / ${vDone.length}`;
+  if (live)  live.style.display  = vLive ? 'flex' : 'none';
+  if (lBtn)  lBtn.classList.toggle('active', vLive);
+  if (prev)  prev.disabled = vIdx <= 0;
+  if (next)  next.disabled = vIdx >= vDone.length - 1;
+  if (play)  play.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+}
+
+function viewerPrev() {
+  vLive = false;
+  viewerShowFrame(vIdx - 1, false);
+}
+function viewerNext() {
+  vLive = false;
+  if (vIdx < vDone.length - 1) viewerShowFrame(vIdx + 1, false);
+}
+function viewerGoLive() {
+  vLive = true;
+  viewerShowFrame(vDone.length - 1, true);
+  viewerUpdateControls();
+}
+function viewerTogglePlay() {
+  const audio = document.getElementById('viewer-audio');
+  if (!audio) return;
+  if (audio.paused) { audio.play().catch(() => {}); } else { audio.pause(); }
+  setTimeout(viewerUpdateControls, 100);
+}
+
+function viewerAudioTick() {
+  const audio = document.getElementById('viewer-audio');
+  const bar   = document.getElementById('audio-bar-fill');
+  const time  = document.getElementById('viewer-time');
+  if (!audio) return;
+  const cur = audio.currentTime;
+  const dur = audio.duration || 0;
+  if (bar && dur) bar.style.width = (cur / dur * 100) + '%';
+  if (time) time.textContent = fmtTime(cur) + (dur ? ' / ' + fmtTime(dur) : '');
+
+  // Auto-advance frame based on audio position
+  if (!vDone.length) return;
+  // Find the frame whose timestamp_seconds <= currentTime and is the last such frame
+  let best = 0;
+  for (let i = 0; i < vDone.length; i++) {
+    if (vDone[i].timestamp_seconds <= cur) best = i;
+    else break;
+  }
+  if (best !== vIdx && vLive) {
+    vIdx = best;
+    viewerShowFrame(vIdx, false);
+  }
+}
+
+function audioSeekClick(e) {
+  const audio = document.getElementById('viewer-audio');
+  const wrap  = document.getElementById('audio-bar-wrap');
+  if (!audio || !wrap || !audio.duration) return;
+  const rect = wrap.getBoundingClientRect();
+  const pct  = (e.clientX - rect.left) / rect.width;
+  audio.currentTime = pct * audio.duration;
+  // Find matching frame
+  const target = audio.currentTime;
+  let best = 0;
+  for (let i = 0; i < vDone.length; i++) {
+    if (vDone[i].timestamp_seconds <= target) best = i;
+    else break;
+  }
+  vLive = false;
+  viewerShowFrame(best, false);
+}
+
+function fmtTime(s) {
+  if (!isFinite(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+async function pollLog() {
+  if (!selectedId) return;
+  try {
+    const r = await get('/api/project/'+selectedId+'/log?lines=80');
+    const box = document.getElementById('log-box');
+    if (!box) { clearInterval(logTimer); return; }
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.textContent = r.log || '(no log yet)';
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  } catch(e) {}
+}
+
+// ── Paused ────────────────────────────────────────────────────────────────────
+function renderPaused(p, el) {
+  const prog  = p.progress || {};
+  const done  = prog.done || prog.completed || 0;
+  const total = prog.total || 0;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Generation Paused</div></div>
+      <div class="alert alert-purple">
+        Stopped by you${total>0 ? ` — ${done} of ${total} frames complete` : ''}. All progress is saved.
+      </div>
+      <p class="card-desc" style="margin-bottom:18px">
+        Click Restart to continue from where it left off.
+      </p>
+      <div class="row">
+        <button class="btn btn-primary" onclick="restartGeneration()">▶ Restart Generation</button>
+      </div>
+      <pre id="preflight-out"></pre>
+    </div>
+  `;
+}
+
+async function restartGeneration() {
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = '⏳ Validating…';
+  try {
+    const r = await fetch('/api/project/'+selectedId+'/queue', { method:'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      await refreshProject();
+    } else {
+      btn.disabled=false; btn.textContent='▶ Restart Generation';
+      const pf = document.getElementById('preflight-out');
+      if (pf) { pf.style.display='block'; pf.textContent=d.preflight||d.error||'Failed.'; }
+    }
+  } catch(e) { btn.disabled=false; btn.textContent='▶ Restart Generation'; }
+}
+
+// ── Thumbnails ────────────────────────────────────────────────────────────────
+function renderThumbnails(p, el) {
+  const thumbs  = p.thumbs || {};
+  const sel     = p.selected_thumbnail_variant;
+  const anyDone = thumbs.v1||thumbs.v2||thumbs.v3;
+
+  const cards = [1,2,3].map(i => thumbs[`v${i}`] ? `
+    <div class="thumb-card${sel===i?' selected':''}" onclick="pickThumb(${i})">
+      <img src="/thumbs/${esc(selectedId)}/thumbnail_v${i}.png?t=${Date.now()}" alt="Thumbnail ${i}">
+      <div class="thumb-foot">
+        <button class="btn ${sel===i?'btn-green':'btn-outline'}" onclick="pickThumb(${i});event.stopPropagation()" style="font-size:12px;padding:7px 16px">
+          ${sel===i?'✓ Selected':'Use this'}
+        </button>
+      </div>
+    </div>
+  ` : `<div class="thumb-empty">v${i} not ready yet</div>`).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Pick a Thumbnail</div></div>
+      <p class="card-desc">Click the thumbnail you want to use, then upload to YouTube.</p>
+      ${anyDone ? `
+        <div class="thumb-grid">${cards}</div>
+        ${sel ? `
+          <hr class="divider">
+          <div class="row">
+            <button class="btn btn-primary" onclick="uploadYt()" ${p.yt_uploading?'disabled':''}>
+              ${p.yt_uploading?'⏳ Uploading…':'↑ Upload to YouTube'}
+            </button>
+            ${p.yt_uploading?'<div class="spinner"></div>':''}
+          </div>
+        ` : `
+          <div style="color:var(--muted-2);font-size:13px;margin-top:4px">← Select a thumbnail to unlock upload</div>
+        `}
+      ` : `<div class="alert alert-amber" style="margin-bottom:0">Thumbnails still generating — check back in a moment.</div>`}
+    </div>
+  `;
+}
+
+async function pickThumb(v) {
+  if (!selectedId) return;
+  const r = await post('/api/project/'+selectedId+'/pick-thumb', {variant:'v'+v});
+  if (r.ok) refreshProject(); else alert('Error: '+(r.error||'Unknown'));
+}
+async function uploadYt() {
+  if (!selectedId) return;
+  const r = await fetch('/api/project/'+selectedId+'/youtube-upload', {method:'POST'});
+  const d = await r.json();
+  if (d.ok) setTimeout(refreshProject, 4000);
+  else alert('Error: '+(d.error||'Upload failed'));
+}
+
+// ── Done ───────────────────────────────────────────────────────────────────────
+function renderDone(p, el) {
+  const yt = p.youtube_video_id;
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Complete</div>
+        <span style="font-size:20px">🎉</span>
+      </div>
+      <div class="alert alert-green" style="font-size:14px;font-weight:600">
+        Video is live${yt ? ' on YouTube' : ' — ready to upload'}!
+      </div>
+      ${yt ? `
+        <div class="info-row">
+          <div class="info-item">
+            <span class="ii-label">YouTube URL</span>
+            <a class="ii-value" href="https://youtu.be/${esc(yt)}" target="_blank">youtu.be/${esc(yt)}</a>
+          </div>
+        </div>
+      ` : `
+        <p class="card-desc">Not uploaded to YouTube yet.</p>
+        <div class="row">
+          <button class="btn btn-primary" onclick="uploadYt()" ${p.yt_uploading?'disabled':''}>
+            ${p.yt_uploading?'⏳ Uploading…':'↑ Upload to YouTube'}
+          </button>
+          ${p.yt_uploading?'<div class="spinner"></div>':''}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ── Failed ────────────────────────────────────────────────────────────────────
+function renderFailed(el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Pipeline Failed</div>
+        <button class="btn btn-outline" onclick="restartGeneration()" style="font-size:12px;padding:6px 14px">▶ Retry</button>
+      </div>
+      <div class="alert alert-red" style="margin-bottom:16px">The pipeline hit an error. See the log below for details.</div>
+      <div id="log-box">Loading…</div>
+    </div>
+  `;
+  clearInterval(logTimer);
+  pollLog();
+  logTimer = setInterval(pollLog, 5000);
+}
 </script>
 </body>
 </html>
