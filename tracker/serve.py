@@ -34,6 +34,88 @@ _yt_lock = threading.Lock()
 _yt_running: set[str] = set()
 
 
+# ── YouTube stats ─────────────────────────────────────────────────────────────
+
+def _yt_token_file() -> Path:
+    t = ROOT / "07-upload" / "youtube_token.json"
+    if t.is_file():
+        return t
+    for p in PROJECTS_DIR.iterdir():
+        t = p / "07-upload" / "youtube_token.json"
+        if t.is_file():
+            return t
+    raise FileNotFoundError("youtube_token.json not found")
+
+
+def _yt_access_token() -> str:
+    """Return a valid access token, refreshing if expired."""
+    import urllib.request, urllib.parse, time as _time
+
+    token_file = _yt_token_file()
+    d = json.loads(token_file.read_text())
+
+    expiry = d.get("expiry", "")
+    # expiry is ISO string like "2024-01-01T12:00:00Z"
+    try:
+        from datetime import datetime, timezone
+        exp_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+        still_valid = exp_dt > datetime.now(timezone.utc)
+    except Exception:
+        still_valid = False
+
+    if still_valid and d.get("token"):
+        return d["token"]
+
+    # Refresh
+    refresh_token = d.get("refresh_token")
+    client_id = d.get("client_id")
+    client_secret = d.get("client_secret")
+    if not (refresh_token and client_id and client_secret):
+        raise RuntimeError("Cannot refresh token — missing refresh_token/client credentials")
+
+    body = urllib.parse.urlencode({
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }).encode()
+    req = urllib.request.Request("https://oauth2.googleapis.com/token", data=body)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        new_tokens = json.loads(resp.read())
+
+    d["token"] = new_tokens["access_token"]
+    from datetime import datetime, timezone, timedelta
+    d["expiry"] = (datetime.now(timezone.utc) + timedelta(seconds=new_tokens.get("expires_in", 3600))).isoformat()
+    token_file.write_text(json.dumps(d, indent=2))
+    return d["token"]
+
+
+def fetch_youtube_stats(video_id: str) -> dict:
+    """Fetch view/like/comment counts via YouTube Data API using existing OAuth token."""
+    import urllib.request
+
+    access_token = _yt_access_token()
+    url = f"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id={video_id}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read())
+
+    items = data.get("items") or []
+    if not items:
+        raise ValueError("Video not found or not accessible")
+
+    stats = items[0].get("statistics", {})
+    snippet = items[0].get("snippet", {})
+    return {
+        "video_id": video_id,
+        "title": snippet.get("title", ""),
+        "views": int(stats.get("viewCount", 0)),
+        "likes": int(stats.get("likeCount", 0)),
+        "comments": int(stats.get("commentCount", 0)),
+        "published_at": snippet.get("publishedAt", ""),
+    }
+
+
 # ── Queue helpers ─────────────────────────────────────────────────────────────
 
 def load_queue() -> list[dict]:
@@ -313,6 +395,18 @@ class Handler(BaseHTTPRequestHandler):
             if action == "thumbs":
                 thumbs_dir = PROJECTS_DIR / pid / "tracker" / "thumbs"
                 self.send_json({f"v{i}": (thumbs_dir / f"thumbnail_v{i}.png").is_file() for i in (1, 2, 3)})
+                return
+
+            if action == "youtube-stats":
+                video_id = p.get("youtube_video_id")
+                if not video_id:
+                    self.send_json({"error": "No YouTube video ID"}, 404)
+                    return
+                try:
+                    stats = fetch_youtube_stats(video_id)
+                    self.send_json(stats)
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
                 return
 
             if action == "frames":
