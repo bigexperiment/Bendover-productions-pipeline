@@ -26,17 +26,25 @@ sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 
 from lib.folders import DIR_THUMBS, PROJECT_FILE  # noqa: E402
 
-CONFIG_FILE = SCRIPTS_ROOT / "tracker" / "supabase_config.json"
+SECRETS_FILE = SCRIPTS_ROOT / "secrets.json"
+CONFIG_FILE = SCRIPTS_ROOT / "tracker" / "supabase_config.json"  # legacy fallback
 UA = "curl/7.88.1"  # Cloudflare blocks Python default UA
 
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
 def load_config() -> dict:
-    if not CONFIG_FILE.is_file():
-        print(f"ERROR: Missing {CONFIG_FILE}", file=sys.stderr)
-        sys.exit(1)
-    return json.loads(CONFIG_FILE.read_text())
+    # Primary: secrets.json
+    if SECRETS_FILE.is_file():
+        data = json.loads(SECRETS_FILE.read_text())
+        sb = data.get("supabase") or {}
+        if sb.get("url") and sb.get("anon_key"):
+            return sb
+    # Fallback: legacy tracker/supabase_config.json
+    if CONFIG_FILE.is_file():
+        return json.loads(CONFIG_FILE.read_text())
+    print(f"ERROR: No Supabase config found. Add 'supabase' section to secrets.json", file=sys.stderr)
+    sys.exit(1)
 
 
 # ── REST helpers ──────────────────────────────────────────────────────────────

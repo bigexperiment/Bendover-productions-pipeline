@@ -5,7 +5,9 @@ import subprocess
 import time
 from datetime import datetime
 
-NTFY_TOPIC = "bendoverproductions123"
+from lib.secrets import get as _secret
+
+NTFY_TOPIC = _secret("ntfy_topic") or "bendoverproductions123"
 
 
 def send_ntfy(message: str, *, topic: str = NTFY_TOPIC, retries: int = 3) -> bool:

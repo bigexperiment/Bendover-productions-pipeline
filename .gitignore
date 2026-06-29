@@ -62,6 +62,9 @@ tracker/thumbnail_options.json
 tracker/supabase_config.json
 tracker/video_preview.mp4
 
+# --- Secrets ---
+secrets.json
+
 # --- Python / OS ---
 .env
 token.json
