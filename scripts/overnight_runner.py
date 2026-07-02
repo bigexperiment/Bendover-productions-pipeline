@@ -178,7 +178,7 @@ def main() -> int:
         DIR_THUMBS.mkdir(parents=True, exist_ok=True)
         for variant in (1, 2, 3):
             r = run(
-                ["python3", str(THUMBNAIL), f"--variant={variant}"],
+                ["python3", str(THUMBNAIL), f"--variant={variant}", "--ai"],
                 f"thumbnail v{variant}",
                 check=False,
             )

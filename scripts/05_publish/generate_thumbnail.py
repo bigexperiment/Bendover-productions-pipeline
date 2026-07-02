@@ -204,7 +204,8 @@ def generate_fast(project: dict, headline: str, out_path: Path, variant: int) ->
 
 
 def generate_via_codex(project: dict, headline: str, out_path: Path, variant: int) -> int:
-    """Slow AI path: Codex image generation. Use --ai flag to enable."""
+    """AI path: Codex image generation, reusing the video's own cast for consistency."""
+    from lib.folders import CAST_REFERENCE_FILE  # noqa: E402
     from lib.thumbnail_prompt import build_thumbnail_prompt  # noqa: E402
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
@@ -213,8 +214,10 @@ def generate_via_codex(project: dict, headline: str, out_path: Path, variant: in
         "-s", "workspace-write",
         "--dangerously-bypass-approvals-and-sandbox",
         "-C", str(ROOT),
-        build_thumbnail_prompt(project, headline, out_path, ROOT, variant=variant),
     ]
+    if CAST_REFERENCE_FILE.is_file():
+        command.append(f"--image={CAST_REFERENCE_FILE}")
+    command.append(build_thumbnail_prompt(project, headline, out_path, ROOT, variant=variant))
     result = subprocess.run(command, stdin=subprocess.DEVNULL, cwd=ROOT,
                             env=env, capture_output=True, text=True)
     if result.returncode != 0:
