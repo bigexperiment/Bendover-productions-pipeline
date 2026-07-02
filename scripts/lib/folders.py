@@ -25,6 +25,8 @@ AUDIO_EXTS = frozenset({".mp3", ".wav", ".m4a"})
 PLAN_FILE = DIR_MANIFEST / "image_cut_plan.txt"
 MANIFEST_FILE = DIR_MANIFEST / "image_regen_manifest.csv"
 PROGRESS_FILE = DIR_MANIFEST / "image_regen_progress.json"
+SHOT_PLAN_FILE = DIR_MANIFEST / "shot_plan.json"
+CAST_REFERENCE_FILE = DIR_MANIFEST / "cast_reference.png"
 
 FINAL_MP4 = DIR_OUTPUT / "final.mp4"
 PREVIEW_MP4 = DIR_OUTPUT / "preview.mp4"

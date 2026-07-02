@@ -12,7 +12,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +20,7 @@ import os
 SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)
 sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
+from lib.atomic_io import atomic_write_csv as _atomic_write_csv, atomic_write_text as _atomic_write_text  # noqa: E402
 from lib.audio_paths import find_narration_audio  # noqa: E402
 from lib.folders import (  # noqa: E402
     DIR_IMAGES as IMAGES_DIR,
@@ -330,31 +330,6 @@ def render_bar(done: int, total: int, width: int = 24) -> str:
         return "[" + ("-" * width) + "] 0/0"
     filled = round((done / total) * width)
     return "[" + ("#" * filled) + ("-" * (width - filled)) + f"] {done}/{total}"
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Write text to path atomically via a temp file in the same directory."""
-    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(text)
-        os.replace(tmp, path)
-    except Exception:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-
-
-def _atomic_write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
-    """Write CSV to path atomically via a temp file in the same directory."""
-    import io
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=fieldnames)
-    writer.writeheader()
-    writer.writerows(rows)
-    _atomic_write_text(path, buf.getvalue())
 
 
 def write_manifest(rows: list[PlanRow], audio_end: int) -> tuple[int, int, int]:

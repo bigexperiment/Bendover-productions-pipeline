@@ -24,12 +24,13 @@ SCRIPTS_ROOT = Path(__file__).resolve().parents[1]  # repo root — where script
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
 sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
 
-from lib.folders import DIR_THUMBS, FINAL_MP4, MANIFEST_FILE, PROJECT_FILE, YOUTUBE_THUMBNAIL, YOUTUBE_TOKEN  # noqa: E402
+from lib.folders import DIR_THUMBS, FINAL_MP4, MANIFEST_FILE, PROJECT_FILE, SHOT_PLAN_FILE, YOUTUBE_THUMBNAIL, YOUTUBE_TOKEN  # noqa: E402
 from lib.notify import send_ntfy  # noqa: E402
 
 LOG_FILE = ROOT / "tracker" / "overnight.log"
 PREFLIGHT = SCRIPTS_ROOT / "scripts" / "preflight.py"
 BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
+BUILD_SHOT_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_shot_plan.py"
 GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
 RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
 THUMBNAIL = SCRIPTS_ROOT / "scripts" / "05_publish" / "generate_thumbnail.py"
@@ -109,6 +110,14 @@ def main() -> int:
         log("ABORT: preflight (images) failed")
         send_ntfy(f"Pipeline FAILED: preflight errors after build_plan. {name}")
         return 1
+
+    # Creative-director pass — full-video context, recurring cast, varied shot
+    # types, sparing on-screen text. Best-effort: if it fails, generate_images.py
+    # falls back to the mechanical scene text build_plan.py already wrote.
+    if not SHOT_PLAN_FILE.is_file():
+        shot_plan_result = run(["python3", str(BUILD_SHOT_PLAN)], "build shot plan (director pass)", check=False)
+        if shot_plan_result.returncode != 0:
+            log("WARNING: shot plan generation failed — continuing with mechanical scene text")
 
     # Studio for monitoring
     ensure_studio()

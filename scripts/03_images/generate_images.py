@@ -8,6 +8,7 @@ Never exits due to credits — runs until every frame is done (or killed).
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import subprocess
@@ -22,7 +23,7 @@ import os
 SCRIPTS_ROOT = Path(__file__).resolve().parents[2]   # repo root — where scripts/ lives
 ROOT = Path(os.environ.get("PIPELINE_ROOT") or SCRIPTS_ROOT)  # project data root
 sys.path.insert(0, str(SCRIPTS_ROOT / "scripts"))
-from lib.folders import DIR_IMAGES as IMAGES_DIR, MANIFEST_FILE, PROGRESS_FILE  # noqa: E402
+from lib.folders import CAST_REFERENCE_FILE, DIR_IMAGES as IMAGES_DIR, MANIFEST_FILE, PROGRESS_FILE  # noqa: E402
 from lib.image_prompt import FrameJob, build_frame_prompt  # noqa: E402
 from lib.notify import notify_credits_stopped, notify_images_complete, send_ntfy  # noqa: E402
 PROJECT_FILE = ROOT / "project.json"
@@ -72,6 +73,24 @@ def read_pending_jobs(limit: int | None = None) -> list[FrameJob]:
     return jobs[:limit] if limit else jobs
 
 
+def file_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_known_hashes() -> dict[str, str]:
+    """Hash of every frame already on disk for this project, so a newly 'completed'
+    frame that's actually a stale/misrouted file (Codex's own image-lookup step
+    grabbing the wrong cached PNG — seen in practice under parallel load) gets
+    caught instead of silently shipping the wrong picture into the video."""
+    hashes: dict[str, str] = {}
+    for path in IMAGES_DIR.glob("*.png"):
+        try:
+            hashes[file_hash(path)] = path.name
+        except OSError:
+            continue
+    return hashes
+
+
 def launch_job(job: FrameJob, project: dict) -> tuple[subprocess.Popen[str], IO[str]]:
     TRACKER_LOGS.mkdir(parents=True, exist_ok=True)
     log_path = TRACKER_LOGS / f"{job.filename}.log"
@@ -87,8 +106,10 @@ def launch_job(job: FrameJob, project: dict) -> tuple[subprocess.Popen[str], IO[
         "--dangerously-bypass-approvals-and-sandbox",
         "-C",
         str(ROOT),
-        build_frame_prompt(project, job, ROOT, MANIFEST_SCRIPT),
     ]
+    if CAST_REFERENCE_FILE.is_file():
+        command.append(f"--image={CAST_REFERENCE_FILE}")
+    command.append(build_frame_prompt(project, job, ROOT, MANIFEST_SCRIPT))
     log_handle = log_path.open("w", encoding="utf-8")
     proc = subprocess.Popen(
         command,
@@ -255,6 +276,7 @@ def run_generation_batch(
     failed: int,
     total: int,
     retry_counts: dict[str, int],
+    seen_hashes: dict[str, str],
 ) -> tuple[list[FrameJob], int, int, bool]:
     """Run one batch until queue empty or credits die. Returns remaining queue + counts."""
     # running holds: job, proc, start_time, log_handle
@@ -321,17 +343,31 @@ def run_generation_batch(
                 continue
             log_handle.close()
             done_now.append(filename)
-            if code == 0 and (IMAGES_DIR / filename).is_file():
-                completed += 1
-            else:
+            image_path = IMAGES_DIR / filename
+            duplicate_of = None
+            if code == 0 and image_path.is_file():
+                digest = file_hash(image_path)
+                duplicate_of = seen_hashes.get(digest)
+                if duplicate_of is None:
+                    seen_hashes[digest] = filename
+                    completed += 1
+            if code != 0 or not image_path.is_file() or duplicate_of:
+                if duplicate_of:
+                    image_path.unlink(missing_ok=True)
                 attempt = retry_counts.get(filename, 0) + 1
                 retry_counts[filename] = attempt
                 if attempt <= MAX_RETRIES:
                     queue.insert(0, job)
-                    append_log(f"failed {filename} exit={code} — retry {attempt}/{MAX_RETRIES}")
+                    if duplicate_of:
+                        append_log(f"duplicate {filename} (matches {duplicate_of}) — retry {attempt}/{MAX_RETRIES}")
+                    else:
+                        append_log(f"failed {filename} exit={code} — retry {attempt}/{MAX_RETRIES}")
                 else:
                     failed += 1
-                    append_log(f"failed {filename} exit={code} — exceeded {MAX_RETRIES} retries, marking failed")
+                    if duplicate_of:
+                        append_log(f"duplicate {filename} (matches {duplicate_of}) — exceeded {MAX_RETRIES} retries, marking failed")
+                    else:
+                        append_log(f"failed {filename} exit={code} — exceeded {MAX_RETRIES} retries, marking failed")
 
         for filename in done_now:
             del running[filename]
@@ -388,13 +424,14 @@ def main() -> int:
     queue = jobs[:]
     completed = failed = 0
     retry_counts: dict[str, int] = {}
+    seen_hashes = load_known_hashes()
 
     append_log(f"generate_images workers={workers} pending={total}")
     write_status(workers=workers, total=total, completed=0, failed=0, running=0, queued=total, phase="running")
 
     while queue:
         queue, completed, failed, credits_hit = run_generation_batch(
-            queue, workers, project, completed, failed, total, retry_counts
+            queue, workers, project, completed, failed, total, retry_counts, seen_hashes
         )
 
         if credits_hit and queue:
