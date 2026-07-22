@@ -519,6 +519,10 @@ a:hover { text-decoration: underline; }
       <span class="cp-sub" id="sub-wk"></span>
     </div>
     <button id="credits-refresh" onclick="refreshCredits()" title="Refresh credits (runs codex to get live data)">↻</button>
+    <button id="channels-btn" onclick="openChannelManager()" title="Manage YouTube channels"
+            style="display:flex;align-items:center;gap:6px;background:var(--surface-2,#1b1b1f);border:1px solid var(--border);color:inherit;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <span>▶</span><span id="channels-btn-label">Channels</span>
+    </button>
   </div>
 </div>
 
@@ -564,15 +568,40 @@ const STATUS_LABELS = {
   paused:     'Paused',
 };
 const STEPS = ['upload','style','queued','running','thumbnails','done'];
+let CHANNELS = [];
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 (async () => {
   stylePresets = await get('/api/styles').catch(() => []);
+  await loadChannels();
+  setInterval(loadChannels, 15000);
   await refreshProjects();
   setInterval(refreshProjects, 3000);
   loadCredits();
   setInterval(loadCredits, 30000);
 })();
+
+async function loadChannels() {
+  try { CHANNELS = await get('/api/channels'); }
+  catch (e) { CHANNELS = []; }
+  updateChannelsBtn();
+  return CHANNELS;
+}
+function updateChannelsBtn() {
+  const el = document.getElementById('channels-btn-label');
+  if (!el) return;
+  const ready = CHANNELS.filter(c => c.authorized).length;
+  el.textContent = ready ? `Channels · ${ready}` : 'Channels';
+}
+function channelLabel(slug) {
+  if (!slug) return '';
+  const c = CHANNELS.find(x => x.slug === slug);
+  return c ? (c.title || c.name) : slug;
+}
+function channelUrl(slug) {
+  const c = CHANNELS.find(x => x.slug === slug);
+  return c && c.channel_id ? 'https://www.youtube.com/channel/' + c.channel_id : '';
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function get(url) {
@@ -674,7 +703,10 @@ function renderSidebar() {
   el.innerHTML = projects.map(p => `
     <div class="proj-item${p.id === selectedId ? ' active' : ''}" onclick="selectProject('${esc(p.id)}')">
       <div class="proj-name">${esc(p.title || p.id)}</div>
-      <div><span class="badge badge-${p.status||'upload'}">${badgeDot(p.status)}<span>${STATUS_LABELS[p.status]||p.status}</span></span></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+        <span class="badge badge-${p.status||'upload'}">${badgeDot(p.status)}<span>${STATUS_LABELS[p.status]||p.status}</span></span>
+        ${p.youtube_video_id && p.youtube_channel ? `<span class="badge badge-upload" title="Uploaded to ${esc(channelLabel(p.youtube_channel))}">▶ ${esc(channelLabel(p.youtube_channel))}</span>` : ''}
+      </div>
     </div>
   `).join('');
 }
@@ -761,7 +793,8 @@ function renderUpload(p, el) {
   el.innerHTML = `
     <div class="card">
       <div class="card-header"><div class="card-title">Step 1 — Upload Files</div></div>
-      <p class="card-desc">Upload narration audio and your TurboScribe transcript. The page advances automatically once both are ready.</p>
+      <p class="card-desc">Pick the destination channel, then upload narration audio and your TurboScribe transcript. The page advances automatically once both are ready.</p>
+      ${channelPickerHtml(p, {label:'Upload to'})}
       <div class="upload-grid">
         <div>
           <div class="field-label" style="margin-top:0">Narration audio</div>
@@ -1291,6 +1324,7 @@ function renderThumbnails(p, el) {
         <div class="thumb-grid">${cards}</div>
         ${sel ? `
           <hr class="divider">
+          ${channelPickerHtml(p)}
           <div class="row">
             <button class="btn btn-primary" onclick="uploadYt()" ${p.yt_uploading?'disabled':''}>
               ${p.yt_uploading?'⏳ Uploading…':'↑ Upload to YouTube'}
@@ -1310,12 +1344,191 @@ async function pickThumb(v) {
   const r = await post('/api/project/'+selectedId+'/pick-thumb', {variant:'v'+v});
   if (r.ok) refreshProject(); else alert('Error: '+(r.error||'Unknown'));
 }
+// ── Channel picker + manager ────────────────────────────────────────────────
+function channelPickerHtml(p, opts) {
+  opts = opts || {};
+  const ready = CHANNELS.filter(c => c.authorized);
+  const current = p.youtube_channel || (ready[0] && ready[0].slug) || '';
+  const options = ready.map(c =>
+    `<option value="${esc(c.slug)}" ${c.slug===current?'selected':''}>${esc(c.title || c.name)}</option>`
+  ).join('');
+  const label = opts.label || 'Channel';
+  const cur = ready.find(c => c.slug === current);
+  const expiredNote = (cur && cur.token_invalid)
+    ? `<div style="font-size:12px;color:var(--red,#e5484d);margin:-4px 0 12px 0">⚠ This channel's login expired — open Manage and log in again before uploading.</div>`
+    : '';
+  return `
+    <div class="row" style="align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <label style="font-size:13px;color:var(--muted)">${label}</label>
+      ${ready.length
+        ? `<select id="yt-channel" onchange="setProjectChannel(this.value)" style="flex:0 1 auto;min-width:180px;padding:7px 10px;border-radius:8px;background:var(--surface-2,#1b1b1f);color:inherit;border:1px solid var(--border)">${options}</select>`
+        : `<span style="font-size:13px;color:var(--amber,#e0a800)">No channels yet — add one →</span>`}
+      <button class="btn btn-ghost" style="padding:6px 10px;font-size:12px" onclick="openChannelManager()">⚙ ${ready.length?'Manage':'Add channel'}</button>
+    </div>
+    ${expiredNote}`;
+}
+function selectedChannel() {
+  const el = document.getElementById('yt-channel');
+  if (el && el.value) return el.value;
+  return (currentProj && currentProj.youtube_channel) || '';
+}
+async function setProjectChannel(slug) {
+  if (!selectedId) return;
+  await post('/api/project/'+selectedId+'/set-channel', { channel: slug });
+  if (currentProj) currentProj.youtube_channel = slug;
+}
+
 async function uploadYt() {
   if (!selectedId) return;
-  const r = await fetch('/api/project/'+selectedId+'/youtube-upload', {method:'POST'});
+  const channel = selectedChannel();
+  if (!channel) { openChannelManager(); return; }
+  await setProjectChannel(channel);
+  const r = await fetch('/api/project/'+selectedId+'/youtube-upload', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ channel })
+  });
   const d = await r.json();
   if (d.ok) setTimeout(refreshProject, 4000);
   else alert('Error: '+(d.error||'Upload failed'));
+}
+
+// ── Channel manager modal ────────────────────────────────────────────────────
+function openChannelManager() {
+  let m = document.getElementById('chan-modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'chan-modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:1000';
+    m.addEventListener('click', e => { if (e.target === m) closeChannelManager(); });
+    document.body.appendChild(m);
+  }
+  m.style.display = 'flex';
+  renderChannelManager().then(validateChannelLogins);
+}
+async function validateChannelLogins() {
+  try {
+    const d = await post('/api/channels/check');
+    if (d.ok && d.channels) { CHANNELS = d.channels; updateChannelsBtn(); renderChannelManager(); }
+  } catch (e) {}
+}
+function closeChannelManager() {
+  const m = document.getElementById('chan-modal');
+  if (m) m.style.display = 'none';
+}
+function fmtCount(n) {
+  if (n === null || n === undefined) return '—';
+  n = Number(n);
+  if (n >= 1e9) return (n/1e9).toFixed(n%1e9?1:0)+'B';
+  if (n >= 1e6) return (n/1e6).toFixed(n%1e6?1:0)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(n%1e3?1:0)+'K';
+  return String(n);
+}
+function liveSince(iso) {
+  if (!iso) return '';
+  const then = new Date(iso), now = new Date();
+  if (isNaN(then)) return '';
+  const months = (now.getFullYear()-then.getFullYear())*12 + (now.getMonth()-then.getMonth());
+  const dur = months >= 12 ? `${Math.floor(months/12)} yr${months>=24?'s':''}`
+            : months >= 1  ? `${months} mo`
+            : `${Math.max(0, Math.round((now-then)/86400000))} d`;
+  const since = then.toLocaleDateString(undefined, {month:'short', year:'numeric'});
+  return `Live since ${since} · ${dur}`;
+}
+function channelStatBox(label, value) {
+  return `<div style="text-align:center;flex:1">
+    <div style="font-weight:700;font-size:15px">${value}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">${label}</div>
+  </div>`;
+}
+function channelCard(c) {
+  const avatar = c.thumbnail
+    ? `<img src="${esc(c.thumbnail)}" alt="" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
+    : `<div style="width:46px;height:46px;border-radius:50%;background:var(--surface-3,#2a2a30);display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto">▶</div>`;
+  const expired = c.authorized && c.token_invalid;
+  const state = c.authorizing ? '<span style="color:var(--muted)">⏳ Waiting for Google login…</span>'
+    : expired ? '<span style="color:var(--red,#e5484d)">⚠ Login expired — log in again</span>'
+    : c.authorized ? '<span style="color:var(--green)">✓ Connected</span>'
+    : '<span style="color:var(--amber,#e0a800)">Not logged in</span>';
+  const sub = c.custom_url
+    ? `<a href="https://www.youtube.com/${esc(c.custom_url)}" target="_blank" style="color:var(--muted);font-size:12px;text-decoration:none">${esc(c.custom_url)}</a>`
+    : (c.channel_id ? `<span style="color:var(--muted);font-size:12px">${esc(c.channel_id)}</span>` : '');
+  const stats = c.authorized ? `
+    <div class="row" style="gap:4px;margin-top:12px;background:var(--surface-2,#1b1b1f);border-radius:10px;padding:10px 6px">
+      ${channelStatBox('Subs', c.hidden_subscribers ? 'hidden' : fmtCount(c.subscribers))}
+      ${channelStatBox('Videos', fmtCount(c.video_count))}
+      ${channelStatBox('Views', fmtCount(c.view_count))}
+    </div>
+    ${c.published_at ? `<div style="font-size:11px;color:var(--muted-2,#888);margin-top:8px">${liveSince(c.published_at)}</div>` : ''}
+  ` : '';
+  const actions = (c.authorized && !expired)
+    ? `<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" title="Refresh stats" onclick="refreshChannel('${esc(c.slug)}', this)">↻</button>`
+    : `<button class="btn btn-primary" style="padding:5px 10px;font-size:12px" onclick="authorizeChannel('${esc(c.slug)}')" ${c.authorizing?'disabled':''}>${expired?'Log in again':'Log in'}</button>`;
+  return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
+    <div class="row" style="gap:12px;align-items:center">
+      ${avatar}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title || c.name)}</div>
+        <div>${sub}</div>
+        <div style="font-size:12px;margin-top:2px">${state}</div>
+      </div>
+      <div class="row" style="gap:6px;flex:0 0 auto">${actions}
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px" title="Remove" onclick="deleteChannel('${esc(c.slug)}','${esc(c.title||c.name)}')">✕</button>
+      </div>
+    </div>
+    ${stats}
+  </div>`;
+}
+async function renderChannelManager() {
+  await loadChannels();
+  const m = document.getElementById('chan-modal');
+  if (!m || m.style.display === 'none') return;
+  const rows = CHANNELS.map(channelCard).join('')
+    || '<div style="color:var(--muted);padding:12px 0">No channels yet.</div>';
+  m.innerHTML = `
+    <div style="background:var(--surface,#151519);border:1px solid var(--border);border-radius:14px;padding:22px;width:min(540px,94vw);max-height:88vh;overflow:auto"
+         onclick="event.stopPropagation()">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="card-title">YouTube Channels</div>
+        <button class="btn btn-ghost" style="padding:4px 9px" onclick="closeChannelManager()">✕</button>
+      </div>
+      <p class="card-desc">Click <b>Add channel</b>, sign in with Google and pick the account for that channel — name and stats are pulled from YouTube automatically. The same channel can't be added twice.</p>
+      ${rows}
+      <hr class="divider">
+      <button class="btn btn-primary" onclick="addChannel()">＋ Add channel</button>
+      <div id="add-chan-status" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+    </div>`;
+}
+async function refreshChannel(slug, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const d = await post('/api/channels/'+slug+'/refresh');
+  if (!d.ok && d.error) { const s=document.getElementById('add-chan-status'); if (s) s.textContent = 'Refresh failed: '+d.error; }
+  renderChannelManager();
+}
+async function addChannel() {
+  const status = () => document.getElementById('add-chan-status');
+  if (status()) status().textContent = 'Opening Google login…';
+  const c = await post('/api/channels/create', {});
+  if (!c.ok) { alert('Error: '+(c.error||'Failed')); return; }
+  await authorizeChannel(c.slug);
+}
+async function authorizeChannel(slug) {
+  const d = await post('/api/channels/'+slug+'/authorize');
+  if (!d.ok) { alert('Error: '+(d.error||'Failed')); return; }
+  // Browser login popped on the server host; poll until the token lands.
+  const status = () => document.getElementById('add-chan-status');
+  if (status()) status().textContent = 'Waiting for Google login… pick the account in the browser.';
+  const poll = setInterval(async () => {
+    await renderChannelManager();
+    const c = CHANNELS.find(x => x.slug === slug);
+    // Authorized → done. Slug gone → it was a duplicate, collapsed into an existing channel.
+    if (!c || c.authorized) { clearInterval(poll); refreshProject(); }
+  }, 2500);
+  setTimeout(() => clearInterval(poll), 180000);
+}
+async function deleteChannel(slug, label) {
+  if (!confirm('Remove channel "'+label+'"? Its saved login will be deleted.')) return;
+  await post('/api/channels/'+slug+'/delete');
+  renderChannelManager();
 }
 
 // ── Done ───────────────────────────────────────────────────────────────────────
@@ -1346,9 +1559,16 @@ function renderDone(p, el) {
             <span class="ii-label">YouTube URL</span>
             <a class="ii-value" href="https://youtu.be/${esc(yt)}" target="_blank">youtu.be/${esc(yt)}</a>
           </div>
+          ${p.youtube_channel ? `<div class="info-item">
+            <span class="ii-label">Channel</span>
+            ${channelUrl(p.youtube_channel)
+              ? `<a class="ii-value" href="${esc(channelUrl(p.youtube_channel))}" target="_blank">▶ ${esc(channelLabel(p.youtube_channel))}</a>`
+              : `<span class="ii-value">▶ ${esc(channelLabel(p.youtube_channel))}</span>`}
+          </div>` : ''}
         </div>
       ` : `
         <p class="card-desc">Not uploaded to YouTube yet.</p>
+        ${channelPickerHtml(p)}
         <div class="row">
           <button class="btn btn-primary" onclick="uploadYt()" ${p.yt_uploading?'disabled':''}>
             ${p.yt_uploading?'⏳ Uploading…':'↑ Upload to YouTube'}

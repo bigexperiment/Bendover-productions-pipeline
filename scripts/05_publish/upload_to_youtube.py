@@ -7,6 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -14,6 +15,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib import channels  # noqa: E402
 from lib.notify import send_ntfy  # noqa: E402
 from lib.folders import (  # noqa: E402
     FINAL_MP4,
@@ -93,6 +95,12 @@ def parse_args() -> argparse.Namespace:
         help="Existing video ID for --update (default: project.json youtube_video_id).",
     )
     parser.add_argument(
+        "--channel",
+        default=None,
+        help="Named channel slug (07-upload/channels/<slug>) — selects its own "
+        "client_secret + token. Overrides --client-secrets/--token defaults.",
+    )
+    parser.add_argument(
         "--client-secrets",
         type=Path,
         default=DEFAULT_CLIENT_SECRETS,
@@ -122,6 +130,45 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _run_login_flow(client_config: dict) -> Credentials:
+    if not client_config:
+        raise RuntimeError("No Google OAuth app configured in secrets.json (youtube.app)")
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+    # select_account forces the account chooser so each channel can log in as a
+    # different Google account; consent+offline yields a refresh token.
+    return flow.run_local_server(
+        port=0,
+        access_type="offline",
+        prompt="select_account consent",
+    )
+
+
+def get_channel_credentials(slug: str) -> Credentials:
+    """Build credentials for a named channel entirely from secrets.json — the
+    shared OAuth app plus this channel's stored token — refreshing/logging in as
+    needed and saving the token back to secrets.json."""
+    client_config = channels.app_client_config()
+    token_info = channels.get_token(slug)
+
+    creds: Credentials | None = None
+    if token_info:
+        creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+            except RefreshError:
+                # Refresh token expired/revoked — flag it so the UI shows "log in again".
+                channels.write_meta(slug, {"token_invalid": True})
+                raise RuntimeError(f"Channel '{slug}' login expired — log in again") from None
+        else:
+            creds = _run_login_flow(client_config)
+        channels.set_token(slug, json.loads(creds.to_json()))
+
+    return creds
+
+
 def get_credentials(client_secrets: Path, token_path: Path) -> Credentials:
     if not client_secrets.is_file():
         raise FileNotFoundError(f"Client secrets not found: {client_secrets}")
@@ -137,7 +184,11 @@ def get_credentials(client_secrets: Path, token_path: Path) -> Credentials:
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(client_secrets), SCOPES
             )
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_local_server(
+                port=0,
+                access_type="offline",
+                prompt="select_account consent",
+            )
         token_path.write_text(creds.to_json())
 
     return creds
@@ -253,22 +304,70 @@ def set_thumbnail(youtube, video_id: str, thumbnail_path: Path) -> None:
             tmp.cleanup()
 
 
-def save_video_id_to_project(video_id: str) -> None:
+def save_video_id_to_project(video_id: str, channel: str | None = None) -> None:
     if not PROJECT_FILE.is_file():
         return
     project = json.loads(PROJECT_FILE.read_text(encoding="utf-8"))
     project["youtube_video_id"] = video_id
+    if channel:
+        project["youtube_channel"] = channel
     project["step"] = "upload"
     PROJECT_FILE.write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
+
+
+def capture_channel_title(youtube, slug: str) -> None:
+    """Record the real YouTube channel title, id and stats so the UI can show a
+    rich card, then collapse any duplicate of the same channel."""
+    try:
+        resp = youtube.channels().list(
+            part="snippet,statistics", mine=True
+        ).execute()
+        items = resp.get("items") or []
+        if not items:
+            return
+        it = items[0]
+        sn = it.get("snippet", {})
+        st = it.get("statistics", {})
+        thumbs = sn.get("thumbnails", {})
+        thumb = (thumbs.get("default") or thumbs.get("medium") or {}).get("url", "")
+        title = sn.get("title", "")
+        channels.write_meta(slug, {
+            "title": title,
+            "name": title,
+            "channel_id": it.get("id", ""),
+            "custom_url": sn.get("customUrl", ""),
+            "description": sn.get("description", ""),
+            "thumbnail": thumb,
+            "published_at": sn.get("publishedAt", ""),
+            "subscribers": None if st.get("hiddenSubscriberCount") else int(st.get("subscriberCount", 0)),
+            "hidden_subscribers": bool(st.get("hiddenSubscriberCount")),
+            "video_count": int(st.get("videoCount", 0)),
+            "view_count": int(st.get("viewCount", 0)),
+            "stats_updated": _now_iso(),
+            "pending": False,
+        })
+        channels.dedupe(it.get("id", ""))
+    except Exception:
+        pass
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
 
 
 def main() -> int:
     args = parse_args()
 
-    creds = get_credentials(args.client_secrets, args.token)
+    if args.channel:
+        creds = get_channel_credentials(args.channel)
+    else:
+        creds = get_credentials(args.client_secrets, args.token)
     youtube = build("youtube", "v3", credentials=creds)
 
     if args.auth_only:
+        if args.channel:
+            capture_channel_title(youtube, args.channel)
         print(f"Authenticated. Token saved to {args.token}")
         return 0
 
@@ -314,7 +413,9 @@ def main() -> int:
     elif not args.no_thumbnail:
         print(f"No thumbnail at {args.thumbnail}; skipping.")
 
-    save_video_id_to_project(video_id)
+    save_video_id_to_project(video_id, args.channel)
+    if args.channel:
+        capture_channel_title(youtube, args.channel)
     print(f"Studio: https://studio.youtube.com/video/{video_id}/edit")
     print(f"Watch:  https://youtu.be/{video_id}")
     title = args.title.strip() or "Video"

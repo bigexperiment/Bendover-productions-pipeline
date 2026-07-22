@@ -24,6 +24,8 @@ PORT = 47829
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "scripts" / "07_credits"))
 
+from lib import channels  # noqa: E402
+
 try:
     from fetch_codex_usage import enrich_usage_payload, read_usage_payload  # noqa: E402
     _HAS_CREDITS = True
@@ -36,26 +38,26 @@ _yt_running: set[str] = set()
 
 # ── YouTube stats ─────────────────────────────────────────────────────────────
 
-def _yt_token_file() -> Path:
-    t = ROOT / "07-upload" / "youtube_token.json"
-    if t.is_file():
-        return t
-    for p in PROJECTS_DIR.iterdir():
-        t = p / "07-upload" / "youtube_token.json"
-        if t.is_file():
-            return t
-    raise FileNotFoundError("youtube_token.json not found")
+def _first_authorized_channel() -> str | None:
+    for c in channels.list_all():
+        if c.get("authorized"):
+            return c["slug"]
+    return None
 
 
-def _yt_access_token() -> str:
-    """Return a valid access token, refreshing if expired."""
-    import urllib.request, urllib.parse, time as _time
+def _yt_access_token(channel: str | None = None) -> str:
+    """Return a valid access token for a channel, refreshing if expired. Token
+    material lives in secrets.json (youtube.channels.<slug>.token)."""
+    import urllib.request, urllib.parse, urllib.error
 
-    token_file = _yt_token_file()
-    d = json.loads(token_file.read_text())
+    slug = channel or _first_authorized_channel()
+    if not slug:
+        raise FileNotFoundError("No authorized YouTube channel")
+    d = channels.get_token(slug)
+    if not d:
+        raise FileNotFoundError(f"Channel '{slug}' is not authorized yet")
 
     expiry = d.get("expiry", "")
-    # expiry is ISO string like "2024-01-01T12:00:00Z"
     try:
         from datetime import datetime, timezone
         exp_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
@@ -71,6 +73,7 @@ def _yt_access_token() -> str:
     client_id = d.get("client_id")
     client_secret = d.get("client_secret")
     if not (refresh_token and client_id and client_secret):
+        channels.write_meta(slug, {"token_invalid": True})
         raise RuntimeError("Cannot refresh token — missing refresh_token/client credentials")
 
     body = urllib.parse.urlencode({
@@ -80,21 +83,69 @@ def _yt_access_token() -> str:
         "client_secret": client_secret,
     }).encode()
     req = urllib.request.Request("https://oauth2.googleapis.com/token", data=body)
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        new_tokens = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            new_tokens = json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        # invalid_grant → refresh token expired/revoked; needs a fresh login.
+        if exc.code in (400, 401):
+            channels.write_meta(slug, {"token_invalid": True})
+            raise RuntimeError("Login expired — please log in again") from exc
+        raise
 
     d["token"] = new_tokens["access_token"]
     from datetime import datetime, timezone, timedelta
     d["expiry"] = (datetime.now(timezone.utc) + timedelta(seconds=new_tokens.get("expires_in", 3600))).isoformat()
-    token_file.write_text(json.dumps(d, indent=2))
+    channels.set_token(slug, d)
+    if channels.read_meta(slug).get("token_invalid"):
+        channels.write_meta(slug, {"token_invalid": False})
     return d["token"]
 
 
-def fetch_youtube_stats(video_id: str) -> dict:
+def fetch_channel_details(slug: str) -> dict:
+    """Re-pull a channel's title/stats/avatar via its stored token and save to meta."""
+    import urllib.request
+    from datetime import datetime, timezone
+
+    access_token = _yt_access_token(slug)
+    url = ("https://www.googleapis.com/youtube/v3/channels"
+           "?part=snippet,statistics&mine=true")
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read())
+    items = data.get("items") or []
+    if not items:
+        raise ValueError("No channel on this account")
+    it = items[0]
+    sn = it.get("snippet", {})
+    st = it.get("statistics", {})
+    thumbs = sn.get("thumbnails", {})
+    thumb = (thumbs.get("default") or thumbs.get("medium") or {}).get("url", "")
+    title = sn.get("title", "")
+    channels.write_meta(slug, {
+        "title": title,
+        "name": title,
+        "channel_id": it.get("id", ""),
+        "custom_url": sn.get("customUrl", ""),
+        "description": sn.get("description", ""),
+        "thumbnail": thumb,
+        "published_at": sn.get("publishedAt", ""),
+        "subscribers": None if st.get("hiddenSubscriberCount") else int(st.get("subscriberCount", 0)),
+        "hidden_subscribers": bool(st.get("hiddenSubscriberCount")),
+        "video_count": int(st.get("videoCount", 0)),
+        "view_count": int(st.get("viewCount", 0)),
+        "stats_updated": datetime.now(timezone.utc).isoformat(),
+        "pending": False,
+    })
+    channels.dedupe(it.get("id", ""))
+    return channels.info(slug)
+
+
+def fetch_youtube_stats(video_id: str, channel: str | None = None) -> dict:
     """Fetch view/like/comment counts via YouTube Data API using existing OAuth token."""
     import urllib.request
 
-    access_token = _yt_access_token()
+    access_token = _yt_access_token(channel)
     url = f"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id={video_id}"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
     with urllib.request.urlopen(req, timeout=10) as resp:
@@ -185,6 +236,7 @@ def project_summary(slug: str) -> dict:
         "title": p.get("name") or p.get("title") or slug,
         "status": resolve_status(p, slug),
         "youtube_video_id": p.get("youtube_video_id"),
+        "youtube_channel": p.get("youtube_channel"),
     }
 
 
@@ -305,6 +357,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(get_style_presets())
             return
 
+        if path == "/api/channels":
+            items = channels.list_all()
+            with _yt_lock:
+                for c in items:
+                    c["authorizing"] = f"__auth__{c['slug']}" in _yt_running
+            self.send_json(items)
+            return
+
         if path == "/api/credits":
             force = "force" in qs
             try:
@@ -403,7 +463,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"error": "No YouTube video ID"}, 404)
                     return
                 try:
-                    stats = fetch_youtube_stats(video_id)
+                    stats = fetch_youtube_stats(video_id, p.get("youtube_channel"))
                     self.send_json(stats)
                 except Exception as exc:
                     self.send_json({"error": str(exc)}, 500)
@@ -510,6 +570,86 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path.rstrip("/")
+        body = self.read_body()
+        ct = self.headers.get("Content-Type", "")
+
+        # ── Channel management (not project-scoped) ───────────────────────────
+        if path == "/api/channels/create":
+            # Name is optional — when omitted, an unnamed pending channel is made
+            # and its real name is fetched from YouTube after login.
+            try:
+                data = json.loads(body or b"{}")
+            except Exception:
+                data = {}
+            name = str(data.get("name", "")).strip()
+            slug = channels.create(name) if name else channels.create_pending()
+            self.send_json({"ok": True, "slug": slug, "channel": channels.info(slug)})
+            return
+
+        if path == "/api/channels/check":
+            # Validate each authorized channel's login (forces a refresh attempt);
+            # marks token_invalid on failure so the UI can show "log in again".
+            for c in channels.list_all():
+                if c.get("authorized"):
+                    try:
+                        _yt_access_token(c["slug"])
+                    except Exception:
+                        pass
+            self.send_json({"ok": True, "channels": channels.list_all()})
+            return
+
+        if path.startswith("/api/channels/"):
+            rest = path[len("/api/channels/"):].strip("/").split("/")
+            slug = rest[0] if rest else ""
+            caction = rest[1] if len(rest) > 1 else ""
+            if not slug or not channels.exists(slug):
+                self.err("Channel not found", 404)
+                return
+
+            if caction == "authorize":
+                with _yt_lock:
+                    key = f"__auth__{slug}"
+                    if key in _yt_running:
+                        self.send_json({"ok": False, "error": "Authorization already in progress"})
+                        return
+                    if not channels.has_app():
+                        self.send_json({"ok": False, "error": "No Google OAuth app configured in secrets.json (youtube.app)"})
+                        return
+                    _yt_running.add(key)
+
+                def do_auth() -> None:
+                    try:
+                        script = ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
+                        subprocess.run(
+                            [sys.executable, str(script), "--channel", slug, "--auth-only"],
+                            cwd=ROOT, env={**os.environ}, timeout=300,
+                        )
+                    except Exception:
+                        pass
+                    finally:
+                        with _yt_lock:
+                            _yt_running.discard(f"__auth__{slug}")
+
+                threading.Thread(target=do_auth, daemon=True).start()
+                self.send_json({"ok": True, "message": "Browser login opened — poll /api/channels for authorized"})
+                return
+
+            if caction == "refresh":
+                try:
+                    info = fetch_channel_details(slug)
+                    self.send_json({"ok": True, "channel": info})
+                except Exception as exc:
+                    self.send_json({"ok": False, "error": str(exc)}, 200)
+                return
+
+            if caction == "delete":
+                channels.delete(slug)
+                self.send_json({"ok": True})
+                return
+
+            self.err("Unknown channel action", 404)
+            return
+
         if not path.startswith("/api/project/"):
             self.err("Not found", 404)
             return
@@ -521,9 +661,6 @@ class Handler(BaseHTTPRequestHandler):
         if not pid or load_project(pid) is None:
             self.err("Project not found", 404)
             return
-
-        body = self.read_body()
-        ct = self.headers.get("Content-Type", "")
 
         # ── Upload audio ──────────────────────────────────────────────────────
         if action == "upload-audio":
@@ -701,8 +838,43 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
 
+        # ── Set target channel (persist the choice on the project) ────────────
+        if action == "set-channel":
+            try:
+                data = json.loads(body) if body else {}
+            except Exception:
+                data = {}
+            channel = str(data.get("channel") or "").strip()
+            if channel and not channels.exists(channel):
+                self.send_json({"ok": False, "error": f"Unknown channel '{channel}'"})
+                return
+            proj = load_project(pid)
+            proj["youtube_channel"] = channel
+            save_project(pid, proj)
+            self.send_json({"ok": True})
+            return
+
         # ── YouTube upload ────────────────────────────────────────────────────
         if action == "youtube-upload":
+            try:
+                data = json.loads(body) if body else {}
+            except Exception:
+                data = {}
+            proj = load_project(pid)
+            channel = str(data.get("channel") or proj.get("youtube_channel") or "").strip()
+            if not channel:
+                self.send_json({"ok": False, "error": "Select a channel to upload to"})
+                return
+            if not channels.exists(channel):
+                self.send_json({"ok": False, "error": f"Unknown channel '{channel}'"})
+                return
+            if not channels.has_token(channel):
+                self.send_json({"ok": False, "error": f"Channel '{channel}' is not authorized yet"})
+                return
+            # Persist the chosen channel so stats/updates use the right token
+            proj["youtube_channel"] = channel
+            save_project(pid, proj)
+
             with _yt_lock:
                 if pid in _yt_running:
                     self.send_json({"ok": False, "error": "Upload already in progress"})
@@ -716,7 +888,7 @@ class Handler(BaseHTTPRequestHandler):
                     env = {**os.environ, "PIPELINE_ROOT": proj_dir}
                     upload_script = ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
                     subprocess.run(
-                        [sys.executable, str(upload_script)],
+                        [sys.executable, str(upload_script), "--channel", channel],
                         cwd=ROOT, env=env, timeout=600,
                     )
                 except Exception:
