@@ -32,6 +32,7 @@ PREFLIGHT = SCRIPTS_ROOT / "scripts" / "preflight.py"
 BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
 BUILD_SHOT_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_shot_plan.py"
 GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
+VERIFY_FRAMES = SCRIPTS_ROOT / "scripts" / "03_images" / "verify_frames.py"
 RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
 THUMBNAIL = SCRIPTS_ROOT / "scripts" / "05_publish" / "generate_thumbnail.py"
 SUGGEST_TEXT = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_thumbnail_text.py"
@@ -135,6 +136,19 @@ def main() -> int:
         send_ntfy(f"Pipeline FAILED: image gen error. {name}")
         return 1
 
+    # Final QA sweep — re-scan every frame for missing / degraded (low-res) /
+    # duplicate renders and regenerate the bad ones BEFORE we render or mark done.
+    # This is the safety net behind the inline check in generate_images.py.
+    log("Running final frame QA sweep…")
+    verify_result = subprocess.run(
+        ["python3", "-u", str(VERIFY_FRAMES), str(workers)],
+        cwd=ROOT,
+        text=True,
+    )
+    if verify_result.returncode != 0:
+        log("WARNING: some frames still failed QA after retries — rendering anyway, review needed")
+        send_ntfy(f"Pipeline WARNING: {name} has frames that failed QA after retries — check the log")
+
     # Render
     if FINAL_MP4.is_file():
         FINAL_MP4.unlink()
@@ -148,9 +162,15 @@ def main() -> int:
         send_ntfy(f"Pipeline: render failed for {name}")
         return 1
 
-    # Thumbnail — auto-generate headline if not set, then produce 3 variants
-    thumbnail_text = project.get("thumbnail_text") or ""
-    if not thumbnail_text:
+    # Thumbnail — each of the 3 variants gets its OWN distinct headline so the
+    # thumbnails differ in wording, not just pose. A manually set thumbnail_text
+    # seeds variant 1; the rest come from the auto-generated hook options.
+    headlines: list[str] = []
+    manual = (project.get("thumbnail_text") or "").strip()
+    if manual:
+        headlines.append(manual)
+
+    if len(headlines) < 3:
         log("Auto-generating thumbnail headline options...")
         suggest_result = run(["python3", str(SUGGEST_TEXT)], "suggest thumbnail text", check=False)
         options_file = ROOT / "tracker" / "thumbnail_options.json"
@@ -158,27 +178,31 @@ def main() -> int:
             try:
                 import json as _json
                 options = _json.loads(options_file.read_text(encoding="utf-8")).get("options") or []
-                thumbnail_text = options[0].strip() if options else ""
                 log(f"Thumbnail headline options: {options}")
-                log(f"Using: {thumbnail_text!r}")
-                # Write chosen text back to project.json so thumbnail script can read it
-                if thumbnail_text:
-                    project["thumbnail_text"] = thumbnail_text
-                    proj_file = ROOT / "project.json"
-                    proj_file.write_text(
-                        _json.dumps(project, indent=2) + "\n", encoding="utf-8"
-                    )
+                for opt in options:
+                    opt = (opt or "").strip()
+                    if opt and opt not in headlines:
+                        headlines.append(opt)
             except Exception as exc:
                 log(f"WARNING: could not read thumbnail options: {exc}")
-        if not thumbnail_text:
-            log("WARNING: no thumbnail text — skipping thumbnail generation")
 
-    if thumbnail_text:
+    if not headlines:
+        log("WARNING: no thumbnail text — skipping thumbnail generation")
+    else:
+        # Persist the first headline as the canonical thumbnail_text.
+        if project.get("thumbnail_text") != headlines[0]:
+            project["thumbnail_text"] = headlines[0]
+            proj_file = ROOT / "project.json"
+            import json as _json
+            proj_file.write_text(_json.dumps(project, indent=2) + "\n", encoding="utf-8")
+        log(f"Thumbnail headlines per variant: {[headlines[(v - 1) % len(headlines)] for v in (1, 2, 3)]}")
+
         thumb_ok = False
         DIR_THUMBS.mkdir(parents=True, exist_ok=True)
         for variant in (1, 2, 3):
+            headline = headlines[(variant - 1) % len(headlines)]
             r = run(
-                ["python3", str(THUMBNAIL), f"--variant={variant}", "--ai"],
+                ["python3", str(THUMBNAIL), f"--variant={variant}", f"--headline={headline}", "--ai"],
                 f"thumbnail v{variant}",
                 check=False,
             )

@@ -35,6 +35,64 @@ except ImportError:
 _yt_lock = threading.Lock()
 _yt_running: set[str] = set()
 
+# ── Archive ───────────────────────────────────────────────────────────────────
+# Finished videos can be "archived" out of the repo into the user's Documents
+# folder, kept for later upload. Never committed/pushed (it's outside the repo).
+ARCHIVE_ROOT = Path.home() / "Documents" / "Bendover Productions"
+DELETED_ROOT = ARCHIVE_ROOT / ".deleted"
+_archive_running: set[str] = set()
+
+
+def archive_dir(slug: str) -> Path:
+    return ARCHIVE_ROOT / slug
+
+
+def load_archive_meta(slug: str) -> dict | None:
+    pf = archive_dir(slug) / "project.json"
+    if not pf.is_file():
+        return None
+    try:
+        return json.loads(pf.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def save_archive_meta(slug: str, meta: dict) -> None:
+    pf = archive_dir(slug) / "project.json"
+    pf.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+
+
+def list_archived() -> list[dict]:
+    if not ARCHIVE_ROOT.is_dir():
+        return []
+    items: list[dict] = []
+    for d in sorted(ARCHIVE_ROOT.iterdir()):
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        meta = load_archive_meta(d.name)
+        if meta is None:
+            continue
+        video = d / "06-output" / "final.mp4"
+        thumb = d / "07-upload" / "thumbnail.png"
+        script = d / "01-script" / "Script.txt"
+        items.append({
+            "id": d.name,
+            "title": meta.get("name") or meta.get("title") or d.name,
+            "description": meta.get("description") or "",
+            "youtube_channel": meta.get("youtube_channel"),
+            "youtube_video_id": meta.get("youtube_video_id"),
+            "thumbnail_variant": meta.get("thumbnail_variant"),
+            "archived_at": meta.get("archived_at"),
+            "video_ok": video.is_file() and video.stat().st_size > 0,
+            "thumb_ok": thumb.is_file() and thumb.stat().st_size > 0,
+            "script_ok": script.is_file() and script.stat().st_size > 0,
+            "uploading": d.name in _archive_running,
+            "upload_error": meta.get("upload_error"),
+        })
+    # Newest first.
+    items.sort(key=lambda x: x.get("archived_at") or "", reverse=True)
+    return items
+
 
 # ── YouTube stats ─────────────────────────────────────────────────────────────
 
@@ -326,6 +384,43 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def serve_range(self, file_path: Path, mime: str) -> None:
+        """Serve a file with HTTP range support (needed for browser video/audio seeking)."""
+        if not file_path.is_file():
+            self.err("Not found", 404)
+            return
+        file_size = file_path.stat().st_size
+        range_hdr = self.headers.get("Range", "")
+        if range_hdr.startswith("bytes="):
+            spec = range_hdr[6:]
+            s_str, _, e_str = spec.partition("-")
+            start = int(s_str) if s_str else 0
+            end = int(e_str) if e_str else file_size - 1
+            end = min(end, file_size - 1)
+            length = end - start + 1
+            with file_path.open("rb") as f:
+                f.seek(start)
+                chunk = f.read(length)
+            self.send_response(206)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(length))
+            self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            self.wfile.write(chunk)
+        else:
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(file_size))
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            with file_path.open("rb") as f:
+                while True:
+                    chunk = f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+
     def err(self, msg: str, status: int = 400) -> None:
         self.send_json({"ok": False, "error": msg}, status)
 
@@ -351,6 +446,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/projects":
             self.send_json(list_projects())
+            return
+
+        if path == "/api/archive":
+            self.send_json(list_archived())
             return
 
         if path == "/api/styles":
@@ -429,6 +528,9 @@ class Handler(BaseHTTPRequestHandler):
 
                 yt_uploading = pid in _yt_running
 
+                final_video = PROJECTS_DIR / pid / "06-output" / "final.mp4"
+                video_ok = final_video.is_file() and final_video.stat().st_size > 0
+
                 self.send_json({
                     **p, "id": pid,
                     "queue_status": resolve_status(p, pid),
@@ -437,6 +539,7 @@ class Handler(BaseHTTPRequestHandler):
                     "progress": progress,
                     "thumbs": thumbs,
                     "yt_uploading": yt_uploading,
+                    "video_ok": video_ok,
                 })
                 return
 
@@ -518,6 +621,26 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_file(img, "image/png")
                     return
             self.err("Not found", 404)
+            return
+
+        # Serve the rendered final.mp4 with range support (needed for browser seeking)
+        if path.startswith("/video/"):
+            slug = path[len("/video/"):].strip("/")
+            self.serve_range(PROJECTS_DIR / slug / "06-output" / "final.mp4", "video/mp4")
+            return
+
+        # Serve an ARCHIVED video / thumbnail (from ~/Documents/Bendover Productions)
+        if path.startswith("/video-archive/"):
+            slug = path[len("/video-archive/"):].strip("/")
+            self.serve_range(archive_dir(slug) / "06-output" / "final.mp4", "video/mp4")
+            return
+        if path.startswith("/thumb-archive/"):
+            slug = path[len("/thumb-archive/"):].strip("/")
+            self.send_file(archive_dir(slug) / "07-upload" / "thumbnail.png", "image/png")
+            return
+        if path.startswith("/script-archive/"):
+            slug = path[len("/script-archive/"):].strip("/")
+            self.send_file(archive_dir(slug) / "01-script" / "Script.txt", "text/plain; charset=utf-8")
             return
 
         # Serve project audio with range request support (needed for browser seeking)
@@ -648,6 +771,90 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             self.err("Unknown channel action", 404)
+            return
+
+        # ── Archive actions (operate on ~/Documents, not a live project) ──────
+        if path.startswith("/api/archive/"):
+            arest = path[len("/api/archive/"):].strip("/").split("/")
+            aslug = arest[0] if arest else ""
+            aaction = arest[1] if len(arest) > 1 else ""
+            meta = load_archive_meta(aslug)
+            if not aslug or meta is None:
+                self.err("Archived project not found", 404)
+                return
+
+            if aaction == "delete":
+                src = archive_dir(aslug)
+                if src.is_dir():
+                    DELETED_ROOT.mkdir(parents=True, exist_ok=True)
+                    stamp = time.strftime("%Y%m%dT%H%M%S")
+                    dest = DELETED_ROOT / f"{aslug}__{stamp}"
+                    shutil.move(str(src), str(dest))
+                self.send_json({"ok": True})
+                return
+
+            if aaction == "upload":
+                try:
+                    data = json.loads(body) if body else {}
+                except Exception:
+                    data = {}
+                channel = str(data.get("channel") or meta.get("youtube_channel") or "").strip()
+                if not channel:
+                    self.send_json({"ok": False, "error": "Select a channel to upload to"})
+                    return
+                if not channels.exists(channel):
+                    self.send_json({"ok": False, "error": f"Unknown channel '{channel}'"})
+                    return
+                if not channels.has_token(channel):
+                    self.send_json({"ok": False, "error": f"Channel '{channel}' is not authorized yet"})
+                    return
+                meta["youtube_channel"] = channel
+                meta.pop("upload_error", None)
+                save_archive_meta(aslug, meta)
+
+                with _yt_lock:
+                    if aslug in _archive_running:
+                        self.send_json({"ok": False, "error": "Upload already in progress"})
+                        return
+                    _archive_running.add(aslug)
+
+                adir = str(archive_dir(aslug))
+
+                def do_archive_upload() -> None:
+                    error: str | None = None
+                    try:
+                        env = {**os.environ, "PIPELINE_ROOT": adir}
+                        upload_script = ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
+                        result = subprocess.run(
+                            [sys.executable, str(upload_script), "--channel", channel],
+                            cwd=ROOT, env=env, timeout=600,
+                            capture_output=True, text=True,
+                        )
+                        if result.returncode != 0:
+                            lines = [
+                                ln.strip() for ln in (result.stderr or result.stdout or "").splitlines()
+                                if ln.strip()
+                            ]
+                            error = lines[-1] if lines else f"Upload failed (exit code {result.returncode})"
+                    except subprocess.TimeoutExpired:
+                        error = "Upload timed out after 10 minutes"
+                    except Exception as exc:
+                        error = str(exc) or "Upload failed"
+                    finally:
+                        with _yt_lock:
+                            _archive_running.discard(aslug)
+                        m = load_archive_meta(aslug) or meta
+                        if error:
+                            m["upload_error"] = error
+                        else:
+                            m.pop("upload_error", None)
+                        save_archive_meta(aslug, m)
+
+                threading.Thread(target=do_archive_upload, daemon=True).start()
+                self.send_json({"ok": True, "message": "Upload started — poll /api/archive for youtube_video_id"})
+                return
+
+            self.err("Unknown archive action", 404)
             return
 
         if not path.startswith("/api/project/"):
@@ -852,6 +1059,66 @@ class Handler(BaseHTTPRequestHandler):
             proj["youtube_channel"] = channel
             save_project(pid, proj)
             self.send_json({"ok": True})
+            return
+
+        # ── Archive for later (move deliverables to ~/Documents) ──────────────
+        if action == "archive":
+            proj = load_project(pid)
+            src_video = PROJECTS_DIR / pid / "06-output" / "final.mp4"
+            if not (src_video.is_file() and src_video.stat().st_size > 0):
+                self.send_json({"ok": False, "error": "No rendered video to archive yet"})
+                return
+
+            # Chosen thumbnail: the picked variant, else the first one that exists.
+            thumbs_dir = PROJECTS_DIR / pid / "tracker" / "thumbs"
+            variant = proj.get("selected_thumbnail_variant")
+            src_thumb = None
+            if variant and (thumbs_dir / f"thumbnail_v{variant}.png").is_file():
+                src_thumb = thumbs_dir / f"thumbnail_v{variant}.png"
+            else:
+                for i in (1, 2, 3):
+                    cand = thumbs_dir / f"thumbnail_v{i}.png"
+                    if cand.is_file():
+                        src_thumb = cand
+                        variant = i
+                        break
+
+            dest = archive_dir(pid)
+            (dest / "06-output").mkdir(parents=True, exist_ok=True)
+            (dest / "07-upload").mkdir(parents=True, exist_ok=True)
+            (dest / "01-script").mkdir(parents=True, exist_ok=True)
+
+            # Move the video (frees project disk); copy the thumbnail + script.
+            dest_video = dest / "06-output" / "final.mp4"
+            dest_video.unlink(missing_ok=True)
+            shutil.move(str(src_video), str(dest_video))
+            if src_thumb:
+                shutil.copy2(src_thumb, dest / "07-upload" / "thumbnail.png")
+            src_script = PROJECTS_DIR / pid / "01-script" / "Script.txt"
+            if src_script.is_file() and src_script.stat().st_size > 0:
+                shutil.copy2(src_script, dest / "01-script" / "Script.txt")
+
+            archived_at = time.strftime("%Y-%m-%dT%H:%M:%S")
+            meta = {
+                "name": proj.get("name") or proj.get("title") or pid,
+                "title": proj.get("name") or proj.get("title") or pid,
+                "description": proj.get("description") or "",
+                "tags": proj.get("tags") or [],
+                "privacy": proj.get("privacy") or "public",
+                "youtube_channel": proj.get("youtube_channel"),
+                "youtube_video_id": proj.get("youtube_video_id"),
+                "slug": pid,
+                "thumbnail_variant": variant,
+                "archived_at": archived_at,
+            }
+            save_archive_meta(pid, meta)
+
+            proj["queue_status"] = "archived"
+            proj["archived"] = True
+            proj["archived_at"] = archived_at
+            proj["archive_path"] = str(dest)
+            save_project(pid, proj)
+            self.send_json({"ok": True, "archive_path": str(dest)})
             return
 
         # ── YouTube upload ────────────────────────────────────────────────────

@@ -154,6 +154,25 @@ body {
 }
 .proj-item.active .proj-name { color: var(--accent-text); }
 
+/* Archive nav + view */
+#archive-nav { padding: 6px 8px 12px; margin-top: auto; border-top: 1px solid var(--border); }
+.archive-navbtn {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text-2); user-select: none;
+}
+.archive-navbtn:hover { background: var(--surface-2); }
+.archive-navbtn.active { background: #f3e8ff; color: #7e22ce; }
+.archive-count {
+  font-size: 11px; font-weight: 700; background: #ede9fe; color: #7e22ce;
+  border-radius: 20px; padding: 2px 8px;
+}
+.detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.detail-title { font-size: 20px; font-weight: 700; }
+.detail-sub { font-size: 13px; color: var(--muted); margin-top: 4px; max-width: 640px; line-height: 1.5; }
+.archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.archive-card { max-width: 480px; }
+
 /* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -166,6 +185,7 @@ body {
 .badge-running    { background: var(--green-soft); color: var(--green-text); border: 1px solid var(--green-mid); }
 .badge-thumbnails { background: var(--amber-soft); color: var(--amber-text); border: 1px solid var(--amber-mid); }
 .badge-done       { background: var(--green-soft); color: var(--green-text); border: 1px solid var(--green-mid); }
+.badge-archived   { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
 .badge-failed     { background: var(--red-soft); color: var(--red-text); border: 1px solid var(--red-mid); }
 .badge-paused     { background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-mid); }
 .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
@@ -534,6 +554,7 @@ a:hover { text-decoration: underline; }
     <div id="project-list">
       <div style="padding:16px 12px;color:var(--muted-2);font-size:12px">Loading…</div>
     </div>
+    <div id="archive-nav"></div>
   </aside>
 
   <main id="main" class="empty">
@@ -564,11 +585,14 @@ const STATUS_LABELS = {
   running:    'Generating',
   thumbnails: 'Pick thumbnail',
   done:       'Done',
+  archived:   'Archived',
   failed:     'Failed',
   paused:     'Paused',
 };
 const STEPS = ['upload','style','queued','running','thumbnails','done'];
 let CHANNELS = [];
+let archived = [];
+let view = 'projects';   // 'projects' | 'archive'
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 (async () => {
@@ -577,9 +601,24 @@ let CHANNELS = [];
   setInterval(loadChannels, 15000);
   await refreshProjects();
   setInterval(refreshProjects, 3000);
+  await refreshArchive();
+  setInterval(refreshArchive, 4000);
   loadCredits();
   setInterval(loadCredits, 30000);
 })();
+
+async function refreshArchive() {
+  try {
+    const fresh = await get('/api/archive');
+    if (JSON.stringify(fresh) !== JSON.stringify(archived)) {
+      archived = fresh;
+      renderArchiveNav();
+      if (view === 'archive') renderArchiveView();
+    } else {
+      renderArchiveNav();
+    }
+  } catch (e) {}
+}
 
 async function loadChannels() {
   try { CHANNELS = await get('/api/channels'); }
@@ -715,8 +754,128 @@ function badgeDot(s) {
   return s === 'running' ? '<span class="badge-dot"></span>' : '';
 }
 
+// ── Archive nav + view ──────────────────────────────────────────────────────────
+function renderArchiveNav() {
+  const el = document.getElementById('archive-nav');
+  if (!el) return;
+  const n = archived.length;
+  const pending = archived.filter(a => !a.youtube_video_id).length;
+  el.innerHTML = `
+    <div class="archive-navbtn${view === 'archive' ? ' active' : ''}" onclick="showArchive()">
+      <span>📦 Archive</span>
+      ${n ? `<span class="archive-count">${pending ? pending + ' to upload' : n}</span>` : ''}
+    </div>`;
+}
+
+function showArchive() {
+  view = 'archive';
+  selectedId = null;
+  currentProj = null;
+  clearInterval(logTimer); logTimer = null;
+  renderSidebar();
+  renderArchiveNav();
+  renderArchiveView();
+}
+
+function showProjects() {
+  view = 'projects';
+  renderArchiveNav();
+  const main = document.getElementById('main');
+  main.classList.add('empty');
+  main.innerHTML = `
+    <div class="empty-state">
+      <div class="es-icon">🎬</div>
+      <h2>Select a project</h2>
+      <p>Pick one from the sidebar, or create<br>new ones via Claude Code <code>/start</code></p>
+    </div>`;
+}
+
+function renderArchiveView() {
+  const main = document.getElementById('main');
+  main.classList.remove('empty');
+  if (!archived.length) {
+    main.innerHTML = `
+      <div class="empty-state">
+        <div class="es-icon">📦</div>
+        <h2>No archived videos yet</h2>
+        <p>Finish a video, then choose <b>Archive for later</b><br>to save it to ~/Documents/Bendover Productions.</p>
+        <button class="btn btn-ghost" style="margin-top:14px" onclick="showProjects()">← Back to projects</button>
+      </div>`;
+    return;
+  }
+  main.innerHTML = `
+    <div class="detail-head">
+      <div>
+        <div class="detail-title">📦 Archive</div>
+        <div class="detail-sub">${archived.length} saved video${archived.length === 1 ? '' : 's'} in ~/Documents/Bendover Productions — upload any of them whenever you're ready.</div>
+      </div>
+      <button class="btn btn-ghost" onclick="showProjects()">← Projects</button>
+    </div>
+    <div class="archive-grid">${archived.map(archiveCardHtml).join('')}</div>`;
+}
+
+function archiveCardHtml(a) {
+  const uploaded = !!a.youtube_video_id;
+  const ready = CHANNELS.filter(c => c.authorized);
+  const current = a.youtube_channel || (ready[0] && ready[0].slug) || '';
+  const channelSel = ready.length
+    ? `<select id="arch-ch-${esc(a.id)}" style="flex:0 1 auto;min-width:160px;padding:7px 10px;border-radius:8px;background:var(--surface-2,#1b1b1f);color:inherit;border:1px solid var(--border)">
+         ${ready.map(c => `<option value="${esc(c.slug)}" ${c.slug === current ? 'selected' : ''}>${esc(c.title || c.name)}</option>`).join('')}
+       </select>`
+    : `<span style="font-size:12px;color:var(--amber,#e0a800)">No channels — add one in Channels</span>`;
+  const poster = a.thumb_ok ? ` poster="/thumb-archive/${esc(a.id)}?t=${esc(a.archived_at || '')}"` : '';
+  return `
+    <div class="card archive-card">
+      <div class="card-title" style="margin-bottom:10px">${esc(a.title)}</div>
+      ${a.video_ok ? `<video src="/video-archive/${esc(a.id)}?t=${esc(a.archived_at || '')}"${poster} controls preload="metadata"
+              style="width:100%;border-radius:10px;border:1px solid var(--border);background:#000;display:block;margin-bottom:10px"></video>`
+        : a.thumb_ok ? `<img src="/thumb-archive/${esc(a.id)}?t=${esc(a.archived_at || '')}" style="width:100%;border-radius:10px;border:1px solid var(--border);display:block;margin-bottom:10px">`
+        : `<div class="alert alert-amber" style="margin-bottom:10px">Video file missing from archive.</div>`}
+      <div style="font-size:12px;color:var(--muted-2);margin-bottom:12px">
+        Archived ${esc((a.archived_at || '').replace('T', ' '))}
+        ${a.script_ok ? ` · <a href="/script-archive/${esc(a.id)}" target="_blank">📄 Script</a>` : ''}
+      </div>
+      ${uploaded
+        ? `<div class="alert alert-green" style="font-size:13px;font-weight:600;margin-bottom:8px">✓ Uploaded to ${esc(channelLabel(a.youtube_channel))}</div>
+           <a class="btn btn-outline" href="https://youtu.be/${esc(a.youtube_video_id)}" target="_blank" style="font-size:12px">▶ youtu.be/${esc(a.youtube_video_id)}</a>`
+        : `${a.upload_error ? `<div class="alert alert-red" style="font-size:12px;margin-bottom:8px">⚠ ${esc(a.upload_error)}</div>` : ''}
+           <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
+             ${channelSel}
+             <button class="btn btn-primary" onclick="archiveUpload('${esc(a.id)}')" ${a.uploading || !ready.length ? 'disabled' : ''}>
+               ${a.uploading ? '⏳ Uploading…' : (a.upload_error ? '↻ Retry upload' : '↑ Upload now')}
+             </button>
+             ${a.uploading ? '<div class="spinner"></div>' : ''}
+           </div>`}
+      <div style="margin-top:12px">
+        <button class="btn btn-ghost" style="font-size:12px;color:var(--red,#e5484d)" onclick="deleteArchive('${esc(a.id)}','${esc(a.title)}')">Delete from archive</button>
+      </div>
+    </div>`;
+}
+
+async function archiveUpload(slug) {
+  const sel = document.getElementById('arch-ch-' + slug);
+  const channel = sel ? sel.value : '';
+  if (!channel) { alert('Select a channel first'); return; }
+  const item = archived.find(a => a.id === slug);
+  if (item) { item.uploading = true; item.upload_error = null; renderArchiveView(); }
+  const r = await post('/api/archive/' + slug + '/upload', { channel });
+  if (!r.ok) {
+    if (item) { item.uploading = false; item.upload_error = r.error || 'Unknown error'; }
+    renderArchiveView();
+    return;
+  }
+  refreshArchive();
+}
+
+async function deleteArchive(slug, title) {
+  if (!confirm('Delete "' + title + '" from the archive?\n\nIt will be moved to a hidden .deleted folder inside ~/Documents/Bendover Productions, not permanently erased.')) return;
+  const r = await post('/api/archive/' + slug + '/delete', {});
+  if (r.ok) { refreshArchive(); } else { alert('Error: ' + (r.error || 'Unknown')); }
+}
+
 // ── Project detail ─────────────────────────────────────────────────────────────
 function selectProject(id) {
+  view = 'projects';
   selectedId = id;
   clearInterval(logTimer); logTimer = null;
   clearInterval(vPollTimer); vPollTimer = null;
@@ -724,6 +883,7 @@ function selectProject(id) {
   if (audio) { audio.pause(); audio.src = ''; }
   currentProj = null;
   renderSidebar();
+  renderArchiveNav();
   const main = document.getElementById('main');
   main.classList.remove('empty');
   main.innerHTML = '<div style="padding:60px;color:var(--muted-2);text-align:center;font-size:13px">Loading…</div>';
@@ -784,7 +944,21 @@ function renderDetail(p) {
   else if (status === 'paused')     renderPaused(p, el);
   else if (status === 'thumbnails') renderThumbnails(p, el);
   else if (status === 'done')       renderDone(p, el);
+  else if (status === 'archived')   renderArchivedDetail(p, el);
   else if (status === 'failed')     renderFailed(el);
+}
+
+// Project whose deliverables were moved to the archive.
+function renderArchivedDetail(p, el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">📦 Archived</div></div>
+      <div class="alert alert-green" style="font-size:14px;font-weight:600">
+        This video is saved in your archive, ready to upload whenever you like.
+      </div>
+      <p class="card-desc">Its files were moved to <code>~/Documents/Bendover Productions/${esc(p.id)}</code>.</p>
+      <button class="btn btn-primary" onclick="showArchive()">Go to Archive →</button>
+    </div>`;
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
@@ -1300,6 +1474,17 @@ async function restartGeneration() {
 }
 
 // ── Thumbnails ────────────────────────────────────────────────────────────────
+// Small inline preview of the locally rendered final.mp4 (before/after upload).
+function videoPreviewHtml(p) {
+  if (!p.video_ok) return '';
+  return `
+    <div style="margin:0 0 16px 0">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Video preview</div>
+      <video src="/video/${esc(selectedId)}?t=${esc(p.updated_at||'')}" controls preload="metadata"
+             style="width:100%;max-width:360px;border-radius:10px;border:1px solid var(--border);background:#000;display:block"></video>
+    </div>`;
+}
+
 function renderThumbnails(p, el) {
   const thumbs  = p.thumbs || {};
   const sel     = p.selected_thumbnail_variant;
@@ -1320,6 +1505,7 @@ function renderThumbnails(p, el) {
     <div class="card">
       <div class="card-header"><div class="card-title">Pick a Thumbnail</div></div>
       <p class="card-desc">Click the thumbnail you want to use, then upload to YouTube.</p>
+      ${videoPreviewHtml(p)}
       ${anyDone ? `
         <div class="thumb-grid">${cards}</div>
         ${sel ? `
@@ -1329,10 +1515,16 @@ function renderThumbnails(p, el) {
             <button class="btn btn-primary" onclick="uploadYt()" ${p.yt_uploading?'disabled':''}>
               ${p.yt_uploading?'⏳ Uploading…':'↑ Upload to YouTube'}
             </button>
+            <button class="btn btn-outline" onclick="archiveProject()" ${p.yt_uploading?'disabled':''} title="Save to ~/Documents to upload later">
+              📦 Archive for later
+            </button>
             ${p.yt_uploading?'<div class="spinner"></div>':''}
           </div>
         ` : `
-          <div style="color:var(--muted-2);font-size:13px;margin-top:4px">← Select a thumbnail to unlock upload</div>
+          <div class="row" style="margin-top:4px;align-items:center;gap:12px">
+            <span style="color:var(--muted-2);font-size:13px">← Select a thumbnail to unlock upload</span>
+            <button class="btn btn-outline" onclick="archiveProject()" title="Save to ~/Documents to upload later">📦 Archive for later</button>
+          </div>
         `}
       ` : `<div class="alert alert-amber" style="margin-bottom:0">Thumbnails still generating — check back in a moment.</div>`}
     </div>
@@ -1390,6 +1582,19 @@ async function uploadYt() {
   const d = await r.json();
   if (d.ok) setTimeout(refreshProject, 4000);
   else alert('Error: '+(d.error||'Upload failed'));
+}
+
+async function archiveProject() {
+  if (!selectedId) return;
+  if (!confirm('Archive this video to ~/Documents/Bendover Productions for later upload?\n\nThe rendered video will be MOVED out of the project.')) return;
+  const r = await post('/api/project/' + selectedId + '/archive', {});
+  if (r.ok) {
+    await refreshArchive();
+    await refreshProjects();
+    showArchive();
+  } else {
+    alert('Error: ' + (r.error || 'Archive failed'));
+  }
 }
 
 // ── Channel manager modal ────────────────────────────────────────────────────
@@ -1568,10 +1773,14 @@ function renderDone(p, el) {
         </div>
       ` : `
         <p class="card-desc">Not uploaded to YouTube yet.</p>
+        ${videoPreviewHtml(p)}
         ${channelPickerHtml(p)}
         <div class="row">
           <button class="btn btn-primary" onclick="uploadYt()" ${p.yt_uploading?'disabled':''}>
             ${p.yt_uploading?'⏳ Uploading…':'↑ Upload to YouTube'}
+          </button>
+          <button class="btn btn-outline" onclick="archiveProject()" ${p.yt_uploading?'disabled':''} title="Save to ~/Documents to upload later">
+            📦 Archive for later
           </button>
           ${p.yt_uploading?'<div class="spinner"></div>':''}
         </div>

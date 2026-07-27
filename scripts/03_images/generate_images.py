@@ -40,6 +40,12 @@ JOB_TIMEOUT_SEC = 20 * 60
 CREDIT_POLL_INTERVAL = 5 * 60  # poll every 5 min while waiting
 EXTRA_WAIT_AFTER_RESET = 90  # buffer after reset timestamp passes
 MAX_RETRIES = 3  # max attempts per frame before marking permanently failed
+# Codex's image tool occasionally returns a degraded low-res render (seen at
+# 1600x900, 15-33 KB) instead of a normal full-detail frame (~1672x941, 500KB-1MB+).
+# These pass the exit-code/exists/dedup checks and get shipped into the video as
+# pixelated frames. A file-size floor cleanly separates them (huge gap: ~33 KB bad
+# vs ~570 KB+ good) so we retry them instead of accepting them.
+MIN_FRAME_BYTES = int(os.environ.get("MIN_FRAME_BYTES") or 100_000)
 
 sys.path.insert(0, str(CREDITS_DIR))
 from fetch_codex_usage import read_usage_payload, should_stop_generation  # noqa: E402
@@ -345,29 +351,36 @@ def run_generation_batch(
             done_now.append(filename)
             image_path = IMAGES_DIR / filename
             duplicate_of = None
+            degraded_bytes = 0
             if code == 0 and image_path.is_file():
-                digest = file_hash(image_path)
-                duplicate_of = seen_hashes.get(digest)
-                if duplicate_of is None:
-                    seen_hashes[digest] = filename
-                    completed += 1
-            if code != 0 or not image_path.is_file() or duplicate_of:
-                if duplicate_of:
+                size = image_path.stat().st_size
+                if size < MIN_FRAME_BYTES:
+                    # Degraded/low-res render — reject so it gets regenerated.
+                    degraded_bytes = size
+                else:
+                    digest = file_hash(image_path)
+                    duplicate_of = seen_hashes.get(digest)
+                    if duplicate_of is None:
+                        seen_hashes[digest] = filename
+                        completed += 1
+            if code != 0 or not image_path.is_file() or duplicate_of or degraded_bytes:
+                if duplicate_of or degraded_bytes:
                     image_path.unlink(missing_ok=True)
                 attempt = retry_counts.get(filename, 0) + 1
                 retry_counts[filename] = attempt
-                if attempt <= MAX_RETRIES:
+                exhausted = attempt > MAX_RETRIES
+                if degraded_bytes:
+                    reason = f"degraded {filename} ({degraded_bytes // 1024}KB < {MIN_FRAME_BYTES // 1024}KB floor)"
+                elif duplicate_of:
+                    reason = f"duplicate {filename} (matches {duplicate_of})"
+                else:
+                    reason = f"failed {filename} exit={code}"
+                if not exhausted:
                     queue.insert(0, job)
-                    if duplicate_of:
-                        append_log(f"duplicate {filename} (matches {duplicate_of}) — retry {attempt}/{MAX_RETRIES}")
-                    else:
-                        append_log(f"failed {filename} exit={code} — retry {attempt}/{MAX_RETRIES}")
+                    append_log(f"{reason} — retry {attempt}/{MAX_RETRIES}")
                 else:
                     failed += 1
-                    if duplicate_of:
-                        append_log(f"duplicate {filename} (matches {duplicate_of}) — exceeded {MAX_RETRIES} retries, marking failed")
-                    else:
-                        append_log(f"failed {filename} exit={code} — exceeded {MAX_RETRIES} retries, marking failed")
+                    append_log(f"{reason} — exceeded {MAX_RETRIES} retries, marking failed")
 
         for filename in done_now:
             del running[filename]
