@@ -1218,6 +1218,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "preflight": "No style selected. Go back to the Style step."})
                 return
 
+            # Idempotency guard: a project already running/queued has real work
+            # in flight (queue_runner is blocked in proc.wait() for it) — a
+            # duplicate click here must not reset its status back to "queued"
+            # and make the UI lie about a job that's actually progressing.
+            current_status = p.get("queue_status")
+            if current_status in ("running", "queued"):
+                self.send_json({"ok": True, "preflight": f"Already {current_status} — not re-queuing."})
+                return
+
             proj_dir = str(PROJECTS_DIR / pid)
             env = {**os.environ, "PIPELINE_ROOT": proj_dir}
             result = subprocess.run(

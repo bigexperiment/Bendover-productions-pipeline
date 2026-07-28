@@ -1547,8 +1547,8 @@ function renderQueued(el) {
 // ── Running ───────────────────────────────────────────────────────────────────
 function renderRunning(p, el) {
   const prog  = p.progress || {};
-  const done  = prog.done || prog.completed || 0;
-  const total = prog.total || 0;
+  const done  = prog.done_frames || prog.done || prog.completed || 0;
+  const total = prog.total_frames || prog.total || 0;
   const pct   = total > 0 ? Math.round((done/total)*100) : 0;
 
   el.innerHTML = `
