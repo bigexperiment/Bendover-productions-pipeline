@@ -11,13 +11,28 @@ DEFAULT_PRESET_ID = "default"
 DEFAULT_PRESET_LABEL = "Classic stick figure explainer"
 PREVIEW_URL_PREFIX = "assets/style-samples"
 
+# Selecting this preset in the Studio UI only writes style_guide when "scene"
+# is non-empty (see serve.py's set-style handler) — an empty string here left
+# preflight.py's required style_guide check permanently unsatisfiable for
+# anyone picking the default preset. Ship a real baseline guide instead.
+DEFAULT_SCENE_GUIDE = (
+    "- Show only one main idea, with at most one supporting element — never a cluttered scene.\n"
+    "- Characters should have exaggerated emotions.\n"
+    "- Prefer visual storytelling: expressions, poses, ONE symbol or motion line at most — "
+    "not a collage of arrows, icons, and impact stars all at once.\n"
+    "- Keep the background plain or empty. Do not fill it with scattered objects, icons, or props.\n"
+    "- Make it easy to understand in 1 second without reading.\n"
+    "- No realism, no cinematic lighting, no detailed textures, no 3D.\n"
+    "- If in doubt, remove elements rather than add them."
+)
+
 
 def _default_preset() -> dict:
     return {
         "id": DEFAULT_PRESET_ID,
         "label": DEFAULT_PRESET_LABEL,
         "image_style": DEFAULT_IMAGE_STYLE,
-        "scene": "",
+        "scene": DEFAULT_SCENE_GUIDE,
         "preview": None,
         "has_preview": False,
     }
