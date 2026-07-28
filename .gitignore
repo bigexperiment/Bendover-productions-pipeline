@@ -74,4 +74,5 @@ __pycache__/
 .cache/
 .venv/
 .venv-youtube/
+.venv-whisper/
 exports/

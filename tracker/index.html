@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bendover Productions Studio</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-alpine.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -172,6 +175,52 @@ body {
 .detail-sub { font-size: 13px; color: var(--muted); margin-top: 4px; max-width: 640px; line-height: 1.5; }
 .archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 .archive-card { max-width: 480px; }
+
+/* Ideas nav + view */
+#ideas-nav { padding: 6px 8px 0; }
+.idea-card { display: flex; flex-direction: column; gap: 10px; }
+.idea-status-select {
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--surface-2); color: inherit; cursor: pointer;
+}
+.idea-field-label { font-size: 11px; color: var(--muted-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+.idea-chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
+  padding: 4px 10px; border-radius: 20px; text-transform: capitalize; white-space: nowrap;
+}
+.idea-chip-idea          { background: var(--surface-3); color: var(--muted); border: 1px solid var(--border); }
+.idea-chip-writing       { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.idea-chip-in_production { background: var(--amber-soft); color: var(--amber-text); border: 1px solid var(--amber-mid); }
+.idea-chip-published     { background: var(--green-soft); color: var(--green-text); border: 1px solid var(--green-mid); }
+.idea-open-btn, .idea-action-btn {
+  border: none; background: var(--accent-soft); color: var(--accent-text); border-radius: 6px;
+  padding: 4px 9px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.idea-open-btn:hover, .idea-action-btn:hover { filter: brightness(0.95); }
+.idea-filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.idea-filter-tab {
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+  text-transform: capitalize; display: flex; align-items: center; gap: 6px;
+}
+.idea-filter-tab:hover { background: var(--surface-2); }
+.idea-filter-tab.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-mid); }
+.idea-filter-count {
+  font-size: 11px; font-weight: 700; background: var(--surface-3); color: inherit;
+  border-radius: 20px; padding: 1px 7px;
+}
+.idea-filter-tab.active .idea-filter-count { background: rgba(255,255,255,0.6); }
+.idea-textarea, .idea-input {
+  width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-2); color: inherit; font-family: inherit; font-size: 13px; resize: vertical;
+}
+#ideas-grid {
+  height: 70vh; width: 100%; border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
+  --ag-font-family: inherit; --ag-font-size: 13px; --ag-border-color: var(--border);
+  --ag-background-color: var(--surface); --ag-header-background-color: var(--surface-2);
+  --ag-odd-row-background-color: var(--surface-2); --ag-row-hover-color: var(--surface-3);
+  --ag-foreground-color: var(--text);
+}
 
 /* Badges */
 .badge {
@@ -554,6 +603,7 @@ a:hover { text-decoration: underline; }
     <div id="project-list">
       <div style="padding:16px 12px;color:var(--muted-2);font-size:12px">Loading…</div>
     </div>
+    <div id="ideas-nav"></div>
     <div id="archive-nav"></div>
   </aside>
 
@@ -592,7 +642,10 @@ const STATUS_LABELS = {
 const STEPS = ['upload','style','queued','running','thumbnails','done'];
 let CHANNELS = [];
 let archived = [];
-let view = 'projects';   // 'projects' | 'archive'
+let ideas = [];
+let view = 'projects';   // 'projects' | 'archive' | 'ideas'
+
+const IDEA_STATUSES = ['idea', 'writing', 'in_production', 'published'];
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 (async () => {
@@ -603,6 +656,8 @@ let view = 'projects';   // 'projects' | 'archive'
   setInterval(refreshProjects, 3000);
   await refreshArchive();
   setInterval(refreshArchive, 4000);
+  await refreshIdeas();
+  setInterval(refreshIdeas, 5000);
   loadCredits();
   setInterval(loadCredits, 30000);
 })();
@@ -616,6 +671,23 @@ async function refreshArchive() {
       if (view === 'archive') renderArchiveView();
     } else {
       renderArchiveNav();
+    }
+  } catch (e) {}
+}
+
+async function refreshIdeas() {
+  try {
+    const fresh = await get('/api/ideas');
+    if (fresh && fresh.error) throw new Error(fresh.error);
+    if (JSON.stringify(fresh) !== JSON.stringify(ideas)) {
+      ideas = fresh;
+      renderIdeasNav();
+      if (view === 'ideas' && !selectedIdeaId) {
+        if (ideasGridApi) ideasGridApi.setGridOption('rowData', sortedIdeas());
+        else renderIdeasView();
+      }
+    } else {
+      renderIdeasNav();
     }
   } catch (e) {}
 }
@@ -772,14 +844,312 @@ function showArchive() {
   selectedId = null;
   currentProj = null;
   clearInterval(logTimer); logTimer = null;
+  teardownIdeasGrid();
   renderSidebar();
   renderArchiveNav();
+  renderIdeasNav();
   renderArchiveView();
+}
+
+// ── Ideas nav + view ─────────────────────────────────────────────────────────
+function renderIdeasNav() {
+  const el = document.getElementById('ideas-nav');
+  if (!el) return;
+  const n = ideas.length;
+  const open = ideas.filter(i => (i.video_status || 'idea') === 'idea').length;
+  el.innerHTML = `
+    <div class="archive-navbtn${view === 'ideas' ? ' active' : ''}" onclick="showIdeas()">
+      <span>💡 Ideas</span>
+      ${n ? `<span class="archive-count">${open || n}</span>` : ''}
+    </div>`;
+}
+
+function showIdeas() {
+  view = 'ideas';
+  selectedId = null;
+  selectedIdeaId = null;
+  currentProj = null;
+  clearInterval(logTimer); logTimer = null;
+  renderSidebar();
+  renderArchiveNav();
+  renderIdeasNav();
+  renderIdeasView();
+}
+
+let ideasGridApi = null;
+let ideaStatusFilter = null; // null = all, else one of IDEA_STATUSES
+
+function sortedIdeas() {
+  const rank = s => IDEA_STATUSES.indexOf(s || 'idea');
+  return [...ideas]
+    .filter(i => !ideaStatusFilter || (i.video_status || 'idea') === ideaStatusFilter)
+    .sort((a, b) => rank(a.video_status) - rank(b.video_status) || (b.id - a.id));
+}
+
+function teardownIdeasGrid() {
+  if (ideasGridApi) { try { ideasGridApi.destroy(); } catch (e) {} ideasGridApi = null; }
+}
+
+function ideaFilterTabsHtml() {
+  const counts = { idea: 0, writing: 0, in_production: 0, published: 0 };
+  ideas.forEach(i => { const s = i.video_status || 'idea'; counts[s] = (counts[s]||0) + 1; });
+  const tabs = [{ key: null, label: 'All', count: ideas.length }]
+    .concat(IDEA_STATUSES.map(s => ({ key: s, label: s.replace('_',' '), count: counts[s]||0 })));
+  return `<div class="idea-filter-tabs">${tabs.map(t => `
+    <button class="idea-filter-tab${ideaStatusFilter===t.key?' active':''}" onclick="setIdeaFilter(${t.key?`'${t.key}'`:'null'})">
+      ${esc(t.label)} <span class="idea-filter-count">${t.count}</span>
+    </button>`).join('')}</div>`;
+}
+
+function setIdeaFilter(status) {
+  ideaStatusFilter = status;
+  const tabsEl = document.getElementById('idea-filter-tabs-slot');
+  if (tabsEl) tabsEl.innerHTML = ideaFilterTabsHtml();
+  if (ideasGridApi) ideasGridApi.setGridOption('rowData', sortedIdeas());
+}
+
+function renderIdeasView() {
+  const main = document.getElementById('main');
+  main.classList.remove('empty');
+  main.innerHTML = `
+    <div class="detail-head">
+      <div>
+        <div class="detail-title">💡 Video Ideas</div>
+        <div class="detail-sub">${ideas.length} topic${ideas.length === 1 ? '' : 's'} in the backlog — shared via Supabase. Double-click a cell to edit.</div>
+      </div>
+      <button class="btn btn-primary" onclick="newIdeaForm()">+ New idea</button>
+    </div>
+    <div id="new-idea-slot"></div>
+    <div id="idea-filter-tabs-slot">${ideaFilterTabsHtml()}</div>
+    <div id="ideas-grid" class="ag-theme-alpine"></div>`;
+  mountIdeasGrid();
+}
+
+// Small DOM-node action button — AG Grid's string-returning cellRenderer is
+// unreliable across versions, so build real elements instead (documented fix).
+function ideaActionBtn(label, title, onClick, extraStyle) {
+  const btn = document.createElement('button');
+  btn.className = 'idea-action-btn';
+  btn.textContent = label;
+  btn.title = title;
+  if (extraStyle) btn.style.cssText += extraStyle;
+  btn.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return btn;
+}
+
+function mountIdeasGrid() {
+  teardownIdeasGrid();
+  const el = document.getElementById('ideas-grid');
+  if (!el || !window.agGrid) return;
+  const columnDefs = [
+    { field: 'video_title', headerName: 'Title', editable: true, flex: 2, minWidth: 220, wrapText: true, autoHeight: true },
+    { field: 'video_status', headerName: 'Status', editable: true, width: 150,
+      cellEditor: 'agSelectCellEditor', cellEditorParams: { values: IDEA_STATUSES },
+      cellRenderer: p => {
+        const span = document.createElement('span');
+        const status = p.value || 'idea';
+        span.className = 'idea-chip idea-chip-' + status;
+        span.textContent = status.replace('_', ' ');
+        return span;
+      } },
+    { field: 'hook', headerName: 'Hook', editable: true, flex: 2, minWidth: 220, wrapText: true, autoHeight: true },
+    { field: 'script', headerName: 'Script', editable: true, flex: 2, minWidth: 220,
+      cellEditor: 'agLargeTextCellEditor', cellEditorParams: { maxLength: 20000, rows: 12, cols: 60 },
+      valueFormatter: p => p.value ? (p.value.length > 80 ? p.value.slice(0, 80) + '…' : p.value) : '' },
+    { field: 'channel_name', headerName: 'Channel', editable: true, width: 150 },
+    { field: 'youtube_link', headerName: 'YouTube', editable: true, width: 150,
+      cellRenderer: p => {
+        if (!p.value) return document.createTextNode('');
+        const a = document.createElement('a');
+        a.href = p.value; a.target = '_blank'; a.textContent = '▶ link';
+        a.addEventListener('click', e => e.stopPropagation());
+        return a;
+      } },
+    { field: 'slug', headerName: 'Slug', editable: false, width: 150 },
+    { headerName: 'Actions', width: 210, sortable: false, filter: false, editable: false,
+      cellRenderer: p => {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
+        wrap.appendChild(ideaActionBtn('Open →', 'Open this idea', () => selectIdea(p.data.id)));
+        wrap.appendChild(ideaActionBtn('👁', 'View full script', () => viewIdeaScript(p.data.id)));
+        wrap.appendChild(ideaActionBtn('📋', 'Copy script to clipboard', () => copyIdeaScript(p.data.id)));
+        wrap.appendChild(ideaActionBtn('🗑', 'Delete', () => deleteIdea(p.data.id), 'color:var(--red,#e5484d)'));
+        return wrap;
+      } },
+  ];
+  ideasGridApi = agGrid.createGrid(el, {
+    columnDefs,
+    rowData: sortedIdeas(),
+    getRowId: p => String(p.data.id),
+    defaultColDef: { resizable: true, sortable: true, filter: true },
+    onCellValueChanged: params => updateIdeaField(params.data.id, params.colDef.field, params.newValue),
+  });
+}
+
+// ── View script modal ─────────────────────────────────────────────────────────
+function viewIdeaScript(id) {
+  const idea = ideas.find(i => i.id === id);
+  if (!idea) return;
+  let m = document.getElementById('script-modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'script-modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:1000';
+    m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
+    document.body.appendChild(m);
+  }
+  const script = idea.script || '(no script written yet)';
+  m.innerHTML = `
+    <div class="card" style="max-width:700px;width:90vw;max-height:80vh;display:flex;flex-direction:column">
+      <div class="card-header">
+        <div class="card-title">${esc(idea.video_title)}</div>
+        <button class="btn btn-ghost" onclick="document.getElementById('script-modal').style.display='none'">✕</button>
+      </div>
+      <div style="overflow-y:auto;white-space:pre-wrap;line-height:1.6;font-size:13px;padding:4px 2px">${esc(script)}</div>
+      <div class="row" style="margin-top:14px;gap:10px">
+        <button class="btn btn-outline" onclick="copyIdeaScript(${id})">📋 Copy script</button>
+        <button class="btn btn-primary" onclick="document.getElementById('script-modal').style.display='none';selectIdea(${id})">Open →</button>
+      </div>
+    </div>`;
+  m.style.display = 'flex';
+}
+
+async function copyIdeaScript(id) {
+  const idea = ideas.find(i => i.id === id);
+  if (!idea || !idea.script) { alert('No script written yet for this idea.'); return; }
+  try {
+    await navigator.clipboard.writeText(idea.script);
+  } catch (e) {
+    // Clipboard API can fail without HTTPS/focus — fall back to a manual copy.
+    const ta = document.createElement('textarea');
+    ta.value = idea.script; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+}
+
+function newIdeaForm() {
+  const slot = document.getElementById('new-idea-slot');
+  if (!slot) return;
+  slot.innerHTML = `
+    <div class="card idea-card" style="margin-bottom:16px">
+      <input class="idea-input" id="new-idea-title" placeholder="Video title (e.g. The Real Price of...)">
+      <textarea class="idea-textarea" id="new-idea-hook" rows="2" placeholder="Hook — one-line reason this works"></textarea>
+      <div class="row" style="gap:10px">
+        <button class="btn btn-primary" onclick="createIdea()">Add</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('new-idea-slot').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function createIdea() {
+  const title = (document.getElementById('new-idea-title')||{}).value || '';
+  const hook = (document.getElementById('new-idea-hook')||{}).value || '';
+  if (!title.trim()) { alert('Title required'); return; }
+  const r = await post('/api/ideas', { video_title: title.trim(), hook: hook.trim() });
+  if (r.ok) { document.getElementById('new-idea-slot').innerHTML = ''; refreshIdeas(); }
+  else alert('Error: ' + (r.error || 'Failed'));
+}
+
+async function updateIdeaField(id, field, value) {
+  const idea = ideas.find(i => i.id === id);
+  if (idea && idea[field] === value) return;  // no change, skip a write
+  const r = await post('/api/ideas/' + id, { [field]: value });
+  if (!r.ok) { alert('Error saving: ' + (r.error || 'Failed')); return; }
+  if (idea) idea[field] = value;
+}
+
+async function deleteIdea(id) {
+  const idea = ideas.find(i => i.id === id);
+  const title = idea ? idea.video_title : 'this idea';
+  if (!confirm('Delete idea "' + title + '"? This cannot be undone.')) return;
+  const r = await post('/api/ideas/' + id + '/delete', {});
+  if (r.ok) refreshIdeas(); else alert('Error: ' + (r.error || 'Failed'));
+}
+
+// ── Idea workspace (no project yet) — opens the real project dashboard once started ──
+let selectedIdeaId = null;
+
+function selectIdea(id) {
+  const idea = ideas.find(i => i.id === id);
+  if (!idea) return;
+  if (idea.slug) {
+    // Already a real project — jump straight into the normal dashboard, which
+    // already shows the video preview, thumbnails, and next-step/upload actions.
+    selectProject(idea.slug);
+    return;
+  }
+  selectedIdeaId = id;
+  teardownIdeasGrid();
+  renderIdeaWorkspace(idea);
+}
+
+function backToIdeasGrid() {
+  selectedIdeaId = null;
+  renderIdeasView();
+}
+
+function renderIdeaWorkspace(idea) {
+  view = 'ideas';
+  renderIdeasNav();
+  const main = document.getElementById('main');
+  main.classList.remove('empty');
+  const status = idea.video_status || 'idea';
+  const scriptLen = (idea.script || '').trim().length;
+  main.innerHTML = `
+    <button class="btn btn-ghost" style="margin-bottom:12px" onclick="backToIdeasGrid()">← All Ideas</button>
+    <div class="detail-head">
+      <div>
+        <div class="detail-title">${esc(idea.video_title)}</div>
+        <div class="detail-sub">${esc(idea.hook || '')}</div>
+      </div>
+      <span class="idea-chip idea-chip-${status}">${status.replace('_',' ')}</span>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Script</div></div>
+      <textarea class="idea-textarea" id="workspace-script" rows="16" placeholder="Write or paste the script here...">${esc(idea.script||'')}</textarea>
+      <div class="row" style="margin-top:10px;gap:10px">
+        <button class="btn btn-outline" onclick="saveWorkspaceScript(${idea.id})">Save script</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-header"><div class="card-title">Next step</div></div>
+      ${scriptLen < 100 ? `
+        <p class="card-desc">Write at least a short script above, then save it, to unlock starting the video.</p>
+      ` : `
+        <p class="card-desc">This creates a real project folder and hands it to the Studio pipeline — same as <code>/start</code> in Claude Code. You'll upload audio next, same as any other project.</p>
+        <button class="btn btn-primary" id="start-idea-btn" onclick="startIdea(${idea.id})">🚀 Start This Video</button>
+      `}
+    </div>`;
+}
+
+async function saveWorkspaceScript(id) {
+  const el = document.getElementById('workspace-script');
+  if (!el) return;
+  await updateIdeaField(id, 'script', el.value);
+  const idea = ideas.find(i => i.id === id);
+  if (idea) renderIdeaWorkspace(idea);
+}
+
+async function startIdea(id) {
+  const btn = document.getElementById('start-idea-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+  const r = await post('/api/ideas/' + id + '/start', {});
+  if (!r.ok) {
+    alert('Error: ' + (r.error || 'Failed'));
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Start This Video'; }
+    return;
+  }
+  await refreshIdeas();
+  await refreshProjects();
+  selectedIdeaId = null;
+  selectProject(r.slug);
 }
 
 function showProjects() {
   view = 'projects';
+  teardownIdeasGrid();
   renderArchiveNav();
+  renderIdeasNav();
   const main = document.getElementById('main');
   main.classList.add('empty');
   main.innerHTML = `
@@ -879,11 +1249,13 @@ function selectProject(id) {
   selectedId = id;
   clearInterval(logTimer); logTimer = null;
   clearInterval(vPollTimer); vPollTimer = null;
+  teardownIdeasGrid();
   const audio = document.getElementById('viewer-audio');
   if (audio) { audio.pause(); audio.src = ''; }
   currentProj = null;
   renderSidebar();
   renderArchiveNav();
+  renderIdeasNav();
   const main = document.getElementById('main');
   main.classList.remove('empty');
   main.innerHTML = '<div style="padding:60px;color:var(--muted-2);text-align:center;font-size:13px">Loading…</div>';
@@ -950,12 +1322,19 @@ function renderDetail(p) {
 
 // Project whose deliverables were moved to the archive.
 function renderArchivedDetail(p, el) {
+  const a = (archived || []).find(x => x.id === p.id);
+  const poster = a && a.thumb_ok ? ` poster="/thumb-archive/${esc(p.id)}?t=${esc(a.archived_at || '')}"` : '';
+  const preview = a && a.video_ok
+    ? `<video src="/video-archive/${esc(p.id)}?t=${esc(a.archived_at || '')}"${poster} controls preload="metadata"
+              style="width:100%;max-width:480px;border-radius:10px;border:1px solid var(--border);background:#000;display:block;margin-bottom:14px"></video>`
+    : '';
   el.innerHTML = `
     <div class="card">
       <div class="card-header"><div class="card-title">📦 Archived</div></div>
-      <div class="alert alert-green" style="font-size:14px;font-weight:600">
+      <div class="alert alert-green" style="font-size:14px;font-weight:600;margin-bottom:14px">
         This video is saved in your archive, ready to upload whenever you like.
       </div>
+      ${preview}
       <p class="card-desc">Its files were moved to <code>~/Documents/Bendover Productions/${esc(p.id)}</code>.</p>
       <button class="btn btn-primary" onclick="showArchive()">Go to Archive →</button>
     </div>`;
@@ -963,62 +1342,71 @@ function renderArchivedDetail(p, el) {
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 function renderUpload(p, el) {
-  const both = p.audio_ok && p.transcript_ok;
+  const tx = p.transcribe;
+  const txRunning = p.transcribing || (tx && tx.status === 'running');
+  const txError = tx && tx.status === 'error';
+  const pct = tx && typeof tx.pct === 'number' ? tx.pct : 0;
+
   el.innerHTML = `
     <div class="card">
-      <div class="card-header"><div class="card-title">Step 1 — Upload Files</div></div>
-      <p class="card-desc">Pick the destination channel, then upload narration audio and your TurboScribe transcript. The page advances automatically once both are ready.</p>
+      <div class="card-header"><div class="card-title">Step 1 — Upload Audio</div></div>
+      <p class="card-desc">Pick the destination channel, then upload narration audio. The transcript is generated automatically with local Whisper — no manual TurboScribe export needed.</p>
       ${channelPickerHtml(p, {label:'Upload to'})}
-      <div class="upload-grid">
-        <div>
-          <div class="field-label" style="margin-top:0">Narration audio</div>
-          <div class="upload-zone${p.audio_ok?' done':''}" id="audio-zone"
-               ondragover="dz(event)" ondragleave="dzl(event)" ondrop="dropAudio(event)">
-            <input type="file" accept=".mp3,.wav,.m4a" onchange="handleAudio(this.files[0])">
-            <span class="icon">${p.audio_ok ? '✅' : '🎙️'}</span>
-            <div id="audio-lbl" class="${p.audio_ok ? 'uz-done' : 'uz-label'}">
-              ${p.audio_ok ? 'Audio ready' : '<strong style="display:block;margin-bottom:3px;color:var(--text-2)">Drop .mp3 or .wav</strong>or click to browse'}
-            </div>
-          </div>
-        </div>
-        <div>
-          <div class="field-label" style="margin-top:0">TurboScribe transcript</div>
-          <div class="upload-zone${p.transcript_ok?' done':''}" id="tx-zone"
-               ondragover="dz(event)" ondragleave="dzl(event)" ondrop="dropTx(event)">
-            <input type="file" accept=".txt" onchange="handleTx(this.files[0])">
-            <span class="icon">${p.transcript_ok ? '✅' : '📝'}</span>
-            <div id="tx-lbl" class="${p.transcript_ok ? 'uz-done' : 'uz-label'}">
-              ${p.transcript_ok ? 'Transcript ready' : '<strong style="display:block;margin-bottom:3px;color:var(--text-2)">Drop .txt file</strong>or click to browse'}
-            </div>
+      <div style="max-width:360px">
+        <div class="field-label" style="margin-top:0">Narration audio</div>
+        <div class="upload-zone${p.audio_ok?' done':''}" id="audio-zone"
+             ondragover="dz(event)" ondragleave="dzl(event)" ondrop="dropAudio(event)">
+          <input type="file" accept=".mp3,.wav,.m4a" onchange="handleAudio(this.files[0])">
+          <span class="icon">${p.audio_ok ? '✅' : '🎙️'}</span>
+          <div id="audio-lbl" class="${p.audio_ok ? 'uz-done' : 'uz-label'}">
+            ${p.audio_ok ? 'Audio ready' : '<strong style="display:block;margin-bottom:3px;color:var(--text-2)">Drop .mp3 or .wav</strong>or click to browse'}
           </div>
         </div>
       </div>
-      <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
-        <div style="flex:1;height:4px;background:var(--surface-3);border-radius:2px;overflow:hidden">
-          <div style="height:100%;width:${((p.audio_ok?1:0)+(p.transcript_ok?1:0))*50}%;background:var(--accent);border-radius:2px;transition:width 0.4s"></div>
+      ${p.audio_ok ? `
+        <div style="margin-top:16px">
+          <div class="field-label" style="margin-top:0">Transcript (auto-generated — Whisper medium.en)</div>
+          ${txRunning ? `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+              <div style="flex:1;height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;transition:width 0.6s"></div>
+              </div>
+              <span style="font-size:12px;color:var(--muted);white-space:nowrap;min-width:80px;text-align:right">
+                ⏳ ${tx && tx.stage === 'loading model' ? 'loading model…' : pct + '%'}
+              </span>
+            </div>
+            ${tx && tx.duration ? `<div style="font-size:12px;color:var(--muted-2)">${fmtClock(tx.current||0)} / ${fmtClock(tx.duration)} transcribed</div>` : ''}
+          ` : txError ? `
+            <div class="alert alert-red" style="font-size:12px;margin-bottom:8px">⚠ ${esc(tx.error||'Transcription failed')}</div>
+            <button class="btn btn-outline" onclick="retryTranscribe()">↻ Retry transcription</button>
+          ` : p.transcript_ok ? `
+            <div class="alert alert-green" style="font-size:13px;font-weight:600">✓ Transcript ready — moving to style…</div>
+          ` : `
+            <div style="font-size:12px;color:var(--muted-2)">Starting…</div>
+          `}
         </div>
-        <span style="font-size:12px;color:var(--muted);white-space:nowrap">
-          ${(p.audio_ok?1:0)+(p.transcript_ok?1:0)}/2 ready${both?' · moving to style…':''}
-        </span>
-      </div>
+      ` : ''}
     </div>
   `;
+}
+function fmtClock(sec) {
+  sec = Math.round(sec||0);
+  const m = Math.floor(sec/60), s = sec%60;
+  return `${m}:${String(s).padStart(2,'0')}`;
 }
 function dz(e) { e.preventDefault(); e.currentTarget.classList.add('drag'); }
 function dzl(e) { e.currentTarget.classList.remove('drag'); }
 function dropAudio(e) { e.preventDefault(); e.currentTarget.classList.remove('drag'); handleAudio(e.dataTransfer.files[0]); }
-function dropTx(e)    { e.preventDefault(); e.currentTarget.classList.remove('drag'); handleTx(e.dataTransfer.files[0]); }
 async function handleAudio(file) {
   if (!file||!selectedId) return;
   lbl('audio', '⏳ Uploading…');
   const r = await upload('/api/project/'+selectedId+'/upload-audio','file',file);
   if (r.ok) refreshProject(); else lbl('audio','❌ '+(r.error||'Failed'));
 }
-async function handleTx(file) {
-  if (!file||!selectedId) return;
-  lbl('tx', '⏳ Uploading…');
-  const r = await upload('/api/project/'+selectedId+'/upload-transcript','file',file);
-  if (r.ok) refreshProject(); else lbl('tx','❌ '+(r.error||'Failed'));
+async function retryTranscribe() {
+  if (!selectedId) return;
+  const r = await post('/api/project/'+selectedId+'/retranscribe', {});
+  if (r.ok) refreshProject(); else alert('Error: '+(r.error||'Failed'));
 }
 function lbl(zone, text) { const el = document.getElementById(zone+'-lbl'); if(el) el.textContent = text; }
 

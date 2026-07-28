@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+import urllib.request
+import urllib.error
 
 ROOT = Path(__file__).resolve().parent.parent
 TRACKER = Path(__file__).resolve().parent
@@ -34,6 +37,180 @@ except ImportError:
 
 _yt_lock = threading.Lock()
 _yt_running: set[str] = set()
+
+def has_audio_file(pid: str) -> bool:
+    audio_dir = PROJECTS_DIR / pid / "02-audio"
+    return audio_dir.is_dir() and any(
+        f.suffix.lower() in (".mp3", ".wav", ".m4a")
+        for f in audio_dir.iterdir()
+        if f.is_file() and f.name != ".gitkeep"
+    )
+
+
+def has_transcript_file(pid: str) -> bool:
+    transcript = PROJECTS_DIR / pid / "03-transcript" / "transcript.txt"
+    return transcript.is_file() and transcript.stat().st_size > 50
+
+
+def maybe_advance_to_style(pid: str) -> None:
+    p = load_project(pid)
+    if not p:
+        return
+    if has_audio_file(pid) and has_transcript_file(pid) and p.get("queue_status", "upload") == "upload":
+        p["queue_status"] = "style"
+        save_project(pid, p)
+
+
+# ── Transcription (local Whisper — replaces manual TurboScribe upload) ────────
+WHISPER_PYTHON = ROOT / ".venv-whisper" / "bin" / "python3"
+TRANSCRIBE_SCRIPT = ROOT / "scripts" / "01_audio" / "generate_transcript.py"
+_transcribing: set[str] = set()
+_transcribe_lock = threading.Lock()
+
+
+def transcribe_progress_path(pid: str) -> Path:
+    return PROJECTS_DIR / pid / "tracker" / "transcribe_progress.json"
+
+
+def load_transcribe_progress(pid: str) -> dict | None:
+    pf = transcribe_progress_path(pid)
+    if not pf.is_file():
+        return None
+    try:
+        return json.loads(pf.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def start_transcription(pid: str) -> None:
+    """Kick off local Whisper transcription in the background. Deletes any
+    stale transcript first so has_transcript_file() can't false-positive on
+    an old file while the new one is being generated."""
+    with _transcribe_lock:
+        if pid in _transcribing:
+            return
+        _transcribing.add(pid)
+
+    proj_dir = PROJECTS_DIR / pid
+    old_transcript = proj_dir / "03-transcript" / "transcript.txt"
+    old_transcript.unlink(missing_ok=True)
+    progress_file = transcribe_progress_path(pid)
+    progress_file.parent.mkdir(parents=True, exist_ok=True)
+    progress_file.write_text(json.dumps({"status": "running", "pct": 0}), encoding="utf-8")
+
+    def run() -> None:
+        try:
+            env = {**os.environ, "PIPELINE_ROOT": str(proj_dir)}
+            result = subprocess.run(
+                [str(WHISPER_PYTHON), "-u", str(TRANSCRIBE_SCRIPT),
+                 "--model", "medium.en", "--progress-file", str(progress_file)],
+                cwd=ROOT, env=env, timeout=1800,
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                lines = [ln.strip() for ln in (result.stderr or result.stdout or "").splitlines() if ln.strip()]
+                err = lines[-1] if lines else f"Transcription failed (exit {result.returncode})"
+                progress_file.write_text(json.dumps({"status": "error", "error": err}), encoding="utf-8")
+        except subprocess.TimeoutExpired:
+            progress_file.write_text(json.dumps({"status": "error", "error": "Transcription timed out"}), encoding="utf-8")
+        except Exception as exc:
+            progress_file.write_text(json.dumps({"status": "error", "error": str(exc) or "Transcription failed"}), encoding="utf-8")
+        finally:
+            with _transcribe_lock:
+                _transcribing.discard(pid)
+            maybe_advance_to_style(pid)
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+# ── Ideas (Supabase video_ideas table — shared topic backlog) ─────────────────
+IDEAS_TABLE_FIELDS = {"channel_name", "video_title", "hook", "slug", "script", "video_status", "youtube_link"}
+
+
+def supabase_config() -> dict | None:
+    secrets_file = ROOT / "secrets.json"
+    if not secrets_file.is_file():
+        return None
+    try:
+        cfg = json.loads(secrets_file.read_text()).get("supabase")
+    except Exception:
+        return None
+    if not cfg or not cfg.get("url") or not cfg.get("anon_key"):
+        return None
+    return cfg
+
+
+def supabase_request(method: str, path: str, body=None):
+    cfg = supabase_config()
+    if not cfg:
+        raise RuntimeError("Supabase not configured (secrets.json)")
+    req = urllib.request.Request(
+        f"{cfg['url']}/rest/v1/{path}",
+        data=json.dumps(body).encode() if body is not None else None,
+        headers={
+            "apikey": cfg["anon_key"],
+            "Authorization": f"Bearer {cfg['anon_key']}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+            "User-Agent": "curl/7.88.1",  # Cloudflare blocks Python's default UA
+        },
+        method=method,
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        raw = resp.read()
+        return json.loads(raw) if raw else None
+
+
+def list_ideas() -> list[dict]:
+    return supabase_request("GET", "video_ideas?select=*&order=id.desc") or []
+
+
+def slugify(title: str) -> str:
+    s = re.sub(r"[^a-z0-9 ]", "", title.lower())
+    return re.sub(r" +", "-", s.strip())
+
+
+def create_project_from_idea(idea: dict) -> str:
+    """Mirror scripts/new_project.sh, then seed 01-script/Script.txt from the
+    idea's script field. Returns the new project slug."""
+    title = idea.get("video_title") or "Untitled"
+    base_slug = slugify(title) or f"idea-{idea['id']}"
+    slug = base_slug
+    n = 2
+    while (PROJECTS_DIR / slug).exists():
+        slug = f"{base_slug}-{n}"
+        n += 1
+
+    proj_dir = PROJECTS_DIR / slug
+    for sub in ("01-script", "02-audio", "03-transcript", "04-manifest",
+                "05-images", "06-output", "07-upload", "tracker", "tracker/thumbs"):
+        (proj_dir / sub).mkdir(parents=True, exist_ok=True)
+
+    assets_link = proj_dir / "assets"
+    if (ROOT / "assets").is_dir() and not assets_link.exists():
+        try:
+            assets_link.symlink_to(ROOT / "assets")
+        except OSError:
+            pass
+
+    project = {
+        "name": title,
+        "queue_status": "upload",
+        "style_approved": False,
+        "image_style": "",
+        "style_preset_id": "",
+        "style_preset_label": "",
+        "style_guide": "",
+        "text_rules": "",
+        "tone": "",
+        "workers": 10,
+    }
+    (proj_dir / "project.json").write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
+    script = (idea.get("script") or "").strip()
+    (proj_dir / "01-script" / "Script.txt").write_text(script + "\n" if script else "", encoding="utf-8")
+    (proj_dir / "03-transcript" / "transcript.txt").write_text("", encoding="utf-8")
+    return slug
+
 
 # ── Archive ───────────────────────────────────────────────────────────────────
 # Finished videos can be "archived" out of the repo into the user's Documents
@@ -452,6 +629,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(list_archived())
             return
 
+        if path == "/api/ideas":
+            try:
+                self.send_json(list_ideas())
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 500)
+            return
+
         if path == "/api/styles":
             self.send_json(get_style_presets())
             return
@@ -512,8 +696,11 @@ class Handler(BaseHTTPRequestHandler):
                     for f in audio_dir.iterdir()
                     if f.is_file() and f.name != ".gitkeep"
                 )
-                transcript = PROJECTS_DIR / pid / "03-transcript" / "transcript.txt"
-                has_transcript = transcript.is_file() and transcript.stat().st_size > 50
+                has_transcript = has_transcript_file(pid)
+                transcribe = load_transcribe_progress(pid)
+                if transcribe and pid not in _transcribing and transcribe.get("status") == "running":
+                    # Stale progress file from a crashed/killed run — don't show a spinner forever.
+                    transcribe = {"status": "error", "error": "Transcription stopped unexpectedly"}
 
                 prog_file = PROJECTS_DIR / pid / "04-manifest" / "image_regen_progress.json"
                 progress = None
@@ -536,6 +723,8 @@ class Handler(BaseHTTPRequestHandler):
                     "queue_status": resolve_status(p, pid),
                     "audio_ok": has_audio,
                     "transcript_ok": has_transcript,
+                    "transcribing": pid in _transcribing,
+                    "transcribe": transcribe,
                     "progress": progress,
                     "thumbs": thumbs,
                     "yt_uploading": yt_uploading,
@@ -721,6 +910,82 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "channels": channels.list_all()})
             return
 
+        # ── Ideas (Supabase video_ideas table) ─────────────────────────────────
+        if path == "/api/ideas":
+            try:
+                data = json.loads(body) if body else {}
+            except Exception:
+                data = {}
+            title = str(data.get("video_title") or "").strip()
+            if not title:
+                self.err("video_title is required")
+                return
+            row = {k: data.get(k) for k in IDEAS_TABLE_FIELDS if k in data}
+            row["video_title"] = title
+            row.setdefault("video_status", "idea")
+            try:
+                result = supabase_request("POST", "video_ideas", [row])
+                self.send_json({"ok": True, "idea": (result or [None])[0]})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, 500)
+            return
+
+        if path.startswith("/api/ideas/"):
+            rest = path[len("/api/ideas/"):].strip("/").split("/")
+            idea_id = rest[0] if rest else ""
+            iaction = rest[1] if len(rest) > 1 else ""
+            if not idea_id.isdigit():
+                self.err("Invalid idea id", 404)
+                return
+
+            if iaction == "delete":
+                try:
+                    supabase_request("DELETE", f"video_ideas?id=eq.{idea_id}")
+                    self.send_json({"ok": True})
+                except Exception as exc:
+                    self.send_json({"ok": False, "error": str(exc)}, 500)
+                return
+
+            if iaction == "start":
+                try:
+                    rows = supabase_request("GET", f"video_ideas?id=eq.{idea_id}&select=*")
+                    idea = (rows or [None])[0]
+                    if not idea:
+                        self.send_json({"ok": False, "error": "Idea not found"}, 404)
+                        return
+                    if idea.get("slug"):
+                        self.send_json({"ok": True, "slug": idea["slug"]})
+                        return
+                    if not (idea.get("script") or "").strip():
+                        self.send_json({"ok": False, "error": "Write a script before starting"})
+                        return
+                    slug = create_project_from_idea(idea)
+                    supabase_request("PATCH", f"video_ideas?id=eq.{idea_id}",
+                                      {"slug": slug, "video_status": "writing"})
+                    self.send_json({"ok": True, "slug": slug})
+                except Exception as exc:
+                    self.send_json({"ok": False, "error": str(exc)}, 500)
+                return
+
+            if iaction == "":
+                try:
+                    data = json.loads(body) if body else {}
+                except Exception:
+                    data = {}
+                patch = {k: v for k, v in data.items() if k in IDEAS_TABLE_FIELDS}
+                if not patch:
+                    self.err("No valid fields to update")
+                    return
+                try:
+                    result = supabase_request("PATCH", f"video_ideas?id=eq.{idea_id}", patch)
+                    self.send_json({"ok": True, "idea": (result or [None])[0]})
+                except Exception as exc:
+                    self.send_json({"ok": False, "error": str(exc)}, 500)
+                return
+
+            self.err("Unknown idea action", 404)
+            return
+
         if path.startswith("/api/channels/"):
             rest = path[len("/api/channels/"):].strip("/").split("/")
             slug = rest[0] if rest else ""
@@ -883,11 +1148,12 @@ class Handler(BaseHTTPRequestHandler):
                     old.unlink()
             fname = f.get("filename") or "narration.mp3"
             (dest_dir / fname).write_bytes(f["content"])
-            self._maybe_advance_to_style(pid)
+            start_transcription(pid)
             self.send_json({"ok": True, "filename": fname})
             return
 
-        # ── Upload transcript ─────────────────────────────────────────────────
+        # ── Upload transcript (manual override — auto-transcription is the
+        # default path now; this stays available for edge cases) ─────────────
         if action == "upload-transcript":
             fields = parse_multipart(ct, body)
             f = fields.get("file")
@@ -897,7 +1163,16 @@ class Handler(BaseHTTPRequestHandler):
             dest_dir = PROJECTS_DIR / pid / "03-transcript"
             dest_dir.mkdir(parents=True, exist_ok=True)
             (dest_dir / "transcript.txt").write_bytes(f["content"])
-            self._maybe_advance_to_style(pid)
+            maybe_advance_to_style(pid)
+            self.send_json({"ok": True})
+            return
+
+        # ── Retry transcription ─────────────────────────────────────────────
+        if action == "retranscribe":
+            if not has_audio_file(pid):
+                self.send_json({"ok": False, "error": "No audio uploaded yet"})
+                return
+            start_transcription(pid)
             self.send_json({"ok": True})
             return
 
@@ -1169,22 +1444,6 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         self.err("Unknown action", 404)
-
-    def _maybe_advance_to_style(self, pid: str) -> None:
-        p = load_project(pid)
-        if not p:
-            return
-        audio_dir = PROJECTS_DIR / pid / "02-audio"
-        has_audio = audio_dir.is_dir() and any(
-            f.suffix.lower() in (".mp3", ".wav", ".m4a")
-            for f in audio_dir.iterdir()
-            if f.is_file() and f.name != ".gitkeep"
-        )
-        transcript = PROJECTS_DIR / pid / "03-transcript" / "transcript.txt"
-        has_transcript = transcript.is_file() and transcript.stat().st_size > 50
-        if has_audio and has_transcript and p.get("queue_status", "upload") == "upload":
-            p["queue_status"] = "style"
-            save_project(pid, p)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

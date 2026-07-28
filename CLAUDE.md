@@ -11,7 +11,7 @@ Part 1 — Claude Code (here)     Part 2 — Studio UI
 ────────────────────────────    ────────────────────────────────────────
 Brainstorm topic                http://127.0.0.1:47829
 Write / approve script          Upload audio (.mp3)
-Create project folder           Upload transcript (.txt from TurboScribe)
+Create project folder           (transcript auto-generated locally via Whisper)
 Open Studio UI                  Pick visual style (preset or custom)
 Done — hand off                 ▶ Start Generation
                                   (auto-pauses on credits, auto-resumes)
@@ -79,7 +79,7 @@ bash scripts/status_studio.sh || bash scripts/start_studio.sh
 
 Tell the user:
 
-> Script is ready. Open **http://127.0.0.1:47829**, select "**[Title]**" in the sidebar, then upload your audio and transcript. The UI will walk you through the rest.
+> Script is ready. Open **http://127.0.0.1:47829**, select "**[Title]**" in the sidebar, then upload your audio. The transcript is generated automatically — the UI will walk you through the rest.
 
 **Stop here.** Do not run anything else. The Studio UI owns everything from this point.
 
@@ -107,7 +107,7 @@ Repeat Steps 1–3 for each additional video. Each video gets its own project. T
 
 The Studio UI at `http://127.0.0.1:47829` handles everything after the script:
 
-1. **Upload** — audio (.mp3) and TurboScribe transcript (.txt)
+1. **Upload** — audio (.mp3); transcript is generated automatically with a local Whisper model (`.venv-whisper`, `scripts/01_audio/generate_transcript.py`) — no manual TurboScribe export, progress bar shown in the UI
 2. **Style** — choose from visual presets or define a custom style prompt
 3. **Generate** — validates, queues the project; pipeline runs automatically
    - Image generation auto-pauses when Codex credits run out
@@ -127,7 +127,7 @@ projects/<slug>/
   project.json              ← status, style settings
   01-script/Script.txt      ← written by Claude in /start
   02-audio/                 ← user uploads narration .mp3 via Studio UI
-  03-transcript/            ← user uploads TurboScribe .txt via Studio UI
+  03-transcript/            ← auto-generated locally via Whisper (medium.en)
   04-manifest/              ← auto-generated frame plan
   05-images/                ← AI-generated frames
   06-output/final.mp4       ← rendered video
@@ -144,7 +144,7 @@ Queue: `tracker/queue.json` — list of `{id, title, status}`
 
 | Status | Meaning |
 |--------|---------|
-| `upload` | Waiting for audio + transcript uploads |
+| `upload` | Waiting for audio upload (transcript auto-generates after) |
 | `style` | Files ready, waiting for style selection |
 | `queued` | Style set, in queue |
 | `running` | Pipeline generating |
