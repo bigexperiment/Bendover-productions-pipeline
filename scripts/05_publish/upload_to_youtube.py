@@ -408,18 +408,31 @@ def main() -> int:
         tags,
     )
 
-    if not args.no_thumbnail and args.thumbnail.is_file():
-        set_thumbnail(youtube, video_id, args.thumbnail)
-    elif not args.no_thumbnail:
-        print(f"No thumbnail at {args.thumbnail}; skipping.")
-
+    # Save immediately once the video itself exists on YouTube — a thumbnail
+    # failure below (e.g. channel not phone-verified for custom thumbnails)
+    # must not lose track of an otherwise-successful upload and risk a
+    # duplicate re-upload on retry.
     save_video_id_to_project(video_id, args.channel)
     if args.channel:
         capture_channel_title(youtube, args.channel)
+
+    thumbnail_error = None
+    if not args.no_thumbnail and args.thumbnail.is_file():
+        try:
+            set_thumbnail(youtube, video_id, args.thumbnail)
+        except Exception as exc:
+            thumbnail_error = str(exc)
+            print(f"WARNING: video uploaded but thumbnail failed: {exc}", file=sys.stderr)
+    elif not args.no_thumbnail:
+        print(f"No thumbnail at {args.thumbnail}; skipping.")
+
     print(f"Studio: https://studio.youtube.com/video/{video_id}/edit")
     print(f"Watch:  https://youtu.be/{video_id}")
     title = args.title.strip() or "Video"
-    send_ntfy(f"✅ Uploaded: {title}\nhttps://youtu.be/{video_id}")
+    if thumbnail_error:
+        send_ntfy(f"⚠ Uploaded (thumbnail failed): {title}\nhttps://youtu.be/{video_id}")
+    else:
+        send_ntfy(f"✅ Uploaded: {title}\nhttps://youtu.be/{video_id}")
     return 0
 
 

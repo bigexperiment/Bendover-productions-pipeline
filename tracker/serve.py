@@ -1091,8 +1091,16 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         env = {**os.environ, "PIPELINE_ROOT": adir}
                         upload_script = ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
+                        # A video ID already on this record means a prior attempt already
+                        # created the video on YouTube (e.g. upload succeeded but a later
+                        # step like the thumbnail failed) — update it in place instead of
+                        # uploading a duplicate video.
+                        existing_id = (load_archive_meta(aslug) or {}).get("youtube_video_id")
+                        cmd = [sys.executable, str(upload_script), "--channel", channel]
+                        if existing_id:
+                            cmd += ["--update", "--video-id", existing_id]
                         result = subprocess.run(
-                            [sys.executable, str(upload_script), "--channel", channel],
+                            cmd,
                             cwd=ROOT, env=env, timeout=600,
                             capture_output=True, text=True,
                         )
@@ -1462,8 +1470,14 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     env = {**os.environ, "PIPELINE_ROOT": proj_dir}
                     upload_script = ROOT / "scripts" / "05_publish" / "upload_to_youtube.py"
+                    # Existing video ID means a prior attempt already created the video
+                    # on YouTube — update it in place rather than uploading a duplicate.
+                    existing_id = (load_project(pid) or {}).get("youtube_video_id")
+                    cmd = [sys.executable, str(upload_script), "--channel", channel]
+                    if existing_id:
+                        cmd += ["--update", "--video-id", existing_id]
                     subprocess.run(
-                        [sys.executable, str(upload_script), "--channel", channel],
+                        cmd,
                         cwd=ROOT, env=env, timeout=600,
                     )
                 except Exception:
