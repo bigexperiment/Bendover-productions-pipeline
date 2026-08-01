@@ -19,6 +19,7 @@ import urllib.error
 ROOT = Path(__file__).resolve().parent.parent
 TRACKER = Path(__file__).resolve().parent
 PROJECTS_DIR = ROOT / "projects"
+PROJECTS_DELETED_DIR = PROJECTS_DIR / ".deleted"
 QUEUE_FILE = TRACKER / "queue.json"
 QUEUE_PID_FILE = TRACKER / "queue.pid"
 INDEX_FILE = TRACKER / "index.html"
@@ -1301,6 +1302,29 @@ class Handler(BaseHTTPRequestHandler):
                 if entry["id"] == pid:
                     entry["status"] = "paused"
             save_queue(q)
+            self.send_json({"ok": True})
+            return
+
+        # ── Delete project (soft — moves to projects/.deleted/, not erased) ────
+        if action == "delete":
+            p = load_project(pid)
+            if p and p.get("queue_status") in ("running", "queued"):
+                self.send_json({
+                    "ok": False,
+                    "error": "Project is running or queued — stop it first before deleting.",
+                })
+                return
+
+            src = PROJECTS_DIR / pid
+            PROJECTS_DELETED_DIR.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%dT%H%M%S")
+            dest = PROJECTS_DELETED_DIR / f"{pid}__{stamp}"
+            shutil.move(str(src), str(dest))
+
+            q = load_queue()
+            q = [entry for entry in q if entry["id"] != pid]
+            save_queue(q)
+
             self.send_json({"ok": True})
             return
 

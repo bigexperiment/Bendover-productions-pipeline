@@ -150,12 +150,19 @@ body {
 .proj-item.active {
   background: var(--accent-soft); border-color: var(--accent-mid);
 }
+.proj-item .proj-name-row { display: flex; align-items: center; gap: 6px; }
 .proj-item .proj-name {
-  font-size: 13px; font-weight: 600;
+  font-size: 13px; font-weight: 600; flex: 1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--text);
 }
 .proj-item.active .proj-name { color: var(--accent-text); }
+.proj-delete-btn {
+  border: none; background: none; color: var(--muted-2); cursor: pointer;
+  font-size: 12px; padding: 2px 5px; border-radius: 5px; opacity: 0; flex-shrink: 0;
+}
+.proj-item:hover .proj-delete-btn { opacity: 1; }
+.proj-delete-btn:hover { background: var(--red-soft); color: var(--red-text); }
 
 /* Archive nav + view */
 #archive-nav { padding: 6px 8px 12px; margin-top: auto; border-top: 1px solid var(--border); }
@@ -813,7 +820,10 @@ function renderSidebar() {
   }
   el.innerHTML = projects.map(p => `
     <div class="proj-item${p.id === selectedId ? ' active' : ''}" onclick="selectProject('${esc(p.id)}')">
-      <div class="proj-name">${esc(p.title || p.id)}</div>
+      <div class="proj-name-row">
+        <div class="proj-name">${esc(p.title || p.id)}</div>
+        <button class="proj-delete-btn" title="Delete project" onclick="event.stopPropagation();deleteProject('${esc(p.id)}','${esc(p.title||p.id)}','${esc(p.status||'upload')}')">🗑</button>
+      </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
         <span class="badge badge-${p.status||'upload'}">${badgeDot(p.status)}<span>${STATUS_LABELS[p.status]||p.status}</span></span>
         ${p.youtube_video_id && p.youtube_channel ? `<span class="badge badge-upload" title="Uploaded to ${esc(channelLabel(p.youtube_channel))}">▶ ${esc(channelLabel(p.youtube_channel))}</span>` : ''}
@@ -824,6 +834,21 @@ function renderSidebar() {
 
 function badgeDot(s) {
   return s === 'running' ? '<span class="badge-dot"></span>' : '';
+}
+
+async function deleteProject(id, title, status) {
+  if (status === 'running' || status === 'queued') {
+    alert('This project is ' + status + ' — stop generation first before deleting.');
+    return;
+  }
+  if (!confirm('Delete "' + title + '"?\n\nIt will be moved to projects/.deleted/, not permanently erased.')) return;
+  const r = await post('/api/project/' + id + '/delete', {});
+  if (r.ok) {
+    if (selectedId === id) { selectedId = null; showProjects(); }
+    await refreshProjects();
+  } else {
+    alert('Error: ' + (r.error || 'Delete failed'));
+  }
 }
 
 // ── Archive nav + view ──────────────────────────────────────────────────────────
