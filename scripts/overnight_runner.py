@@ -33,7 +33,10 @@ BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
 BUILD_SHOT_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_shot_plan.py"
 GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
 VERIFY_FRAMES = SCRIPTS_ROOT / "scripts" / "03_images" / "verify_frames.py"
+VALIDATE_FRAMES = SCRIPTS_ROOT / "scripts" / "03_images" / "validate_frames.py"
+SEMANTIC_MANIFEST_GATE = SCRIPTS_ROOT / "scripts" / "03_images" / "semantic_manifest_gate.py"
 RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "render_draft_video.py"
+AUDIT_RENDER = SCRIPTS_ROOT / "scripts" / "04_render" / "audit_render.py"
 THUMBNAIL = SCRIPTS_ROOT / "scripts" / "05_publish" / "generate_thumbnail.py"
 SUGGEST_TEXT = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_thumbnail_text.py"
 SUGGEST_DESC = SCRIPTS_ROOT / "scripts" / "05_publish" / "suggest_description.py"
@@ -74,7 +77,12 @@ def ensure_studio() -> None:
         ["bash", str(STATUS_STUDIO)], cwd=ROOT, capture_output=True, text=True
     )
     if result.returncode != 0:
-        run(["bash", str(START_STUDIO)], "start Studio")
+        # Monitoring is useful but must never be a production dependency. A
+        # restricted/containerized host may forbid local port binding; the
+        # pipeline can still report progress through its tracker JSON/logs.
+        studio = run(["bash", str(START_STUDIO)], "start Studio", check=False)
+        if studio.returncode != 0:
+            log("WARNING: Studio unavailable; continuing with file/log status tracking")
 
 
 def main() -> int:
@@ -112,10 +120,10 @@ def main() -> int:
         send_ntfy(f"Pipeline FAILED: preflight errors after build_plan. {name}")
         return 1
 
-    # Creative-director pass — full-video context, recurring cast, varied shot
-    # types, sparing on-screen text. Best-effort: if it fails, generate_images.py
-    # falls back to the mechanical scene text build_plan.py already wrote.
-    if not SHOT_PLAN_FILE.is_file():
+    # Optional creative-director pass. The transcript-first manifest is the
+    # reliable default; an external director subprocess must never be required
+    # for unattended production (it can be unavailable in restricted hosts).
+    if os.environ.get("ENABLE_DIRECTOR_PASS") == "1" and not SHOT_PLAN_FILE.is_file():
         shot_plan_result = run(["python3", str(BUILD_SHOT_PLAN)], "build shot plan (director pass)", check=False)
         if shot_plan_result.returncode != 0:
             log("WARNING: shot plan generation failed — continuing with mechanical scene text")
@@ -146,13 +154,18 @@ def main() -> int:
         text=True,
     )
     if verify_result.returncode != 0:
-        log("WARNING: some frames still failed QA after retries — rendering anyway, review needed")
-        send_ntfy(f"Pipeline WARNING: {name} has frames that failed QA after retries — check the log")
+        log("ABORT: frame QA failed — refusing to render")
+        send_ntfy(f"Pipeline FAILED: {name} frame QA failed; no video rendered")
+        return 1
+
+    run(["python3", str(VALIDATE_FRAMES), str(ROOT)], "semantic frame gate")
+    run(["python3", str(SEMANTIC_MANIFEST_GATE)], "transcript-first manifest contract gate")
 
     # Render
     if FINAL_MP4.is_file():
         FINAL_MP4.unlink()
     run(["python3", str(RENDER), "--output", str(FINAL_MP4)], "render final.mp4")
+    run(["python3", str(AUDIT_RENDER), str(FINAL_MP4)], "render/audio alignment audit")
 
     if FINAL_MP4.is_file():
         size_mb = FINAL_MP4.stat().st_size / (1024 * 1024)

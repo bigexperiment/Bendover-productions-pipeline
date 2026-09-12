@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import os
 import subprocess
 import sys
 import tempfile
@@ -41,7 +42,17 @@ def load_manifest_durations() -> dict[str, int]:
 
 
 def ordered_images() -> list[Path]:
-    files = sorted(IMAGES_DIR.glob("*.png"), key=lambda path: timestamp_from_stem(path.stem))
+    # The manifest is authoritative.  Do not let stale/untracked PNGs enter a
+    # render: they can have timestamps outside the narrated timeline or belong
+    # to an older test and create duplicate/zero-duration segments.
+    names: list[str] = []
+    if MANIFEST_FILE.is_file():
+        with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as fh:
+            names = [row["filename"] for row in csv.DictReader(fh) if row.get("filename")]
+    files = [IMAGES_DIR / name for name in names] if names else sorted(
+        IMAGES_DIR.glob("*.png"), key=lambda path: timestamp_from_stem(path.stem)
+    )
+    files = [path for path in files if path.is_file()]
     if not files:
         raise FileNotFoundError(f"No PNG files found in {IMAGES_DIR}")
     return files
@@ -185,6 +196,14 @@ def main() -> int:
     audio_file = args.audio or find_narration_audio()
     if not audio_file.exists():
         raise FileNotFoundError(f"Missing audio file: {audio_file}")
+
+    validate = PROJECT_ROOT / "scripts" / "03_images" / "validate_frames.py"
+    project_root = Path(os.environ.get("PIPELINE_ROOT") or PROJECT_ROOT)
+    if validate.is_file():
+        validate_args = ["python3", str(validate), str(project_root)]
+        if args.limit is not None:
+            validate_args += ["--limit", str(args.limit)]
+        subprocess.run(validate_args, check=True)
 
     files = ordered_images()
     timeline, total_duration = build_segments(files, args.limit, audio_file)

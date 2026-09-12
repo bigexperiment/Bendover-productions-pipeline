@@ -18,10 +18,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_IMAGE_STYLE = (
-    "simple educational cartoon illustration, hand-drawn doodle animation style, "
-    "thick black outlines, flat colors, minimal shading, stickman characters, "
-    "round white heads, expressive faces, thin black limbs, simple YouTube explainer "
-    "animation style, clean background, limited colors, humorous but clear."
+    "minimal educational cartoon illustration, hand-drawn doodle animation style, "
+    "thick black outlines, flat colors, almost no shading, simple expressive characters, "
+    "large readable silhouettes, empty background, limited colors, one-second visual read."
+)
+
+STYLE_LOCK = (
+    "STYLE LOCK: same flat hand-drawn educational cartoon language as every other frame: "
+    "thick black outlines, flat limited colors, nearly no shading, simple expressive characters, "
+    "plain cream/white background, clean 16:9 composition. Never switch to photorealism, anime, "
+    "3D, detailed painting, stick figures, or a different line style."
 )
 
 DEFAULT_STYLE_GUIDE = """- Show only one main idea, with at most one supporting element — never a cluttered scene.
@@ -64,6 +70,7 @@ class FrameJob:
     filename: str
     scene: str
     transcript: str
+    context: str = ""
 
 
 def image_style(project: dict) -> str:
@@ -154,9 +161,14 @@ def build_scene_description(project: dict, job: FrameJob, root: Path, shot_plan:
     parts = [
         build_video_context_block(project, root),
         "",
-        f'At {job.timestamp}, narrator says: "{job.transcript}"',
+        f'At {job.timestamp}, narrator says exactly: "{job.transcript}"',
+        f'Full semantic context: "{job.context or job.transcript}"',
         f"Shot type: {shot_type} — {SHOT_TYPE_HINTS.get(shot_type, '')}",
-        f"Scene: {scene_text}",
+        f"Exact visual for this audio beat only: {scene_text}",
+        STYLE_LOCK,
+        "TRANSCRIPT-FIRST RULE: the spoken words and the exact visual beat above outrank the broad context. "
+        "Depict the concrete subject or action named by this short transcript, not a generic image for the topic. "
+        "If the transcript is a fragment, complete its meaning only from the full semantic context; do not invent a different event.",
         f"Tone: {tone}",
     ]
     cast_block = build_cast_block(shot_plan, shot)
@@ -214,6 +226,14 @@ This is frame #{job.filename} for a narrated YouTube video.
 Project: {name}
 Timestamp: {job.timestamp}
 Narrator says: "{job.transcript}"
+
+VISUAL SYNC GATE:
+- This image plays only while the sentence above is spoken.
+- Show the single concrete subject/action that best communicates that sentence.
+- Do not summarize the whole video, add future/past events, or combine multiple ideas.
+- Use at most one main subject and one supporting object; leave the rest of the canvas empty.
+- If the sentence is abstract, use one clear metaphor or one simple diagram, never a collage.
+- The viewer must understand the image in one second.
 
 Output:
 - 16:9 landscape

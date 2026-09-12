@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -42,11 +43,11 @@ BUILD_PLAN = SCRIPTS_ROOT / "scripts" / "02_manifest" / "build_plan.py"
 GENERATE = SCRIPTS_ROOT / "scripts" / "03_images" / "generate_images.py"
 
 
-def manifest_frames() -> list[str]:
+def manifest_rows() -> list[dict[str, str]]:
     if not MANIFEST_FILE.is_file():
         return []
     with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as handle:
-        return [row["filename"] for row in csv.DictReader(handle) if row.get("filename")]
+        return [row for row in csv.DictReader(handle) if row.get("filename")]
 
 
 def file_hash(path: Path) -> str:
@@ -59,7 +60,8 @@ def find_bad_frames() -> list[tuple[str, str]]:
     hashes: dict[str, str] = {}  # digest -> first filename that had it
     dup_groups: dict[str, list[str]] = defaultdict(list)
 
-    for filename in manifest_frames():
+    for row in manifest_rows():
+        filename = row["filename"]
         path = IMAGES_DIR / filename
         if not path.is_file():
             bad.append((filename, "missing"))
@@ -74,6 +76,16 @@ def find_bad_frames() -> list[tuple[str, str]]:
             continue
         digest = file_hash(path)
         dup_groups[digest].append(filename)
+        metadata = IMAGES_DIR / f".{filename}.prompt.json"
+        if not metadata.is_file():
+            bad.append((filename, "missing prompt provenance"))
+        else:
+            try:
+                meta = json.loads(metadata.read_text(encoding="utf-8"))
+                if meta.get("image_sha256") != digest:
+                    bad.append((filename, "prompt provenance is for different pixels"))
+            except (OSError, json.JSONDecodeError):
+                bad.append((filename, "invalid prompt provenance"))
 
     # Any hash shared by 2+ frames: keep the first, redo the others.
     for digest, names in dup_groups.items():
@@ -102,7 +114,7 @@ def main() -> int:
     for attempt in range(1, rounds + 1):
         bad = find_bad_frames()
         if not bad:
-            print(f"[verify] all {len(manifest_frames())} frames clean.")
+            print(f"[verify] all {len(manifest_rows())} frames clean.")
             return 0
 
         print(f"[verify] round {attempt}/{rounds}: {len(bad)} bad frame(s):")

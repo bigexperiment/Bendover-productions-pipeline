@@ -1,0 +1,23 @@
+{
+  "project": "How the Silk Road Shaped the World",
+  "phase": "Verified",
+  "percent": 100,
+  "message": "Complete printing-press video rendered after per-row manifest prompt generation and validation.",
+  "images": "84 unique manifest frames used",
+  "audio": "181.61 seconds",
+  "output": "printing-press-complete.mp4 (verified)",
+  "updated_at": "now",
+  "events": [
+    "TTS complete",
+    "Shot plan complete",
+    "5 Imagen jobs completed in parallel",
+    "Images distributed across full timeline",
+    "Render complete: 4:03 MP4 with video and narration audio",
+    "2-minute test complete with image changes every 2\u20133 seconds",
+    "Changed prompt gate: no whole-video summaries, collages, or noisy backgrounds",
+    "3-minute test complete with corrected minimal visual prompt style",
+    "QA checked audio/image pairs at 0s, 60s, 120s, and 174s",
+    "Verified exact stored manifest prompt -> Imagen output -> matching audio segment",
+    "Full render complete; final duration, audio, and video streams verified"
+  ]
+}

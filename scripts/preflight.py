@@ -11,8 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__import__("os").environ.get("PIPELINE_ROOT") or REPO_ROOT)
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from lib.audio_paths import find_narration_audio  # noqa: E402
 from lib.folders import (  # noqa: E402
@@ -28,7 +29,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 
 _spec = spec_from_file_location(
     "build_plan_preflight",
-    ROOT / "scripts" / "02_manifest" / "build_plan.py",
+    REPO_ROOT / "scripts" / "02_manifest" / "build_plan.py",
 )
 assert _spec and _spec.loader
 _build_plan = module_from_spec(_spec)
@@ -208,7 +209,7 @@ def run_preflight(*, phase: str = "manifest") -> int:
             if not project.get("style_approved"):
                 warn(warnings, "style_approved is false — get sample approval before bulk gen")
 
-        status_script = ROOT / "scripts" / "status_studio.sh"
+        status_script = REPO_ROOT / "scripts" / "status_studio.sh"
         if status_script.is_file():
             result = subprocess.run(
                 [str(status_script)],

@@ -398,14 +398,17 @@ def refresh_progress() -> int:
         manifest_rows: list[dict[str, str]] = []
         with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
-            has_duration = "duration" in (reader.fieldnames or [])
+            original_fields = list(reader.fieldnames or [])
             for row in reader:
                 row["status"] = "done" if row["filename"] in existing else "pending"
                 manifest_rows.append(row)
 
-        fieldnames = ["timestamp", "filename", "scene", "transcript", "status"]
-        if has_duration:
-            fieldnames.append("duration")
+        # Preserve authored semantic fields (context, prompt, and any future
+        # manifest columns) during refresh instead of dropping them or making
+        # DictWriter reject the row.
+        fieldnames = original_fields or ["timestamp", "filename", "scene", "transcript", "status"]
+        if "status" not in fieldnames:
+            fieldnames.append("status")
         _atomic_write_csv(MANIFEST_FILE, fieldnames, manifest_rows)
 
         total = len(manifest_rows)

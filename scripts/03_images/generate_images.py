@@ -36,7 +36,10 @@ RUNNER_LOG = TRACKER_DIR / "runner.log"
 MANIFEST_SCRIPT = SCRIPTS_ROOT / "scripts/02_manifest/build_plan.py"
 CREDITS_DIR = SCRIPTS_ROOT / "scripts/07_credits"
 DEFAULT_WORKERS = 5
-JOB_TIMEOUT_SEC = 20 * 60
+# A worker that has not produced a verified PNG within five minutes is treated
+# as wedged (typically an auth/MCP startup failure) and retried automatically.
+# Do not let one stuck Codex subprocess hold an unattended queue for 20 minutes.
+JOB_TIMEOUT_SEC = int(os.environ.get("IMAGE_JOB_TIMEOUT_SEC") or 5 * 60)
 CREDIT_POLL_INTERVAL = 5 * 60  # poll every 5 min while waiting
 EXTRA_WAIT_AFTER_RESET = 90  # buffer after reset timestamp passes
 MAX_RETRIES = 3  # max attempts per frame before marking permanently failed
@@ -64,16 +67,21 @@ def read_pending_jobs(limit: int | None = None) -> list[FrameJob]:
     jobs: list[FrameJob] = []
     with MANIFEST_FILE.open("r", encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
-            if row.get("status") != "pending":
+            image_path = IMAGES_DIR / row["filename"]
+            metadata_path = IMAGES_DIR / f".{row['filename']}.prompt.json"
+            # A PNG without provenance is legacy/untrusted output. It must be
+            # regenerated, even if the pixels happen to be present.
+            if row.get("status") != "pending" and image_path.exists() and metadata_path.is_file():
                 continue
-            if (IMAGES_DIR / row["filename"]).exists():
-                continue
+            if image_path.exists() and not metadata_path.is_file():
+                image_path.unlink()
             jobs.append(
                 FrameJob(
                     timestamp=row["timestamp"],
                     filename=row["filename"],
                     scene=row["scene"],
                     transcript=row["transcript"],
+                    context=row.get("context", ""),
                 )
             )
     return jobs[:limit] if limit else jobs
@@ -81,6 +89,32 @@ def read_pending_jobs(limit: int | None = None) -> list[FrameJob]:
 
 def file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def prompt_fingerprint(job: FrameJob) -> str:
+    payload = "\x1f".join((job.timestamp, job.filename, job.scene, job.transcript, job.context))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def write_prompt_metadata(job: FrameJob, image_path: Path) -> None:
+    """Bind the generated pixels to the exact manifest job that produced them."""
+    metadata_path = IMAGES_DIR / f".{job.filename}.prompt.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "filename": job.filename,
+                "prompt_fingerprint": prompt_fingerprint(job),
+                "image_sha256": file_hash(image_path),
+                "timestamp": job.timestamp,
+                "transcript": job.transcript,
+                "context": job.context,
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def load_known_hashes() -> dict[str, str]:
@@ -105,6 +139,7 @@ def launch_job(job: FrameJob, project: dict) -> tuple[subprocess.Popen[str], IO[
     command = [
         "codex",
         "exec",
+        "--ephemeral",
         "--enable",
         "image_generation",
         "-s",
@@ -137,23 +172,32 @@ def append_log(message: str) -> None:
 
 
 def refresh_manifest() -> None:
-    result = subprocess.run(
-        ["python3", str(MANIFEST_SCRIPT), "refresh"],
-        cwd=ROOT,
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            ["python3", str(MANIFEST_SCRIPT), "refresh"],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        append_log("manifest refresh timed out; continuing worker supervision")
+        return
     if result.returncode != 0:
         msg = result.stderr.decode(errors="replace")[:200]
         append_log(f"manifest refresh failed (exit={result.returncode}): {msg}")
 
 
 def refresh_usage(force: bool = False) -> dict:
-    subprocess.run(
-        ["python3", str(CREDITS_DIR / "fetch_codex_usage.py")] + (["--force"] if force else []),
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-    )
+    try:
+        subprocess.run(
+            ["python3", str(CREDITS_DIR / "fetch_codex_usage.py")] + (["--force"] if force else []),
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        append_log("usage refresh timed out; continuing generation without fresh quota data")
     return read_usage_payload(force=force)
 
 
@@ -263,14 +307,16 @@ def parse_args() -> tuple[int, int | None, bool]:
     workers = DEFAULT_WORKERS
     limit = None
     force = False
+    numbers: list[int] = []
     for arg in sys.argv[1:]:
         if arg == "--force":
             force = True
         elif arg.isdigit():
-            if workers == DEFAULT_WORKERS and limit is None:
-                workers = int(arg)
-            else:
-                limit = int(arg)
+            numbers.append(int(arg))
+    if numbers:
+        workers = numbers[0]
+    if len(numbers) > 1:
+        limit = numbers[1]
     return workers, limit, force
 
 
@@ -288,6 +334,7 @@ def run_generation_batch(
     # running holds: job, proc, start_time, log_handle
     running: dict[str, tuple[FrameJob, subprocess.Popen[str], float, IO[str]]] = {}
     credits_hit = False
+    last_usage_check = 0.0
 
     while queue or running:
         # Bail immediately if a stop was requested from the UI
@@ -304,22 +351,27 @@ def run_generation_batch(
             running.clear()
             return queue, completed, failed, False
 
-        usage = refresh_usage(force=True)
-        if should_stop_generation(usage)[0]:
-            credits_hit = True
-            for _, (_, proc, _, _) in list(running.items()):
-                if proc.poll() is None:
-                    proc.terminate()
-            for filename, (job, proc, _, log_handle) in list(running.items()):
-                try:
-                    proc.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                log_handle.close()
-                if not (IMAGES_DIR / filename).is_file():
-                    queue.insert(0, job)
-            running.clear()
-            break
+        # Quota is slow/network-backed; do not block the worker supervision
+        # loop on it every two seconds. Cached usage is sufficient between
+        # checks and keeps timeout/retry handling responsive.
+        if time.time() - last_usage_check >= 300:
+            usage = refresh_usage(force=True)
+            last_usage_check = time.time()
+            if should_stop_generation(usage)[0]:
+                credits_hit = True
+                for _, (_, proc, _, _) in list(running.items()):
+                    if proc.poll() is None:
+                        proc.terminate()
+                for filename, (job, proc, _, log_handle) in list(running.items()):
+                    try:
+                        proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                    log_handle.close()
+                    if not (IMAGES_DIR / filename).is_file():
+                        queue.insert(0, job)
+                running.clear()
+                break
 
         while queue and len(running) < workers:
             job = queue.pop(0)
@@ -362,6 +414,7 @@ def run_generation_batch(
                     duplicate_of = seen_hashes.get(digest)
                     if duplicate_of is None:
                         seen_hashes[digest] = filename
+                        write_prompt_metadata(job, image_path)
                         completed += 1
             if code != 0 or not image_path.is_file() or duplicate_of or degraded_bytes:
                 if duplicate_of or degraded_bytes:
@@ -385,7 +438,9 @@ def run_generation_batch(
         for filename in done_now:
             del running[filename]
 
-        refresh_manifest()
+        # Do not refresh the CSV on every supervision tick: it is a separate
+        # process and can block the image queue. The manifest is refreshed once
+        # after generation completes; provenance is the authoritative gate.
         write_recent()
         write_status(
             workers=workers,

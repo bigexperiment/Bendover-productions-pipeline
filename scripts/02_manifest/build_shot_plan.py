@@ -196,7 +196,7 @@ def generate_cast_reference(project: dict, cast: dict[str, str]) -> bool:
     try:
         subprocess.run(
             [
-                "codex", "exec",
+                "codex", "exec", "--ephemeral",
                 "--enable", "image_generation",
                 "-s", "workspace-write",
                 "--dangerously-bypass-approvals-and-sandbox",
@@ -219,7 +219,7 @@ def run_codex_text(prompt: str) -> None:
     env["TERM"] = "xterm-256color"
     subprocess.run(
         [
-            "codex", "exec",
+            "codex", "exec", "--ephemeral",
             "-s", "workspace-write",
             "--dangerously-bypass-approvals-and-sandbox",
             "-C", str(ROOT),
